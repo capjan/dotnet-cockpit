@@ -50,6 +50,7 @@ internal static class PageLayout
             "server" => "<rect x=\"4\" y=\"2\" width=\"12\" height=\"16\" rx=\"2\"/><path d=\"M7 6h6M7 9h6M7 14h2\"/>",
             "refresh" => "<path d=\"M17 7a7 7 0 1 0 0 6M17 2v5h-5\"/>",
             "download" => "<path d=\"M10 2v10m0 0 4-4m-4 4-4-4M3 15v3h14v-3\"/>",
+            "trash" => "<path d=\"M4 6h12m-9 0v-2h6v2m-7 3v5m4-5v5m4-5v5M6 6l.7 11h6.6L14 6\"/>",
             "search" => "<circle cx=\"8.5\" cy=\"8.5\" r=\"5.5\"/><path d=\"m13 13 5 5\"/>",
             "settings" => "<path d=\"M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4\"/><circle cx=\"10\" cy=\"10\" r=\"3.2\"/>",
             _ => "<rect x=\"2\" y=\"3\" width=\"16\" height=\"11\" rx=\"1\"/><path d=\"M7 18h6M10 14v4\"/>"

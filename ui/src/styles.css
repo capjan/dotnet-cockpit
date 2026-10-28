@@ -114,6 +114,8 @@ fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px 
 .setup-card { margin-top: 20px; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; }
 .setup-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .setup-card-actions { display: flex; align-items: center; gap: 10px; }
+.setup-card-actions form { margin: 0; }
+.setup-icon-button { width: 34px; min-width: 34px; padding-inline: 8px; }
 .setup-title { display: flex; align-items: flex-start; gap: 12px; }
 .setup-title p { margin: 6px 0 0; font-size: 12px; }
 .setup-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 8px; color: var(--brand); background: var(--brand-soft); }

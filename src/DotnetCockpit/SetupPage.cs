@@ -47,12 +47,11 @@ internal static class SetupPage
     private static string RenderToolCard(SetupSnapshot snapshot)
     {
         var installed = snapshot.UninstallTool.Installed;
-        var status = installed
-            ? "<fluent-badge appearance=\"tint\" color=\"success\">Installed</fluent-badge>"
+        var headerActions = installed
+            ? snapshot.UninstallTool.Scope == "global"
+                ? $"<div class=\"setup-card-actions\"><form method=\"post\" action=\"/setup/uninstall\"><button class=\"button danger setup-icon-button\" type=\"submit\" aria-label=\"Uninstall .NET Uninstall Tool\" title=\"Uninstall .NET Uninstall Tool\">{Icon("trash")}</button></form></div>"
+                : ""
             : "<fluent-badge appearance=\"outline\" color=\"neutral\">Not installed</fluent-badge>";
-        var headerActions = installed && snapshot.UninstallTool.Scope == "global"
-            ? $"<div class=\"setup-card-actions\">{status}<form method=\"post\" action=\"/setup/uninstall\"><button class=\"button danger\" type=\"submit\">Uninstall</button></form></div>"
-            : status;
         var details = installed
             ? RenderInstalledDetails(snapshot)
             : RenderInstallDetails(snapshot);

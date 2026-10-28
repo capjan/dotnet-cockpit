@@ -38,11 +38,13 @@ public sealed class SetupPageTests
             AvailableReleases: [new SetupRelease("1.7.661902", "https://github.com/dotnet/cli-lab/releases/tag/1.7.661902", null, "dotnet-core-uninstall-osx-arm64.tar.gz")]);
         var html = SetupPage.Render(snapshot, new());
 
-        Assert.Contains("Installed", html);
+        Assert.DoesNotContain("<fluent-badge appearance=\"tint\" color=\"success\">Installed</fluent-badge>", html);
         Assert.Contains("/usr/local/bin/dotnet-core-uninstall", html);
         Assert.Contains("Installed version <code>1.7.661902</code>", html);
         Assert.Contains("Ready to list and remove .NET Installations", html);
-        Assert.Contains(">Uninstall</button>", html);
+        Assert.Contains("aria-label=\"Uninstall .NET Uninstall Tool\"", html);
+        Assert.Contains("title=\"Uninstall .NET Uninstall Tool\"", html);
+        Assert.Contains("setup-icon-button", html);
         Assert.Contains("action=\"/setup/uninstall\"", html);
         Assert.DoesNotContain("Uninstall globally", html);
         Assert.DoesNotContain("action=\"/setup/update\"", html);
