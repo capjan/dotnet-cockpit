@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <AssemblyName>dotnet-cockpit</AssemblyName>
+    <RootNamespace>DotnetCockpit</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <IsPackable>true</IsPackable>
+    <ToolCommandName>dotnet-cockpit</ToolCommandName>
+    <PackageId>dotnet-cockpit</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Jan Ruhlaender</Authors>
+    <Description>A local browser cockpit for your .NET installations.</Description>
+    <RepositoryUrl>https://github.com/capjan/dotnet-cockpit</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Remove="wwwroot/**/*" />
+    <EmbeddedResource Include="wwwroot/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <InternalsVisibleTo Include="DotnetCockpit.Tests" />
+  </ItemGroup>
+  <Target Name="CheckUserInterface" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('wwwroot/index.html')" Text="Build the browser UI first: npm --prefix ui ci &amp;&amp; npm --prefix ui run build (from the repository root)." />
+  </Target>
+</Project>

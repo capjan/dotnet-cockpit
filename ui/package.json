@@ -1,0 +1,26 @@
+{
+  "name": "dotnet-cockpit-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@fluentui/react-components": "9.75.0",
+    "@fluentui/react-icons": "2.0.344",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}

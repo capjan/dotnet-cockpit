@@ -1,0 +1,126 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: '0.1.0'
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native AOT (${{ matrix.rid }})
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            rid: linux-x64
+            exe: dotnet-cockpit
+          - os: windows-latest
+            rid: win-x64
+            exe: dotnet-cockpit.exe
+          - os: macos-15-intel
+            rid: osx-x64
+            exe: dotnet-cockpit
+          - os: macos-latest
+            rid: osx-arm64
+            exe: dotnet-cockpit
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.402
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Build browser UI
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+      - name: Unit tests
+        run: dotnet test DotnetCockpit.sln --configuration Release
+      - name: Install Native AOT prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes clang zlib1g-dev
+      - name: Publish Native AOT executable
+        shell: bash
+        env:
+          PACKAGE_VERSION: ${{ inputs.version || '0.1.0' }}
+        run: dotnet publish src/DotnetCockpit/DotnetCockpit.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained true -p:PublishAot=true -warnaserror:IL2026,IL2104,IL3050,IL3053 -p:Version="$PACKAGE_VERSION" --output artifacts/native
+      - name: Smoke test published executable
+        run: node scripts/smoke.mjs artifacts/native/${{ matrix.exe }}
+      - name: Install browser for UI tests
+        if: runner.os == 'Linux'
+        working-directory: ui
+        run: npx playwright install --with-deps chromium
+      - name: Test UI against native backend
+        if: runner.os == 'Linux'
+        run: npm --prefix ui run test:browser
+      - name: Archive native executable
+        shell: pwsh
+        env:
+          RID: ${{ matrix.rid }}
+        run: |
+          if ($env:RUNNER_OS -eq 'Windows') {
+            Compress-Archive -Path artifacts/native/dotnet-cockpit.exe -DestinationPath "artifacts/dotnet-cockpit-$env:RID.zip"
+          } else {
+            tar -czf "artifacts/dotnet-cockpit-$env:RID.tar.gz" -C artifacts/native dotnet-cockpit
+          }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-cockpit-${{ matrix.rid }}
+          path: artifacts/dotnet-cockpit-${{ matrix.rid }}.*
+          if-no-files-found: error
+      - name: Upload browser failure traces
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-test-results
+          path: ui/test-results/
+          if-no-files-found: ignore
+
+  tool:
+    name: .NET tool package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.402
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Build browser UI
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+      - name: Pack .NET tool
+        env:
+          PACKAGE_VERSION: ${{ inputs.version || '0.1.0' }}
+        run: dotnet pack src/DotnetCockpit/DotnetCockpit.csproj --configuration Release -p:Version="$PACKAGE_VERSION" --output artifacts/packages
+      - name: Install and smoke test tool package
+        env:
+          PACKAGE_VERSION: ${{ inputs.version || '0.1.0' }}
+        run: |
+          dotnet tool install dotnet-cockpit --tool-path "$PWD/artifacts/tool" --add-source "$PWD/artifacts/packages" --version "$PACKAGE_VERSION"
+          PATH="$PWD/artifacts/tool:$PATH" dotnet cockpit --help
+          node scripts/smoke.mjs artifacts/tool/dotnet-cockpit --tool
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-tool
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error

@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/node_modules/
+src/DotnetCockpit/wwwroot/*
+artifacts/
+ui/playwright-report/
+ui/test-results/
+.DS_Store
+*.user
