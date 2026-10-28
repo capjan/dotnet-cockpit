@@ -35,7 +35,7 @@ internal static class SetupPage
         return PageLayout.Render($"""
             <div class="breadcrumb">Environment <span>/</span> Setup</div>
             <div class="page-heading">
-              <div><h1>Setup</h1><p class="muted intro">Prepare optional tools for managing your local .NET installation.</p></div>
+              <div><h1>Setup</h1><p class="muted intro">Prepare the global tools used to manage your local .NET installation.</p></div>
               <a class="button primary" href="/setup">Refresh</a>
             </div>
             {RenderNotice(options.Notice)}
@@ -51,24 +51,12 @@ internal static class SetupPage
             ? "<fluent-badge appearance=\"tint\" color=\"success\">Installed</fluent-badge>"
             : "<fluent-badge appearance=\"outline\" color=\"neutral\">Not installed</fluent-badge>";
         var details = installed
-            ? $"""
-                <div class="setup-installed" role="status">
-                  <strong>Ready to manage installed .NET versions</strong>
-                  <span class="muted">Detected at <code>{Encode(snapshot.UninstallTool.Path ?? "")}</code> ({Encode(snapshot.UninstallTool.Scope ?? "path")} installation).</span>
-                  {(snapshot.UninstallTool.Scope is "user" or "global"
-                      ? $"<form class=\"setup-installed-actions\" method=\"post\" action=\"/setup/uninstall\"><button class=\"button danger\" type=\"submit\">Uninstall {Encode(snapshot.UninstallTool.Scope == "global" ? "globally" : "for current user")}</button></form>"
-                      : "<span class=\"muted\">This installation is outside the managed locations and must be removed manually.</span>")}
-                </div>
-                """
+            ? RenderInstalledDetails(snapshot)
             : $"""
                 <div class="setup-install-options">
                   <div class="setup-install-option">
-                    <div><strong>Install for current user</strong><p class="muted">Installs only for the current user under <code>{Encode(snapshot.UserInstallPath)}</code>.</p></div>
-                    <form method="post" action="/setup/install"><input type="hidden" name="scope" value="user"><button class="button" type="submit">Install for current user</button></form>
-                  </div>
-                  <div class="setup-install-option">
                     <div><strong>Install globally</strong><p class="muted">Available to all users at <code>{Encode(snapshot.GlobalInstallPath)}</code>. Administrator approval is required.</p></div>
-                    <form method="post" action="/setup/install"><input type="hidden" name="scope" value="global"><button class="button primary" type="submit">Install globally</button></form>
+                    <form method="post" action="/setup/install"><button class="button primary" type="submit">Install globally</button></form>
                   </div>
                 </div>
                 """;
@@ -85,10 +73,41 @@ internal static class SetupPage
             """;
     }
 
+    private static string RenderInstalledDetails(SetupSnapshot snapshot)
+    {
+        var installation = snapshot.UninstallTool;
+        var version = installation.Version is null
+            ? "Version could not be read from the executable."
+            : $"Installed version <code>{Encode(installation.Version)}</code>.";
+        var latest = snapshot.LatestVersion is null
+            ? Encode(snapshot.UpdateCheckError ?? "The latest release could not be checked right now.")
+            : $"Latest official release <code>{Encode(snapshot.LatestVersion)}</code>.";
+        var update = IsUpdateAvailable(installation.Version, snapshot.LatestVersion)
+            ? $"<form method=\"post\" action=\"/setup/update\"><button class=\"button primary\" type=\"submit\">Update to {Encode(snapshot.LatestVersion!)}</button></form>"
+            : "";
+        var actions = installation.Scope == "global"
+            ? $"<div class=\"setup-installed-actions\">{update}<form method=\"post\" action=\"/setup/uninstall\"><button class=\"button danger\" type=\"submit\">Uninstall globally</button></form></div>"
+            : "<span class=\"muted\">This installation is outside the managed global location and must be removed manually.</span>";
+
+        return $"""
+                <div class="setup-installed" role="status">
+                  <strong>Ready to manage installed .NET versions</strong>
+                  <span class="muted">Detected at <code>{Encode(installation.Path ?? "")}</code> ({Encode(installation.Scope ?? "path")} installation).</span>
+                  <span class="muted">{version} {latest}</span>
+                  {actions}
+                </div>
+                """;
+    }
+
+    private static bool IsUpdateAvailable(string? installedVersion, string? latestVersion) =>
+        Version.TryParse(installedVersion, out var installed) && Version.TryParse(latestVersion, out var latest) && latest > installed;
+
     private static string RenderNotice(string notice) => notice switch
     {
         "installed" => "<div class=\"action-notice\" role=\"status\">The .NET Uninstall Tool was installed successfully.</div>",
         "failed" => "<div class=\"action-notice error-state\" role=\"alert\">The .NET Uninstall Tool could not be installed. Check the network connection and permissions, then try again.</div>",
+        "updated" => "<div class=\"action-notice\" role=\"status\">The .NET Uninstall Tool was updated successfully.</div>",
+        "update-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The .NET Uninstall Tool could not be updated. Check the network connection and permissions, then try again.</div>",
         "uninstalled" => "<div class=\"action-notice\" role=\"status\">The .NET Uninstall Tool was uninstalled successfully.</div>",
         "uninstall-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The .NET Uninstall Tool could not be uninstalled. Check the permissions and try again.</div>",
         _ => ""

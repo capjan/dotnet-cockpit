@@ -66,16 +66,21 @@ app.MapGet("/api/installation", async (DotnetInstallationService service, HttpCo
     var snapshot = await ReadInstallation(service, context, logger);
     return Results.Json(snapshot, AppJsonContext.Default.InstallationSnapshot, statusCode: snapshot.Status == "error" ? 503 : 200);
 });
-app.MapGet("/setup", (DotnetUninstallToolService service, HttpContext context) =>
+app.MapGet("/setup", async (DotnetUninstallToolService service, HttpContext context) =>
 {
     context.Response.Headers.CacheControl = "no-store";
-    return Results.Content(SetupPage.Render(service.Read(), SetupViewOptions.From(context.Request.Query)), "text/html; charset=utf-8");
+    var snapshot = await service.ReadAsync(context.RequestAborted);
+    return Results.Content(SetupPage.Render(snapshot, SetupViewOptions.From(context.Request.Query)), "text/html; charset=utf-8");
 });
 app.MapPost("/setup/install", async (HttpContext context, DotnetUninstallToolService service) =>
 {
-    var form = await context.Request.ReadFormAsync(context.RequestAborted);
-    var result = await service.InstallAsync(form["scope"].ToString(), context.RequestAborted);
+    var result = await service.InstallAsync(context.RequestAborted);
     return Results.Redirect($"/setup?notice={(result.Success ? "installed" : "failed")}");
+});
+app.MapPost("/setup/update", async (HttpContext context, DotnetUninstallToolService service) =>
+{
+    var result = await service.InstallAsync(context.RequestAborted);
+    return Results.Redirect($"/setup?notice={(result.Success ? "updated" : "update-failed")}");
 });
 app.MapPost("/setup/uninstall", async (HttpContext context, DotnetUninstallToolService service) =>
 {

@@ -3,44 +3,87 @@ using System.Diagnostics;
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace DotnetCockpit.Setup;
 
 internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolService> logger, HttpClient httpClient)
 {
     private const string ReleaseDownloadBase = "https://github.com/dotnet/cli-lab/releases/latest/download/";
+    private const string LatestReleaseUrl = "https://api.github.com/repos/dotnet/cli-lab/releases/latest";
 
     public SetupSnapshot Read()
     {
         var operatingSystem = OperatingSystem.IsWindows() ? "Windows" : OperatingSystem.IsMacOS() ? "macOS" : RuntimeInformation.OSDescription;
         var architecture = RuntimeInformation.OSArchitecture.ToString();
-        var userDirectory = GetUserDirectory();
         var globalDirectory = GetGlobalDirectory();
         if (!IsSupported())
-            return new("unsupported", operatingSystem, architecture, new(false, null, null), userDirectory, globalDirectory);
+            return new("unsupported", operatingSystem, architecture, new(false, null, null), globalDirectory);
 
-        var userExecutable = Path.Combine(userDirectory, ExecutableName());
         var globalCandidates = OperatingSystem.IsWindows()
             ? new[] { Path.Combine(globalDirectory, ExecutableName()), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), ExecutableName()) }
             : new[] { Path.Combine(globalDirectory, ExecutableName()) };
-        var candidates = new[] { userExecutable }.Concat(globalCandidates).Concat(FindOnPath()).Distinct(PathComparer());
+        var candidates = globalCandidates.Concat(FindOnPath()).Distinct(PathComparer());
         foreach (var candidate in candidates)
         {
             if (!File.Exists(candidate)) continue;
-            var scope = IsSamePath(candidate, userExecutable)
-                ? "user"
-                : globalCandidates.Any(global => IsSamePath(candidate, global)) ? "global" : "path";
-            return new("ready", operatingSystem, architecture, new(true, candidate, scope), userDirectory, globalDirectory);
+            var scope = globalCandidates.Any(global => IsSamePath(candidate, global)) ? "global" : "path";
+            return new("ready", operatingSystem, architecture, new(true, candidate, scope), globalDirectory);
         }
 
-        return new("ready", operatingSystem, architecture, new(false, null, null), userDirectory, globalDirectory);
+        return new("ready", operatingSystem, architecture, new(false, null, null), globalDirectory);
     }
 
-    public async Task<SetupActionResult> InstallAsync(string scope, CancellationToken cancellationToken)
+    public async Task<SetupSnapshot> ReadAsync(CancellationToken cancellationToken)
     {
-        if (scope is not ("user" or "global")) return new(false, "The requested installation scope is invalid.");
+        var snapshot = Read();
+        if (snapshot.Status != "ready" || !snapshot.UninstallTool.Installed || snapshot.UninstallTool.Path is null)
+            return snapshot;
+
+        string? installedVersion;
+        using (var versionTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
+            versionTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+            try
+            {
+                installedVersion = await ReadInstalledVersionAsync(snapshot.UninstallTool.Path, versionTimeout.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                logger.LogWarning("Timed out while reading the installed dotnet-core-uninstall version.");
+                installedVersion = null;
+            }
+        }
+        string? latestVersion = null;
+        string? updateCheckError = null;
+        using var updateTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        updateTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            latestVersion = await ReadLatestVersionAsync(updateTimeout.Token);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidDataException or InvalidOperationException)
+        {
+            logger.LogWarning(exception, "Could not check the latest dotnet-core-uninstall release.");
+            updateCheckError = "The latest release could not be checked right now.";
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out while checking the latest dotnet-core-uninstall release.");
+            updateCheckError = "The latest release could not be checked right now.";
+        }
+
+        return snapshot with
+        {
+            UninstallTool = snapshot.UninstallTool with { Version = installedVersion },
+            LatestVersion = latestVersion,
+            UpdateCheckError = updateCheckError
+        };
+    }
+
+    public async Task<SetupActionResult> InstallAsync(CancellationToken cancellationToken)
+    {
         if (!IsSupported()) return new(false, "The .NET Uninstall Tool supports Windows and macOS only.");
-        if (Read().UninstallTool.Installed) return new(true);
 
         var temporaryDirectory = Path.Combine(Path.GetTempPath(), $"dotnet-cockpit-setup-{Guid.NewGuid():N}");
         Directory.CreateDirectory(temporaryDirectory);
@@ -49,9 +92,9 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromMinutes(5));
             if (OperatingSystem.IsMacOS())
-                await InstallMacOsAsync(scope, temporaryDirectory, timeout.Token);
+                await InstallMacOsAsync(temporaryDirectory, timeout.Token);
             else
-                await InstallWindowsAsync(scope, temporaryDirectory, timeout.Token);
+                await InstallWindowsAsync(temporaryDirectory, timeout.Token);
 
             if (!Read().UninstallTool.Installed)
                 return new(false, "The installer completed, but the dotnet-core-uninstall executable was not found at the expected path.");
@@ -59,12 +102,12 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException or UnauthorizedAccessException or InvalidDataException or Win32Exception or InvalidOperationException)
         {
-            logger.LogWarning(exception, "Could not install dotnet-core-uninstall for {Scope}.", scope);
+            logger.LogWarning(exception, "Could not install dotnet-core-uninstall globally.");
             return new(false, "The .NET Uninstall Tool could not be installed. Check the network connection and permissions, then try again.");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning("Timed out while installing dotnet-core-uninstall for {Scope}.", scope);
+            logger.LogWarning("Timed out while installing dotnet-core-uninstall globally.");
             return new(false, "The .NET Uninstall Tool installation timed out. Check the network connection and try again.");
         }
         finally
@@ -81,15 +124,12 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
 
         var installation = Read().UninstallTool;
         if (!installation.Installed) return new(true);
-        if (installation.Scope is not ("user" or "global"))
+        if (installation.Scope != "global")
             return new(false, "The detected executable is outside a managed installation path and must be removed manually.");
 
         try
         {
-            if (installation.Scope == "user")
-                RemoveUserInstallation();
-            else
-                await RemoveGlobalInstallationAsync(installation.Path!, cancellationToken);
+            await RemoveGlobalInstallationAsync(installation.Path!, cancellationToken);
 
             if (File.Exists(installation.Path))
                 return new(false, "The uninstall completed, but the dotnet-core-uninstall executable is still present.");
@@ -107,45 +147,25 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         }
     }
 
-    private async Task InstallMacOsAsync(string scope, string temporaryDirectory, CancellationToken cancellationToken)
+    private async Task InstallMacOsAsync(string temporaryDirectory, CancellationToken cancellationToken)
     {
         var archive = Path.Combine(temporaryDirectory, "dotnet-core-uninstall.tar.gz");
         await DownloadAsync($"{ReleaseDownloadBase}dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz", archive, cancellationToken);
         var staging = Path.Combine(temporaryDirectory, "staged");
         Directory.CreateDirectory(staging);
         await ExtractTarGzAsync(archive, staging, cancellationToken);
-        var target = scope == "user" ? GetUserDirectory() : GetGlobalDirectory();
-        if (scope == "user")
-        {
-            CopyDirectory(staging, target);
-            MakeExecutable(Path.Combine(target, ExecutableName()));
-            return;
-        }
-
+        var target = GetGlobalDirectory();
         var command = $"/bin/mkdir -p {ShellQuote(target)} && /bin/cp -f {ShellQuote(staging)}/* {ShellQuote(target)}/ && /bin/chmod 755 {ShellQuote(Path.Combine(target, ExecutableName()))}";
         var script = $"do shell script {AppleScriptLiteral(command)} with administrator privileges";
         await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken, useShellExecute: false);
     }
 
-    private async Task InstallWindowsAsync(string scope, string temporaryDirectory, CancellationToken cancellationToken)
+    private async Task InstallWindowsAsync(string temporaryDirectory, CancellationToken cancellationToken)
     {
         var installer = Path.Combine(temporaryDirectory, "dotnet-core-uninstall.msi");
         await DownloadAsync($"{ReleaseDownloadBase}dotnet-core-uninstall.msi", installer, cancellationToken);
-        var target = Path.Combine(scope == "user" ? GetUserDirectory() : GetGlobalDirectory(), "");
-        Directory.CreateDirectory(target);
-        if (scope == "user")
-        {
-            await RunProcessAsync("msiexec.exe", ["/a", installer, "/qn", $"TARGETDIR={target}"], cancellationToken, useShellExecute: false);
-            return;
-        }
-
+        var target = Path.Combine(GetGlobalDirectory(), "");
         await RunProcessAsync("msiexec.exe", ["/i", installer, "/qn", $"DOTNETCOREUNINSTALL={target}"], cancellationToken, useShellExecute: true, elevate: true);
-    }
-
-    private static void RemoveUserInstallation()
-    {
-        var directory = GetUserDirectory();
-        if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
     }
 
     private async Task RemoveGlobalInstallationAsync(string executablePath, CancellationToken cancellationToken)
@@ -173,6 +193,55 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
         await using var target = File.Create(destination);
         await source.CopyToAsync(target, cancellationToken);
+    }
+
+    private static async Task<string?> ReadInstalledVersionAsync(string executablePath, CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("--version");
+        try
+        {
+            using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("The installed tool could not be started.");
+            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            await Task.WhenAll(outputTask, errorTask);
+            await process.WaitForExitAsync(cancellationToken);
+            return process.ExitCode == 0 ? NormalizeVersion(outputTask.Result) : null;
+        }
+        catch (Exception exception) when (exception is IOException or Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private async Task<string> ReadLatestVersionAsync(CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseUrl);
+        request.Headers.Accept.ParseAdd("application/vnd.github+json");
+        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        if (!document.RootElement.TryGetProperty("tag_name", out var tag))
+            throw new InvalidDataException("The latest release did not contain a version tag.");
+        return NormalizeVersion(tag.GetString()) ?? throw new InvalidDataException("The latest release contained an invalid version tag.");
+    }
+
+    private static string? NormalizeVersion(string? value)
+    {
+        var token = value?.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (token is null) return null;
+        token = token.TrimStart('v');
+        var suffix = token.IndexOfAny(['+', '-']);
+        if (suffix >= 0) token = token[..suffix];
+        return token.Length > 0 && token.Split('.').All(part => int.TryParse(part, out _)) ? token : null;
     }
 
     private static async Task ExtractTarGzAsync(string archive, string destination, CancellationToken cancellationToken)
@@ -223,26 +292,6 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
             if (Path.IsPathFullyQualified(path)) yield return path;
         }
     }
-
-    private static void CopyDirectory(string source, string destination)
-    {
-        Directory.CreateDirectory(destination);
-        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-        {
-            var relative = Path.GetRelativePath(source, file);
-            var target = Path.Combine(destination, relative);
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(file, target, overwrite: true);
-        }
-    }
-
-    private static void MakeExecutable(string path)
-    {
-        if (!OperatingSystem.IsWindows() && File.Exists(path))
-            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
-    }
-
-    private static string GetUserDirectory() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "dotnet-core-uninstall");
 
     private static string GetGlobalDirectory() => OperatingSystem.IsWindows()
         ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet-core-uninstall")
