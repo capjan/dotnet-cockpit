@@ -111,4 +111,19 @@ public sealed class ToolsTests
         var withManifest = ToolsPage.Render(initialized, new("global", "format"), search);
         Assert.Contains("Install locally", withManifest);
     }
+
+    [Fact]
+    public void OffersToRemoveOnlyAWorkspaceOwnedManifest()
+    {
+        var owned = new ToolsSnapshot("ready", "/workspace", new([]), new([]), null, true,
+            "/workspace/.config/dotnet-tools.json", true);
+        var ownedHtml = ToolsPage.Render(owned, new("local"));
+        Assert.Contains("Remove local tools", ownedHtml);
+        Assert.Contains("action=\"/tools/remove-manifest\"", ownedHtml);
+
+        var inherited = owned with { LocalManifestOwned = false, LocalManifestPath = "/workspace/../.config/dotnet-tools.json" };
+        var inheritedHtml = ToolsPage.Render(inherited, new("local"));
+        Assert.Contains("Using an inherited local tool manifest", inheritedHtml);
+        Assert.DoesNotContain("Remove local tools", inheritedHtml);
+    }
 }

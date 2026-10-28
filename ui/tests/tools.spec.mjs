@@ -24,6 +24,7 @@ test('navigates to the tools page and lists both scopes without JavaScript', asy
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('fixture-alt');
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('dotnet-tools.json');
     await expect(page.getByRole('button', { name: 'Uninstall', exact: true })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Remove local tools', exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Search .NET tools' })).toBeVisible();
     await expect(page.locator('a.tool-tab[href="/tools?scope=local"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('link', { name: 'Refresh', exact: true })).toHaveAttribute('href', '/tools?scope=local');

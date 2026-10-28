@@ -33,7 +33,7 @@ internal static class ToolsPage
             </div>
             <div class="working-directory"><div class="working-directory-heading"><span class="context-icon">{{Icon("desktop")}}</span><div><strong>Working directory</strong><span class="muted">Local tools use manifests from this directory and its parents.</span></div><span class="context-badge">Current workspace</span></div><code>{{Encode(snapshot.WorkingDirectory)}}</code></div>
             {{RenderNotice(options.Notice)}}
-            {{(snapshot.Status == "ready" && !snapshot.LocalManifestInitialized ? RenderManifestNotice(options) : "")}}
+            {{(snapshot.Status == "ready" ? RenderManifestNotice(snapshot, options) : "")}}
             {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
             {{content}}
             <p class="scope-note muted">Local tools are declared in manifests for this working directory or its parents. This view does not check whether they have been restored.</p>
@@ -94,12 +94,30 @@ internal static class ToolsPage
         </div>
         """;
 
-    private static string RenderManifestNotice(ToolsViewOptions options) => $$"""
-        <section class="tool-manifest-notice" aria-label="Local tools setup">
-          <div><strong>Local tools are not initialized</strong><p class="muted">Search results will be installed globally until you create a local tool manifest.</p></div>
-          <form method="post" action="/tools/init"><input type="hidden" name="scope" value="{{options.Scope}}"><input type="hidden" name="q" value="{{Encode(options.SearchQuery)}}"><button class="button" type="submit">Initialize local tools</button></form>
-        </section>
-        """;
+    private static string RenderManifestNotice(ToolsSnapshot snapshot, ToolsViewOptions options)
+    {
+        if (!snapshot.LocalManifestInitialized)
+            return $$"""
+                <section class="tool-manifest-notice" aria-label="Local tools setup">
+                  <div><strong>Local tools are not initialized</strong><p class="muted">Search results will be installed globally until you create a local tool manifest.</p></div>
+                  <form method="post" action="/tools/init"><input type="hidden" name="scope" value="{{options.Scope}}"><input type="hidden" name="q" value="{{Encode(options.SearchQuery)}}"><button class="button" type="submit">Initialize local tools</button></form>
+                </section>
+                """;
+
+        if (!snapshot.LocalManifestOwned)
+            return $$"""
+                <section class="tool-manifest-notice" aria-label="Local tools setup">
+                  <div><strong>Using an inherited local tool manifest</strong><p class="muted">This workspace uses the manifest from <code>{{Encode(snapshot.LocalManifestPath ?? "a parent directory")}}</code>. It cannot be removed from this workspace.</p></div>
+                </section>
+                """;
+
+        return $$"""
+            <section class="tool-manifest-notice" aria-label="Local tools setup">
+              <div><strong>Local tools are initialized</strong><p class="muted">Remove the workspace manifest to stop using its local tool declarations. Cached packages remain untouched.</p></div>
+              <form method="post" action="/tools/remove-manifest"><input type="hidden" name="scope" value="{{options.Scope}}"><input type="hidden" name="q" value="{{Encode(options.SearchQuery)}}"><button class="button danger" type="submit">Remove local tools</button></form>
+            </section>
+            """;
+    }
 
     private static string RenderSearch(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search)
     {
@@ -138,6 +156,7 @@ internal static class ToolsPage
         "installed" => "<div class=\"action-notice\" role=\"status\">Tool installed successfully.</div>",
         "uninstalled" => "<div class=\"action-notice\" role=\"status\">Tool uninstalled successfully.</div>",
         "initialized" => "<div class=\"action-notice\" role=\"status\">Local tools are now initialized in this working directory.</div>",
+        "removed" => "<div class=\"action-notice\" role=\"status\">The local tool manifest was removed. Cached packages were left untouched.</div>",
         "failed" => "<div class=\"action-notice error-state\" role=\"alert\">The requested tool action failed. Check the SDK and package sources, then try again.</div>",
         _ => ""
     };

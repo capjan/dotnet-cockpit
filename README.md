@@ -45,7 +45,7 @@ If `dotnet` is absent, the application still starts and explains that no install
 
 Open **.NET Tools** in the navigation or visit `/tools`. Cockpit reads `dotnet tool list --global` for the current user and `dotnet tool list --local` from the directory where Cockpit was launched. The page displays this working directory. To inspect another project's local tools, start Cockpit from that project's directory.
 
-Local tools are declared in the manifests visible from that directory, including applicable parent manifests. Listing a declaration does not verify that its package has been restored. The view does not scan unrelated projects. A .NET SDK is required for tool queries; missing SDKs, empty lists, and failed queries have distinct messages. A failing local manifest does not hide the global list. The page can search NuGet tool packages, install a search result globally or locally, uninstall installed tools, and initialize a local manifest. Until a local manifest exists, search results offer global installation and an initialization button.
+Local tools are declared in the manifests visible from that directory, including applicable parent manifests. Listing a declaration does not verify that its package has been restored. The view does not scan unrelated projects. A .NET SDK is required for tool queries; missing SDKs, empty lists, and failed queries have distinct messages. A failing local manifest does not hide the global list. The page can search NuGet tool packages, install a search result globally or locally, uninstall installed tools, initialize a local manifest, and remove a manifest owned by the current workspace. Removing a manifest leaves cached packages untouched; inherited parent manifests are shown but cannot be removed here. Until a local manifest exists, search results offer global installation and an initialization button.
 
 ## Development
 
@@ -103,4 +103,4 @@ Run the **Release** workflow manually from `main` and supply a version to repeat
 - `tests`: installation and tool parsing, HTML rendering, executable discovery, and command-line tests.
 - `scripts/smoke.mjs`: cross-platform tests against the actual published application.
 
-The API is read-only. The host accepts `127.0.0.1` requests and exposes `GET /api/health`, `GET /api/installation`, and `GET /api/tools`. JSON serialization uses source-generated metadata for Native AOT.
+The host accepts `127.0.0.1` requests and exposes `GET /api/health`, `GET /api/installation`, and `GET /api/tools`; tool changes use explicit HTML form POSTs. JSON serialization uses source-generated metadata for Native AOT.

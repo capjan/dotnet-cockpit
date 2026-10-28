@@ -20,7 +20,9 @@ catch (ArgumentException exception)
     return 1;
 }
 
-var builder = WebApplication.CreateSlimBuilder();
+var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions { Args = args });
+builder.WebHost.UseKestrel();
+builder.Services.AddRouting();
 builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");
 builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -85,6 +87,12 @@ app.MapPost("/tools/init", async (HttpContext context, DotnetToolsService servic
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
     var result = await service.InitializeLocalAsync(context.RequestAborted);
     return Results.Redirect(ToolRedirect(form["scope"].ToString(), form["q"].ToString(), result.Success ? "initialized" : "failed"));
+});
+app.MapPost("/tools/remove-manifest", async (HttpContext context, DotnetToolsService service) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var result = await service.RemoveLocalManifestAsync(context.RequestAborted);
+    return Results.Redirect(ToolRedirect(form["scope"].ToString(), form["q"].ToString(), result.Success ? "removed" : "failed"));
 });
 app.MapGet("/api/tools", async (DotnetToolsService service, HttpContext context, ILogger<Program> logger) =>
 {

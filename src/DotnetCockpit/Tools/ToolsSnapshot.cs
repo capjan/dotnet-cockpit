@@ -13,7 +13,8 @@ internal sealed record ToolsSnapshot(
     ToolList Local,
     string? Error = null,
     bool LocalManifestInitialized = false,
-    string? LocalManifestPath = null)
+    string? LocalManifestPath = null,
+    bool LocalManifestOwned = false)
 {
     public static ToolsSnapshot Empty(string status, string workingDirectory, string? error = null) =>
         new(status, workingDirectory, new([]), new([]), error);

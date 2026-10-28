@@ -22,7 +22,8 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger)
             ? Task.FromResult(new ToolList([]))
             : ReadListAsync(executable, "--local", directory, timeout.Token);
         await Task.WhenAll(global, local);
-        return new("ready", directory, global.Result, local.Result, null, manifest is not null, manifest);
+        return new("ready", directory, global.Result, local.Result, null, manifest is not null, manifest,
+            manifest is not null && IsManifestInWorkingDirectory(manifest, directory));
     }
 
     public async Task<ToolSearch> SearchAsync(string query, CancellationToken cancellationToken)
@@ -67,6 +68,28 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger)
         {
             logger.LogWarning(exception, "Could not initialize a local tool manifest in {Directory}.", Environment.CurrentDirectory);
             return new(false, "The local tool manifest could not be initialized.");
+        }
+    }
+
+    public Task<ToolActionResult> RemoveLocalManifestAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var directory = Environment.CurrentDirectory;
+        var manifest = FindManifest(directory);
+        if (manifest is null)
+            return Task.FromResult(new ToolActionResult(false, "No local tool manifest exists in this workspace."));
+        if (!IsManifestInWorkingDirectory(manifest, directory))
+            return Task.FromResult(new ToolActionResult(false, "The local tool manifest belongs to a parent directory."));
+
+        try
+        {
+            File.Delete(manifest);
+            return Task.FromResult(new ToolActionResult(true));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(exception, "Could not remove the local tool manifest in {Directory}.", directory);
+            return Task.FromResult(new ToolActionResult(false, "The local tool manifest could not be removed."));
         }
     }
 
@@ -123,5 +146,12 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger)
             if (File.Exists(manifest)) return manifest;
         }
         return null;
+    }
+
+    private static bool IsManifestInWorkingDirectory(string manifest, string directory)
+    {
+        var expected = Path.GetFullPath(Path.Combine(directory, ".config", "dotnet-tools.json"));
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return string.Equals(Path.GetFullPath(manifest), expected, comparison);
     }
 }

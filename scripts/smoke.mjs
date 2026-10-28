@@ -105,6 +105,18 @@ await runWithoutRepositoryFiles(process.env, async (data, html, get, url) => {
   const localToolsHtml = await localToolsPage.text();
   assert.ok(localToolsHtml.includes('data-tool-scope="local"'));
   assert.ok(localToolsHtml.includes('cockpit.fixture.tool'));
+  assert.ok(localToolsHtml.includes('Remove local tools'));
+  const removeManifest = await fetch(new URL('tools/remove-manifest', url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ scope: 'local' }),
+    redirect: 'manual',
+  });
+  assert.equal(removeManifest.status, 302);
+  assert.match(removeManifest.headers.get('location'), /notice=removed/);
+  const toolsAfterRemoval = await (await get('api/tools')).json();
+  assert.equal(toolsAfterRemoval.localManifestInitialized, false);
+  assert.equal(toolsAfterRemoval.localManifestPath, null);
   const invalidAction = await fetch(new URL('tools/install', url), {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
