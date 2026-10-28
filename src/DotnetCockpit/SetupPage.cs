@@ -60,7 +60,7 @@ internal static class SetupPage
             : $"""
                 <div class="setup-install-options">
                   <div class="setup-install-option">
-                    <div><strong>Install for current user</strong><p class="muted">No administrator access required. Installs under <code>{Encode(snapshot.UserInstallPath)}</code>.</p></div>
+                    <div><strong>Install for current user</strong><p class="muted">Installs only for the current user under <code>{Encode(snapshot.UserInstallPath)}</code>.</p></div>
                     <form method="post" action="/setup/install"><input type="hidden" name="scope" value="user"><button class="button" type="submit">Install for current user</button></form>
                   </div>
                   <div class="setup-install-option">
