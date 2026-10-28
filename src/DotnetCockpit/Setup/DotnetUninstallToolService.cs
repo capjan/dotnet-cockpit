@@ -251,7 +251,7 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         var arguments = new[] { "remove", version, filter, "--yes" };
         if (OperatingSystem.IsMacOS())
         {
-            var command = $"{ShellQuote(executablePath)} {string.Join(' ', arguments.Select(ShellQuote))}";
+            var command = $"cd / && {ShellQuote(executablePath)} {string.Join(' ', arguments.Select(ShellQuote))}";
             var script = $"do shell script {AppleScriptLiteral(command)} with administrator privileges";
             await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken, useShellExecute: false);
             return;

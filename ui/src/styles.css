@@ -120,8 +120,6 @@ fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px 
 .setup-card-actions form { margin: 0; }
 .setup-card .button { transition: none; }
 .setup-card .button:active { transform: none; }
-.setup-card-actions .button.danger { color: #fff; background: #c50f1f; border-color: #c50f1f; }
-.setup-card-actions .button.danger:hover { color: #fff; background: #a4262c; border-color: #a4262c; }
 .setup-title { display: flex; align-items: flex-start; gap: 12px; }
 .setup-title p { margin: 6px 0 0; font-size: 12px; }
 .setup-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 8px; color: var(--brand); background: var(--brand-soft); }
@@ -164,8 +162,8 @@ fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px 
 .search-result-meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .verified { color: #107c41; font-weight: 600; }
 .tool-install-actions, .tool-action { display: flex; gap: 7px; }
-.button.danger { color: #c50f1f; }
-.button.danger:hover { background: #fde7e9; }
+.button.danger { color: #fff; background: #c50f1f; border-color: #c50f1f; }
+.button.danger:hover { color: #fff; background: #a4262c; border-color: #a4262c; }
 .tool-tabs { display: flex; gap: 4px; margin-top: 20px; border-bottom: 1px solid var(--line); }
 .tool-tab { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); padding: 11px 18px; border-bottom: 3px solid transparent; text-decoration: none; }
 .tool-tab:hover { color: var(--text); background: var(--brand-soft); }
