@@ -119,7 +119,7 @@ export function App() {
           </section>
           {error && <MessageBar intent="error"><MessageBarBody>{error} <Button appearance="transparent" onClick={() => void refresh()} disabled={busy}>Try again</Button></MessageBarBody></MessageBar>}
           <section className="inventory" aria-labelledby="inventory-title" aria-busy={busy}>
-            <div className="inventory-heading"><div><h2 id="inventory-title">Installed versions</h2><p className="muted">The .NET installation available on your PATH.</p></div>{snapshot && <Badge appearance="outline">{total} installed</Badge>}</div>
+            <div className="inventory-heading"><div><h2 id="inventory-title">Installed versions</h2><p className="muted">The .NET installation available on your PATH.</p></div>{snapshot && <Badge appearance="outline" className="inventory-count">{total} installed</Badge>}</div>
             <div className="inventory-toolbar">
               <TabList selectedValue={tab} onTabSelect={(_, data) => setTab(String(data.value))} aria-label="Installation type">
                 <Tab value="all">All versions</Tab><Tab value="sdks">SDKs</Tab><Tab value="runtimes">Runtimes</Tab>

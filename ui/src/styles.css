@@ -3,6 +3,7 @@ body { margin: 0; }
 button, input { font: inherit; }
 .app { min-height: 100vh; --canvas: #f6f8fb; --panel: #fff; --line: #e4e8ee; --muted: #616b78; --brand-soft: #e8f1fc; --brand: #0f6cbd; background: var(--canvas); }
 .app[data-theme="dark"] { --canvas: #141820; --panel: #1c222c; --line: #303947; --muted: #a5afbd; --brand-soft: #25374e; --brand: #80baff; }
+.app.fui-FluentProvider { background: var(--canvas); }
 .app-header { height: 68px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .brand, .header-actions { display: flex; align-items: center; gap: 14px; }
 .brand strong { font-size: 17px; letter-spacing: -.3px; }
@@ -33,6 +34,7 @@ h3 { font-size: 18px; font-weight: 600; }
 .inventory { margin-top: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
 .inventory-heading { display: flex; align-items: center; justify-content: space-between; padding: 23px 24px 8px; gap: 16px; }
 .inventory-heading p { margin: 7px 0 0; font-size: 12px; }
+.inventory-count { flex-shrink: 0; white-space: nowrap; }
 .inventory-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 9px 18px 16px; }
 .inventory-toolbar .filter-input { width: 300px; max-width: 100%; margin: 0 6px; }
 .table-scroll { overflow: auto; }
