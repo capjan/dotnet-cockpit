@@ -1,8 +1,8 @@
 # .NET Cockpit
 
-A local browser workspace for your .NET environment, built with **Fluent UI React v9** and an **ASP.NET Core Minimal API** backend.
+A local browser workspace for your .NET environment, built with **server-rendered HTML**, **Fluent UI Web Components**, and an **ASP.NET Core Minimal API** backend. React is not required.
 
-The prototype lists installed .NET SDKs and runtimes, supports filtering and sorting, and refreshes the inventory without reloading the page. Light and dark themes and a responsive layout are included. Installation and tool-management actions are not implemented yet.
+The prototype lists installed .NET SDKs and runtimes and supports filtering, sorting, and refreshing. C# renders the complete page and handles searches and sorting through normal GET forms and links. Inventory display and controls work with JavaScript disabled. A small local script adds Fluent components and a persistent light/dark theme switch. Installation and tool-management actions are not implemented yet.
 
 ## Run without installing .NET
 
@@ -35,13 +35,15 @@ The repository and GitHub releases are private. Packages are distributed as down
 
 ## Inventory scope
 
-Cockpit resolves the first `dotnet` executable in an absolute directory on its own `PATH`, then runs `dotnet --list-sdks` and `dotnet --list-runtimes`. It reports the installation and architecture visible to that host, not an exhaustive scan of every .NET installation on disk. Refresh repeats discovery. Restart Cockpit after changing its inherited environment.
+Cockpit resolves the first `dotnet` executable in an absolute directory on its own `PATH`, then runs `dotnet --list-sdks` and `dotnet --list-runtimes`. It reports the installation and architecture visible to that host, not an exhaustive scan of every .NET installation on disk. Each page request repeats discovery. Restart Cockpit after changing its inherited environment.
+
+The bracketed paths in the CLI output are base directories shared by multiple versions. The UI displays the actual version directory, for example `/usr/share/dotnet/shared/Microsoft.NETCore.App/10.0.5`. In the JSON API, `path` retains the CLI's base directory and `installationPath` includes the version subfolder.
 
 If `dotnet` is absent, the application still starts and explains that no installation was found. A command failure is displayed as an error rather than an empty inventory.
 
 ## Development
 
-Requirements: .NET 10 SDK, Node.js 24 or later, and the Native AOT build prerequisites for your OS (Xcode Command Line Tools on macOS; the C++ build tools on Windows; `clang` and `zlib1g-dev` on Ubuntu).
+Requirements: .NET 10 SDK, Node.js 24 LTS, and the Native AOT build prerequisites for your OS (Xcode Command Line Tools on macOS; the C++ build tools on Windows; `clang` and `zlib1g-dev` on Ubuntu).
 
 ```sh
 npm --prefix ui ci
@@ -50,7 +52,7 @@ dotnet test DotnetCockpit.sln
 dotnet run --project src/DotnetCockpit -- --no-browser --port 5230
 ```
 
-The backend embeds the production UI at build time. Rebuild the UI and restart the backend after frontend changes. For frontend hot reload, keep the backend on port 5230 and run `npm --prefix ui run dev`; Vite proxies `/api` to the local backend.
+The backend renders the page in `InstallationPage.cs` and embeds the locally bundled CSS and Fluent enhancement script at build time. Rebuild browser assets and restart the backend after changing those assets. There is no frontend application framework or separate development server.
 
 Publish and test a native executable (replace the runtime identifier for your platform):
 
@@ -84,14 +86,14 @@ Every push and pull request runs unit tests, builds Native AOT executables, and 
 | macOS 15 Intel | `osx-x64` |
 | macOS latest | `osx-arm64` |
 
-The native smoke tests launch from a temporary directory, check the embedded HTML/JS/CSS and API, compare the returned inventory against the real .NET CLI, and repeat with an empty `PATH`. The latter verifies that the native application starts without finding an installed .NET host. It does not simulate an otherwise clean OS; ordinary native OS dependencies still apply. Linux additionally runs browser tests for filtering, refresh, theme switching, empty/error states, and a narrow viewport. A separate job packages, installs, invokes, and smoke-tests the .NET tool.
+The native smoke tests launch from a temporary directory, verify that the initial HTML already contains the inventory, check embedded assets and the API, compare the returned inventory against the real .NET CLI, and test server-side filtering. They repeat with an empty `PATH` and a broken dotnet host. The empty-PATH check verifies that the native application starts without finding an installed .NET host. It does not simulate an otherwise clean OS; ordinary native OS dependencies still apply. Linux additionally runs browser tests for real paths, filtering and sorting with JavaScript disabled, refresh, theme switching, and a narrow viewport. A separate job packages, installs, invokes, and smoke-tests the .NET tool.
 
 Run the **Release** workflow manually from `main` and supply a version to repeat these checks and create a private GitHub release with native archives, the tool package, and SHA-256 checksums. No publishing credentials are needed beyond the workflow's repository token.
 
 ## Structure
 
-- `src/DotnetCockpit`: loopback-only Minimal API host, installation discovery, embedded browser assets, and tool packaging.
-- `ui`: React, TypeScript, Fluent UI v9, and browser tests.
+- `src/DotnetCockpit`: loopback-only Minimal API host, C# HTML rendering and filtering, installation discovery, embedded browser assets, and tool packaging.
+- `ui`: CSS, Fluent UI Web Components, a small theme script, an asset bundler, and browser tests.
 - `tests`: .NET inventory parsing, executable discovery, and command-line tests.
 - `scripts/smoke.mjs`: cross-platform tests against the actual published application.
 

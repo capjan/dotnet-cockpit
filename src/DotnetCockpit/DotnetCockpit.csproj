@@ -25,6 +25,6 @@
     <InternalsVisibleTo Include="DotnetCockpit.Tests" />
   </ItemGroup>
   <Target Name="CheckUserInterface" BeforeTargets="PrepareForBuild">
-    <Error Condition="!Exists('wwwroot/index.html')" Text="Build the browser UI first: npm --prefix ui ci &amp;&amp; npm --prefix ui run build (from the repository root)." />
+    <Error Condition="!Exists('wwwroot/assets/app.js') Or !Exists('wwwroot/assets/app.css')" Text="Build the browser assets first: npm --prefix ui ci &amp;&amp; npm --prefix ui run build (from the repository root)." />
   </Target>
 </Project>

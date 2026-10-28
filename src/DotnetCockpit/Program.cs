@@ -41,20 +41,32 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/api/health", () => new HealthStatus("ok"));
+app.MapGet("/", async (DotnetInstallationService service, HttpContext context, ILogger<Program> logger) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var snapshot = await ReadInstallation(service, context, logger);
+    return Results.Content(InstallationPage.Render(snapshot, InstallationViewOptions.From(context.Request.Query)),
+        "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
+});
 app.MapGet("/api/installation", async (DotnetInstallationService service, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
-    try { return Results.Ok(await service.ReadAsync(context.RequestAborted)); }
+    var snapshot = await ReadInstallation(service, context, logger);
+    return Results.Json(snapshot, AppJsonContext.Default.InstallationSnapshot, statusCode: snapshot.Status == "error" ? 503 : 200);
+});
+app.MapGet("/{**path}", (HttpContext context, WebAssets assets, string? path) => assets.Get(context, path));
+
+static async Task<InstallationSnapshot> ReadInstallation(DotnetInstallationService service, HttpContext context, ILogger<Program> logger)
+{
+    try { return await service.ReadAsync(context.RequestAborted); }
     catch (Exception exception) when (exception is Win32Exception or IOException or InvalidOperationException or OperationCanceledException)
     {
         if (context.RequestAborted.IsCancellationRequested) throw;
         logger.LogWarning(exception, "Could not query the .NET installation.");
-        return Results.Json(InstallationSnapshot.Create("error", null,
-            error: "The .NET installation could not be read. Check your PATH and try again."),
-            AppJsonContext.Default.InstallationSnapshot, statusCode: 503);
+        return InstallationSnapshot.Create("error", null,
+            error: "The .NET installation could not be read. Check your PATH and try again.");
     }
-});
-app.MapGet("/{**path}", (HttpContext context, WebAssets assets, string? path) => assets.Get(context, path));
+}
 
 await app.StartAsync();
 var url = app.Urls.Single().TrimEnd('/') + "/";

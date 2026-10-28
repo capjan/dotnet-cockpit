@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { get as httpGet } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -12,10 +12,10 @@ const sdkOutput = spawnSync('dotnet', ['--list-sdks'], { encoding: 'utf8' });
 const runtimeOutput = spawnSync('dotnet', ['--list-runtimes'], { encoding: 'utf8' });
 assert.equal(sdkOutput.status, 0, 'The smoke-test runner needs an SDK for the reference inventory.');
 assert.equal(runtimeOutput.status, 0);
-const sdks = [...sdkOutput.stdout.matchAll(/^(\S+)\s+\[(.+)\]\s*$/gm)].map(([, version, path]) => ({ version, path }));
-const runtimes = [...runtimeOutput.stdout.matchAll(/^(\S+)\s+(\S+)\s+\[(.+)\]\s*$/gm)].map(([, name, version, path]) => ({ name, version, path }));
+const sdks = [...sdkOutput.stdout.matchAll(/^(\S+)\s+\[(.+)\]\s*$/gm)].map(([, version, path]) => ({ version, path, installationPath: join(path, version) }));
+const runtimes = [...runtimeOutput.stdout.matchAll(/^(\S+)\s+(\S+)\s+\[(.+)\]\s*$/gm)].map(([, name, version, path]) => ({ name, version, path, installationPath: join(path, version) }));
 
-async function runWithoutRepositoryFiles(environment, verify) {
+async function runWithoutRepositoryFiles(environment, verify, expectedStatus = 200) {
   const directory = await mkdtemp(join(tmpdir(), 'dotnet-cockpit-smoke-'));
   const child = spawn(executable, ['--no-browser', '--port', '0'], { cwd: directory, env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
@@ -36,7 +36,7 @@ async function runWithoutRepositoryFiles(environment, verify) {
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), { status: 'ok' });
     const page = await get('');
-    assert.equal(page.status, 200);
+    assert.equal(page.status, expectedStatus);
     const html = await page.text();
     assert.match(html, /<title>\.NET Cockpit<\/title>/);
     const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"?#]+)"/g)].map(match => match[1]);
@@ -57,8 +57,8 @@ async function runWithoutRepositoryFiles(environment, verify) {
     });
     assert.equal(untrustedHostStatus, 400);
     const response = await get('api/installation');
-    assert.equal(response.status, 200);
-    await verify(await response.json());
+    assert.equal(response.status, expectedStatus);
+    await verify(await response.json(), html, get);
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
       child.kill();
@@ -68,7 +68,7 @@ async function runWithoutRepositoryFiles(environment, verify) {
   }
 }
 
-await runWithoutRepositoryFiles(process.env, data => {
+await runWithoutRepositoryFiles(process.env, async (data, html, get) => {
   assert.equal(data.status, 'ready');
   assert.deepEqual(data.sdks, sdks, 'SDKs must match the real dotnet CLI inventory.');
   assert.deepEqual(data.runtimes, runtimes, 'Runtimes must match the real dotnet CLI inventory.');
@@ -76,15 +76,32 @@ await runWithoutRepositoryFiles(process.env, data => {
   assert.ok(data.operatingSystem);
   assert.ok(data.architecture);
   assert.ok(Number.isFinite(Date.parse(data.checkedAt)));
+  assert.equal([...html.matchAll(/<tr data-kind=/g)].length, sdks.length + runtimes.length, 'The initial HTML must contain the complete inventory without executing JavaScript.');
+  const filtered = await (await get('?kind=sdks')).text();
+  assert.equal([...filtered.matchAll(/<tr data-kind="sdk"/g)].length, sdks.length);
+  assert.ok(!filtered.includes('<tr data-kind="runtime"'), 'Filtering must happen on the server.');
 });
-console.log('PASS: embedded UI, health endpoint, loopback host validation, and real .NET inventory.');
+console.log('PASS: server-rendered inventory, server-side filtering, embedded assets, health endpoint, and loopback host validation.');
 
 if (native) {
-  await runWithoutRepositoryFiles({ ...process.env, PATH: '' }, data => {
+  await runWithoutRepositoryFiles({ ...process.env, PATH: '' }, (data, html) => {
     assert.equal(data.status, 'notFound');
     assert.equal(data.executablePath, null);
     assert.deepEqual(data.sdks, []);
     assert.deepEqual(data.runtimes, []);
+    assert.ok(html.includes('No .NET installation found'));
   });
   console.log('PASS: native executable starts and serves its UI without dotnet on PATH.');
+
+  const brokenHost = await mkdtemp(join(tmpdir(), 'dotnet-cockpit-broken-host-'));
+  try {
+    await writeFile(join(brokenHost, process.platform === 'win32' ? 'dotnet.exe' : 'dotnet'), 'invalid executable', { mode: 0o755 });
+    await runWithoutRepositoryFiles({ ...process.env, PATH: brokenHost }, (data, html) => {
+      assert.equal(data.status, 'error');
+      assert.ok(html.includes('Installation information is unavailable'));
+    }, 503);
+  } finally {
+    await rm(brokenHost, { recursive: true, force: true });
+  }
+  console.log('PASS: a broken dotnet host returns an error page and HTTP 503 instead of an empty inventory.');
 }

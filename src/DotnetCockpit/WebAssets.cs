@@ -20,9 +20,9 @@ internal sealed class WebAssets
 
     public IResult Get(HttpContext context, string? path)
     {
-        path = string.IsNullOrEmpty(path) ? "index.html" : path;
+        path ??= "";
         if (!_files.TryGetValue(path, out var bytes)) return Results.NotFound();
-        context.Response.Headers.CacheControl = path == "index.html" ? "no-store" : "public,max-age=31536000,immutable";
+        context.Response.Headers.CacheControl = "no-cache";
         var contentType = Path.GetExtension(path) switch
         {
             ".html" => "text/html; charset=utf-8",

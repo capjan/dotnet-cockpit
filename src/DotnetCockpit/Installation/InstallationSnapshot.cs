@@ -2,8 +2,15 @@ using System.Runtime.InteropServices;
 
 namespace DotnetCockpit.Installation;
 
-internal sealed record SdkInstallation(string Version, string Path);
-internal sealed record RuntimeInstallation(string Name, string Version, string Path);
+internal sealed record SdkInstallation(string Version, string Path)
+{
+    public string InstallationPath => System.IO.Path.Combine(Path, Version);
+}
+
+internal sealed record RuntimeInstallation(string Name, string Version, string Path)
+{
+    public string InstallationPath => System.IO.Path.Combine(Path, Version);
+}
 
 internal sealed record InstallationSnapshot(
     string Status,
