@@ -60,7 +60,7 @@ app.MapGet("/tools", async (DotnetToolsService service, HttpContext context, ILo
 {
     context.Response.Headers.CacheControl = "no-store";
     var snapshot = await ReadTools(service, context, logger);
-    return Results.Content(ToolsPage.Render(snapshot), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
+    return Results.Content(ToolsPage.Render(snapshot, ToolsViewOptions.From(context.Request.Query)), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
 });
 app.MapGet("/api/tools", async (DotnetToolsService service, HttpContext context, ILogger<Program> logger) =>
 {

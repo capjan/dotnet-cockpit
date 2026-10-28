@@ -28,7 +28,7 @@ internal static class PageLayout
             <aside class="sidebar" aria-label="Workspace navigation">
               <span class="sidebar-label">ENVIRONMENT</span>
               <a href="/" class="nav-link"{{(currentPath == "/" ? " aria-current=\"page\"" : "")}}>{{Icon("desktop")}} Installations</a>
-              <a href="/tools" class="nav-link nav-child"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}}>{{Icon("code")}} .NET Tools</a>
+              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}}>{{Icon("code")}} .NET Tools</a>
               <div class="sidebar-footer"><span class="status-dot"></span>Running on your machine</div>
             </aside>
             <main id="main" tabindex="-1">

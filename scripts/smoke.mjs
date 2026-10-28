@@ -97,8 +97,14 @@ await runWithoutRepositoryFiles(process.env, async (data, html, get) => {
   const toolsPage = await get('tools');
   assert.equal(toolsPage.status, 200);
   const toolsHtml = await toolsPage.text();
-  assert.ok(toolsHtml.includes('data-tool-scope="local"'));
-  assert.ok(toolsHtml.includes('cockpit.fixture.tool'));
+  assert.ok(toolsHtml.includes('data-tool-scope="global"'));
+  assert.ok(toolsHtml.includes('href="/tools?scope=local"'));
+  assert.ok(!toolsHtml.includes('cockpit.fixture.tool'));
+  const localToolsPage = await get('tools?scope=local');
+  assert.equal(localToolsPage.status, 200);
+  const localToolsHtml = await localToolsPage.text();
+  assert.ok(localToolsHtml.includes('data-tool-scope="local"'));
+  assert.ok(localToolsHtml.includes('cockpit.fixture.tool'));
 });
 console.log('PASS: server-rendered installations, global/local tools, filtering, embedded assets, and loopback host validation.');
 
@@ -132,7 +138,7 @@ if (native) {
     const tools = await (await get('api/tools')).json();
     assert.deepEqual(tools.global.tools, globalTools);
     assert.ok(tools.local.error);
-    assert.ok((await (await get('tools')).text()).includes('Local tools could not be read'));
+    assert.ok((await (await get('tools?scope=local')).text()).includes('Local tools could not be read'));
   }, 200, '{ invalid manifest');
   console.log('PASS: a malformed local manifest does not hide the global tool inventory.');
 }

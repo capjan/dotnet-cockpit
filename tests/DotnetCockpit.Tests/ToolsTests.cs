@@ -34,20 +34,25 @@ public sealed class ToolsTests
         Assert.Throws<FormatException>(() => ToolOutputParser.Parse(output));
 
     [Fact]
-    public void RendersBothToolScopesAndEscapesToolData()
+    public void RendersToolTabsAndEscapesToolData()
     {
         var snapshot = new ToolsSnapshot("ready", "/workspace/<project>",
             new([new("global.tool", "1.2.3", ["global-command"], null)]),
             new([new("local.tool", "2.0.0", ["<command>", "alternate"], "/workspace/<project>/.config/dotnet-tools.json")]));
-        var html = ToolsPage.Render(snapshot);
+        var html = ToolsPage.Render(snapshot, new("global"));
         Assert.Contains("data-tool-scope=\"global\"", html);
-        Assert.Contains("data-tool-scope=\"local\"", html);
         Assert.Contains("global.tool", html);
-        Assert.Contains("local.tool", html);
-        Assert.Contains("&lt;command&gt;", html);
-        Assert.Contains("/workspace/&lt;project&gt;/.config/dotnet-tools.json", html);
-        Assert.DoesNotContain("<project>", html);
-        Assert.Contains("href=\"/tools\" class=\"nav-link nav-child\" aria-current=\"page\"", html);
+        Assert.DoesNotContain("local.tool", html);
+        Assert.Contains("href=\"/tools?scope=local\"", html);
+        Assert.Contains("aria-selected=\"true\"", html);
+        Assert.Contains("href=\"/tools\" class=\"nav-link\" aria-current=\"page\"", html);
+
+        var localHtml = ToolsPage.Render(snapshot, new("local"));
+        Assert.Contains("local.tool", localHtml);
+        Assert.Contains("&lt;command&gt;", localHtml);
+        Assert.Contains("/workspace/&lt;project&gt;/.config/dotnet-tools.json", localHtml);
+        Assert.DoesNotContain("<project>", localHtml);
+        Assert.DoesNotContain("global.tool", localHtml);
     }
 
     [Fact]
@@ -55,21 +60,25 @@ public sealed class ToolsTests
     {
         var snapshot = new ToolsSnapshot("ready", "/workspace",
             new([new("global.tool", "1.0.0", ["global-command"], null)]), new([], "Invalid <manifest>"));
-        var html = ToolsPage.Render(snapshot);
-        Assert.Contains("global.tool", html);
-        Assert.Contains("Local tools could not be read", html);
-        Assert.Contains("Invalid &lt;manifest&gt;", html);
-        Assert.DoesNotContain("No local tools found", html);
+        var globalHtml = ToolsPage.Render(snapshot, new("global"));
+        Assert.Contains("global.tool", globalHtml);
+        Assert.DoesNotContain("Local tools could not be read", globalHtml);
+
+        var localHtml = ToolsPage.Render(snapshot, new("local"));
+        Assert.Contains("Local tools could not be read", localHtml);
+        Assert.Contains("Invalid &lt;manifest&gt;", localHtml);
+        Assert.DoesNotContain("No local tools found", localHtml);
     }
 
     [Fact]
     public void DistinguishesEmptyListsFromMissingSdk()
     {
-        var empty = ToolsPage.Render(ToolsSnapshot.Empty("ready", "/workspace"));
-        var missingSdk = ToolsPage.Render(ToolsSnapshot.Empty("sdkMissing", "/workspace"));
-        var missingHost = ToolsPage.Render(ToolsSnapshot.Empty("notFound", "/workspace"));
+        var empty = ToolsPage.Render(ToolsSnapshot.Empty("ready", "/workspace"), new("global"));
+        var emptyLocal = ToolsPage.Render(ToolsSnapshot.Empty("ready", "/workspace"), new("local"));
+        var missingSdk = ToolsPage.Render(ToolsSnapshot.Empty("sdkMissing", "/workspace"), new("global"));
+        var missingHost = ToolsPage.Render(ToolsSnapshot.Empty("notFound", "/workspace"), new("global"));
         Assert.Contains("No global tools installed", empty);
-        Assert.Contains("No local tools found", empty);
+        Assert.Contains("No local tools found", emptyLocal);
         Assert.Contains("A .NET SDK is required", missingSdk);
         Assert.DoesNotContain("No global tools installed", missingSdk);
         Assert.Contains("No .NET installation found", missingHost);

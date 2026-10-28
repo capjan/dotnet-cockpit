@@ -2,7 +2,7 @@
 
 A local browser workspace for your .NET environment, built with **server-rendered HTML**, **Fluent UI Web Components**, and an **ASP.NET Core Minimal API** backend. React is not required.
 
-The prototype lists installed .NET SDKs and runtimes and supports filtering, sorting, and refreshing. A separate **.NET Tools** page underneath **Installations** lists global and local tools with their package IDs, versions, commands, and local manifest paths. C# renders the complete pages and handles searches and sorting through normal GET forms and links. Inventory display and controls work with JavaScript disabled. A small local script adds Fluent components and a persistent light/dark theme switch. Installation and tool-management actions are not implemented yet.
+The prototype lists installed .NET SDKs and runtimes and supports filtering, sorting, and refreshing. A separate **.NET Tools** page at the same navigation level as **Installations** lists global and local tools in server-rendered tabs with their package IDs, versions, commands, and local manifest paths. C# renders the complete pages and handles searches, sorting, and tab selection through normal GET forms and links. Inventory display and controls work with JavaScript disabled. A small local script adds Fluent components and a persistent light/dark theme switch. Installation and tool-management actions are not implemented yet.
 
 ## Run without installing .NET
 
