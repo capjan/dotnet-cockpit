@@ -75,6 +75,38 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         }
     }
 
+    public async Task<SetupActionResult> UninstallAsync(CancellationToken cancellationToken)
+    {
+        if (!IsSupported()) return new(false, "The .NET Uninstall Tool supports Windows and macOS only.");
+
+        var installation = Read().UninstallTool;
+        if (!installation.Installed) return new(true);
+        if (installation.Scope is not ("user" or "global"))
+            return new(false, "The detected executable is outside a managed installation path and must be removed manually.");
+
+        try
+        {
+            if (installation.Scope == "user")
+                RemoveUserInstallation();
+            else
+                await RemoveGlobalInstallationAsync(installation.Path!, cancellationToken);
+
+            if (File.Exists(installation.Path))
+                return new(false, "The uninstall completed, but the dotnet-core-uninstall executable is still present.");
+            return new(true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or Win32Exception or InvalidOperationException)
+        {
+            logger.LogWarning(exception, "Could not uninstall dotnet-core-uninstall from {Scope} scope.", installation.Scope);
+            return new(false, "The .NET Uninstall Tool could not be uninstalled. Check the permissions and try again.");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out while uninstalling dotnet-core-uninstall from {Scope} scope.", installation.Scope);
+            return new(false, "The .NET Uninstall Tool uninstallation timed out. Check the permissions and try again.");
+        }
+    }
+
     private async Task InstallMacOsAsync(string scope, string temporaryDirectory, CancellationToken cancellationToken)
     {
         var archive = Path.Combine(temporaryDirectory, "dotnet-core-uninstall.tar.gz");
@@ -108,6 +140,30 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         }
 
         await RunProcessAsync("msiexec.exe", ["/i", installer, "/qn", $"DOTNETCOREUNINSTALL={target}"], cancellationToken, useShellExecute: true, elevate: true);
+    }
+
+    private static void RemoveUserInstallation()
+    {
+        var directory = GetUserDirectory();
+        if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+    }
+
+    private async Task RemoveGlobalInstallationAsync(string executablePath, CancellationToken cancellationToken)
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            var macCommand = $"/bin/rm -f {ShellQuote(executablePath)}";
+            var script = $"do shell script {AppleScriptLiteral(macCommand)} with administrator privileges";
+            await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken, useShellExecute: false);
+            return;
+        }
+
+        var globalDirectory = GetGlobalDirectory();
+        var detectedDirectory = Path.GetDirectoryName(executablePath);
+        var windowsCommand = detectedDirectory is not null && IsSamePath(detectedDirectory, globalDirectory)
+            ? $"if exist {QuoteArgument(globalDirectory)} rmdir /s /q {QuoteArgument(globalDirectory)}"
+            : $"del /f /q {QuoteArgument(executablePath)}";
+        await RunProcessAsync("cmd.exe", ["/d", "/c", windowsCommand], cancellationToken, useShellExecute: true, elevate: true);
     }
 
     private async Task DownloadAsync(string url, string destination, CancellationToken cancellationToken)

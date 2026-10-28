@@ -29,7 +29,20 @@ public sealed class SetupPageTests
 
         Assert.Contains("Installed", html);
         Assert.Contains("/usr/local/bin/dotnet-core-uninstall", html);
+        Assert.Contains("action=\"/setup/uninstall\"", html);
+        Assert.Contains("Uninstall globally", html);
         Assert.DoesNotContain("action=\"/setup/install\"", html);
+    }
+
+    [Fact]
+    public void DoesNotOfferAutomaticRemovalForAnUnmanagedPathInstallation()
+    {
+        var snapshot = new SetupSnapshot("ready", "macOS", "Arm64",
+            new(true, "/opt/tools/dotnet-core-uninstall", "path"), "/Users/test/dotnet-core-uninstall", "/usr/local/bin");
+        var html = SetupPage.Render(snapshot, new());
+
+        Assert.DoesNotContain("action=\"/setup/uninstall\"", html);
+        Assert.Contains("must be removed manually", html);
     }
 
     [Fact]

@@ -49,7 +49,7 @@ Local tools are declared in the manifests visible from that directory, including
 
 ### Setup
 
-Open **Setup** in the navigation or visit `/setup` to check for `dotnet-core-uninstall`. The page offers a user installation under `~/dotnet-core-uninstall` and a global installation under `/usr/local/bin` on macOS or `C:\Program Files\dotnet-core-uninstall` on Windows. Global installation requests administrator approval. The page downloads only official assets from the [dotnet/cli-lab releases](https://github.com/dotnet/cli-lab/releases) and links to the [Microsoft documentation](https://learn.microsoft.com/en-us/dotnet/core/additional-tools/uninstall-tool-overview?pivots=os-macos) for limitations and commands. Linux is not supported by the official tool.
+Open **Setup** in the navigation or visit `/setup` to check for `dotnet-core-uninstall`. The page offers a user installation under `~/dotnet-core-uninstall` and a global installation under `/usr/local/bin` on macOS or `C:\Program Files\dotnet-core-uninstall` on Windows. Global installation requests administrator approval. A detected installation in one of Cockpit's managed locations can also be removed from the same page; installations found elsewhere on `PATH` are reported for manual removal. The page downloads only official assets from the [dotnet/cli-lab releases](https://github.com/dotnet/cli-lab/releases) and links to the [Microsoft documentation](https://learn.microsoft.com/en-us/dotnet/core/additional-tools/uninstall-tool-overview?pivots=os-macos) for limitations and commands. Linux is not supported by the official tool.
 
 ## Development
 

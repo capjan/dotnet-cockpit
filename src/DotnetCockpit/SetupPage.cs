@@ -55,6 +55,9 @@ internal static class SetupPage
                 <div class="setup-installed" role="status">
                   <strong>Ready to manage installed .NET versions</strong>
                   <span class="muted">Detected at <code>{Encode(snapshot.UninstallTool.Path ?? "")}</code> ({Encode(snapshot.UninstallTool.Scope ?? "path")} installation).</span>
+                  {(snapshot.UninstallTool.Scope is "user" or "global"
+                      ? $"<form class=\"setup-installed-actions\" method=\"post\" action=\"/setup/uninstall\"><button class=\"button danger\" type=\"submit\">Uninstall {Encode(snapshot.UninstallTool.Scope == "global" ? "globally" : "for current user")}</button></form>"
+                      : "<span class=\"muted\">This installation is outside the managed locations and must be removed manually.</span>")}
                 </div>
                 """
             : $"""
@@ -86,6 +89,8 @@ internal static class SetupPage
     {
         "installed" => "<div class=\"action-notice\" role=\"status\">The .NET Uninstall Tool was installed successfully.</div>",
         "failed" => "<div class=\"action-notice error-state\" role=\"alert\">The .NET Uninstall Tool could not be installed. Check the network connection and permissions, then try again.</div>",
+        "uninstalled" => "<div class=\"action-notice\" role=\"status\">The .NET Uninstall Tool was uninstalled successfully.</div>",
+        "uninstall-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The .NET Uninstall Tool could not be uninstalled. Check the permissions and try again.</div>",
         _ => ""
     };
 }

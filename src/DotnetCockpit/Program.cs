@@ -77,6 +77,11 @@ app.MapPost("/setup/install", async (HttpContext context, DotnetUninstallToolSer
     var result = await service.InstallAsync(form["scope"].ToString(), context.RequestAborted);
     return Results.Redirect($"/setup?notice={(result.Success ? "installed" : "failed")}");
 });
+app.MapPost("/setup/uninstall", async (HttpContext context, DotnetUninstallToolService service) =>
+{
+    var result = await service.UninstallAsync(context.RequestAborted);
+    return Results.Redirect($"/setup?notice={(result.Success ? "uninstalled" : "uninstall-failed")}");
+});
 app.MapGet("/tools", async (DotnetToolsService service, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
