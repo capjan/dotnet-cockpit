@@ -31,7 +31,7 @@ internal static class ToolsPage
               <div><h1>.NET Tools</h1><p class="muted intro">Global tools for your account and local tools for this workspace.</p></div>
               <a class="button primary" href="{{RefreshLink(options)}}">{{Icon("refresh")}} Refresh</a>
             </div>
-            <div class="working-directory"><strong>Working directory</strong><code>{{Encode(snapshot.WorkingDirectory)}}</code></div>
+            <div class="working-directory"><div class="working-directory-heading"><span class="context-icon">{{Icon("desktop")}}</span><div><strong>Working directory</strong><span class="muted">Local tools use manifests from this directory and its parents.</span></div><span class="context-badge">Current workspace</span></div><code>{{Encode(snapshot.WorkingDirectory)}}</code></div>
             {{RenderNotice(options.Notice)}}
             {{(snapshot.Status == "ready" && !snapshot.LocalManifestInitialized ? RenderManifestNotice(options) : "")}}
             {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
@@ -83,7 +83,7 @@ internal static class ToolsPage
             <thead><tr><th scope="col">Package ID</th><th scope="col">Version</th><th scope="col">Commands</th>{{(local ? "<th scope=\"col\">Manifest</th>" : "")}}<th scope="col">Actions</th></tr></thead>
             <tbody>{{string.Concat(tools.OrderBy(tool => tool.PackageId, StringComparer.OrdinalIgnoreCase).Select(tool => $"""
               <tr data-tool-scope="{(local ? "local" : "global")}">
-                <td><strong>{Encode(tool.PackageId)}</strong></td>
+                <td><div class="tool-name"><span class="tool-icon">{Icon("code")}</span><strong>{Encode(tool.PackageId)}</strong></div></td>
                 <td><fluent-badge appearance="tint" color="brand" class="version-badge">{Encode(tool.Version)}</fluent-badge></td>
                 <td>{string.Join(", ", tool.Commands.Select(command => $"<code>{Encode(command)}</code>"))}</td>
                 {(local ? $"<td><code class=\"tool-manifest\">{Encode(tool.Manifest ?? "")}</code></td>" : "")}
@@ -116,9 +116,9 @@ internal static class ToolsPage
 
         return $$"""
             <section class="tool-search" aria-labelledby="tool-search-title">
+              <div class="tool-search-heading"><div class="tool-search-title"><span class="search-icon">{{Icon("search")}}</span><div><label id="tool-search-title" for="tool-search-input">Search .NET tools</label><p class="muted">Find packages by ID or description.</p></div></div><span class="search-source">NuGet</span></div>
               <form method="get" action="/tools" class="tool-search-form">
-                <label id="tool-search-title" for="tool-search-input">Search .NET tools</label>
-                <div class="tool-search-controls"><input id="tool-search-input" name="q" value="{{Encode(options.SearchQuery)}}" placeholder="Search by package ID or description"><input type="hidden" name="scope" value="{{options.Scope}}"><button class="button primary" type="submit">Search</button></div>
+                <div class="tool-search-controls"><input id="tool-search-input" name="q" value="{{Encode(options.SearchQuery)}}" placeholder="Package ID or description"><input type="hidden" name="scope" value="{{options.Scope}}"><button class="button primary" type="submit">Search</button></div>
               </form>
               {{results}}
             </section>
