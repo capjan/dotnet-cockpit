@@ -53,6 +53,21 @@ public sealed class InstallationPageTests
     }
 
     [Fact]
+    public void RendersRemoveActionOnlyForUninstallableInstallations()
+    {
+        var snapshot = InstallationSnapshot.Create("ready", "/opt/dotnet/dotnet",
+            [new SdkInstallation("10.0.9", "/opt/dotnet/sdk") { CanRemove = true }]);
+
+        var html = InstallationPage.Render(snapshot, new(Kind: "sdks"));
+
+        Assert.Contains("<th scope=\"col\">Actions</th>", html);
+        Assert.Contains("action=\"/installation/remove\"", html);
+        Assert.Contains("name=\"kind\" value=\"sdk\"", html);
+        Assert.Contains("name=\"version\" value=\"10.0.9\"", html);
+        Assert.DoesNotContain("action=\"/installation/remove\"", InstallationPage.Render(Snapshot(), new()));
+    }
+
+    [Fact]
     public void SortsVersionsNumericallyInBothDirections()
     {
         var descending = InstallationPage.Render(Snapshot(), new());

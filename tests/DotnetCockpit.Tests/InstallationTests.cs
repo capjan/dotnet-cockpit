@@ -43,6 +43,9 @@ public sealed class InstallationTests
 
         Assert.Equal(["10.0.403"], inventory.SdkVersions);
         Assert.Equal(["10.0.14"], inventory.RuntimeVersions);
+        Assert.Equal([
+            new UninstallableRuntime("Microsoft.NETCore.App", "10.0.14"),
+            new UninstallableRuntime("Microsoft.AspNetCore.App", "10.0.14")], inventory.Runtimes);
     }
 
     [Fact]

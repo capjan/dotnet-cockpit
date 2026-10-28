@@ -4,18 +4,19 @@ using static DotnetCockpit.PageLayout;
 
 namespace DotnetCockpit;
 
-internal sealed record InstallationViewOptions(string Query = "", string Kind = "all", string Sort = "version", bool Ascending = false)
+internal sealed record InstallationViewOptions(string Query = "", string Kind = "all", string Sort = "version", bool Ascending = false, string Notice = "")
 {
     public static InstallationViewOptions From(IQueryCollection query) => new(
         query["q"].ToString(),
         query["kind"].ToString() is "sdks" or "runtimes" ? query["kind"].ToString() : "all",
         query["sort"].ToString() is "name" or "path" ? query["sort"].ToString() : "version",
-        query["direction"] == "asc");
+        query["direction"] == "asc",
+        query["notice"].ToString());
 }
 
 internal static class InstallationPage
 {
-    private sealed record Row(string Kind, string Name, string Description, string Version, IReadOnlyList<string> Paths)
+    private sealed record Row(string Kind, string Name, string Description, string Version, IReadOnlyList<string> Paths, bool CanRemove)
     {
         public string Path => string.Join(" ", Paths);
     }
@@ -45,6 +46,7 @@ internal static class InstallationPage
                     <div><h1>Your .NET environment</h1><p class="muted intro">Installed SDKs and runtimes, in one place.</p></div>
                     <a class="button primary" href="{{Link(options)}}">{{Icon("refresh")}} Refresh</a>
                   </div>
+                  {{RenderNotice(options.Notice)}}
                   <section class="summary-grid" aria-label="Installation summary">
                     {{SummaryCard("Installed SDKs", snapshot.Sdks.Length.ToString(CultureInfo.InvariantCulture), "Build and develop applications", "code")}}
                     {{SummaryCard("Installed runtimes", runtimeCount.ToString(CultureInfo.InvariantCulture), "Run .NET applications", "server")}}
@@ -74,7 +76,7 @@ internal static class InstallationPage
 
     private static Row[] BuildRows(InstallationSnapshot snapshot)
     {
-        var sdkRows = snapshot.Sdks.Select(sdk => new Row("sdk", ".NET SDK", "Software development kit", sdk.Version, [sdk.InstallationPath]));
+        var sdkRows = snapshot.Sdks.Select(sdk => new Row("sdk", ".NET SDK", "Software development kit", sdk.Version, [sdk.InstallationPath], sdk.CanRemove));
         var runtimeRows = snapshot.Runtimes
             .GroupBy(runtime => runtime.Version, StringComparer.OrdinalIgnoreCase)
             .Select(group =>
@@ -83,7 +85,7 @@ internal static class InstallationPage
                 var names = runtimes.Select(runtime => RuntimeName(runtime.Name)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 var descriptions = runtimes.Select(runtime => runtime.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 var paths = runtimes.Select(runtime => runtime.InstallationPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-                return new Row("runtime", names.Length == 1 ? names[0] : ".NET Runtime", string.Join(" · ", descriptions), group.Key, paths);
+                return new Row("runtime", names.Length == 1 ? names[0] : ".NET Runtime", string.Join(" · ", descriptions), group.Key, paths, runtimes.Any(runtime => runtime.CanRemove));
             });
         return sdkRows.Concat(runtimeRows).ToArray();
     }
@@ -100,24 +102,40 @@ internal static class InstallationPage
             .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    private static string RenderTable(Row[] rows, InstallationViewOptions options) => $$"""
-        <div class="table-scroll" role="region" aria-label="Installed .NET versions" tabindex="0">
-          <table aria-label="Installed .NET versions">
-            <thead><tr>{{SortHeader("Installation", "name", options)}}{{SortHeader("Version", "version", options)}}{{SortHeader("Location", "path", options)}}</tr></thead>
-            <tbody>{{string.Concat(rows.Select(row => $"""
-              <tr data-kind="{row.Kind}">
-                <td><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "code" : "server")}</span><div><strong>{Encode(row.Name)}</strong><span class="muted framework-name">{Encode(row.Description)}</span></div></div></td>
-                <td><fluent-badge appearance="tint" color="{(row.Kind == "sdk" ? "brand" : "informative")}" class="version-badge">{Encode(row.Version)}</fluent-badge></td>
-                <td><div class="installation-paths">{string.Concat(row.Paths.Select(path => $"<code class=\"installation-path\">{Encode(path)}</code>"))}</div></td>
-              </tr>
-              """))}}</tbody>
-          </table>
-          {{(rows.Length == 0 ? "<div class=\"empty-state\"><h3>No matching versions</h3><p class=\"muted\">Try another filter or switch to All versions.</p><a class=\"button\" href=\"/#inventory\">Clear filters</a></div>" : "")}}
-        </div>
-        """;
+    private static string RenderTable(Row[] rows, InstallationViewOptions options)
+    {
+        var showActions = rows.Any(row => row.CanRemove);
+        return $$"""
+            <div class="table-scroll" role="region" aria-label="Installed .NET versions" tabindex="0">
+              <table aria-label="Installed .NET versions">
+                <thead><tr>{{SortHeader("Installation", "name", options)}}{{SortHeader("Version", "version", options)}}{{SortHeader("Location", "path", options)}}{{(showActions ? "<th scope=\"col\">Actions</th>" : "")}}</tr></thead>
+                <tbody>{{string.Concat(rows.Select(row => $"""
+                  <tr data-kind="{row.Kind}">
+                    <td><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "code" : "server")}</span><div><strong>{Encode(row.Name)}</strong><span class="muted framework-name">{Encode(row.Description)}</span></div></div></td>
+                    <td><fluent-badge appearance="tint" color="{(row.Kind == "sdk" ? "brand" : "informative")}" class="version-badge">{Encode(row.Version)}</fluent-badge></td>
+                    <td><div class="installation-paths">{string.Concat(row.Paths.Select(path => $"<code class=\"installation-path\">{Encode(path)}</code>"))}</div></td>
+                    {(showActions ? $"<td class=\"installation-actions\">{RemoveAction(row, options)}</td>" : "")}
+                  </tr>
+                  """))}}</tbody>
+              </table>
+              {{(rows.Length == 0 ? "<div class=\"empty-state\"><h3>No matching versions</h3><p class=\"muted\">Try another filter or switch to All versions.</p><a class=\"button\" href=\"/#inventory\">Clear filters</a></div>" : "")}}
+            </div>
+            """;
+    }
 
     private static string SummaryCard(string label, string value, string description, string icon) =>
         $"<div class=\"summary-card\"><div class=\"summary-top\"><span>{Encode(label)}</span>{Icon(icon)}</div><strong class=\"summary-number\">{Encode(value)}</strong><span class=\"muted\">{Encode(description)}</span></div>";
+
+    private static string RemoveAction(Row row, InstallationViewOptions options) => !row.CanRemove
+        ? ""
+        : $"<form method=\"post\" action=\"/installation/remove\"><input type=\"hidden\" name=\"version\" value=\"{Encode(row.Version)}\"><input type=\"hidden\" name=\"kind\" value=\"{row.Kind}\"><input type=\"hidden\" name=\"viewKind\" value=\"{options.Kind}\"><input type=\"hidden\" name=\"q\" value=\"{Encode(options.Query)}\"><input type=\"hidden\" name=\"sort\" value=\"{options.Sort}\"><input type=\"hidden\" name=\"direction\" value=\"{(options.Ascending ? "asc" : "desc")}\"><button class=\"button danger\" type=\"submit\">Remove</button></form>";
+
+    private static string RenderNotice(string notice) => notice switch
+    {
+        "removed" => "<div class=\"action-notice\" role=\"status\">The selected .NET installation was removed.</div>",
+        "remove-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The selected .NET installation could not be removed. Check the permissions and try again.</div>",
+        _ => ""
+    };
 
     private static string TypeLink(string label, string kind, InstallationViewOptions options) =>
         $"<a href=\"{Link(options with { Kind = kind })}\"{(options.Kind == kind ? " aria-current=\"page\"" : "")}>{label}</a>";

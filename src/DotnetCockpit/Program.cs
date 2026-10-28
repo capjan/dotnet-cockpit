@@ -66,6 +66,12 @@ app.MapGet("/api/installation", async (DotnetInstallationService service, HttpCo
     var snapshot = await ReadInstallation(service, context, logger);
     return Results.Json(snapshot, AppJsonContext.Default.InstallationSnapshot, statusCode: snapshot.Status == "error" ? 503 : 200);
 });
+app.MapPost("/installation/remove", async (HttpContext context, DotnetUninstallToolService service) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var result = await service.RemoveInstallationAsync(form["version"].ToString(), form["kind"].ToString(), context.RequestAborted);
+    return Results.Redirect(InstallationRedirect(form, result.Success ? "removed" : "remove-failed"));
+});
 app.MapGet("/setup", async (DotnetUninstallToolService service, HttpContext context) =>
 {
     context.Response.Headers.CacheControl = "no-store";
@@ -163,6 +169,16 @@ static string ToolRedirect(string scope, string query, string notice)
     var result = $"/tools?scope={normalizedScope}";
     if (normalizedQuery.Length is > 0 and <= 100) result += $"&q={Uri.EscapeDataString(normalizedQuery)}";
     return $"{result}&notice={notice}";
+}
+
+static string InstallationRedirect(IFormCollection form, string notice)
+{
+    var kind = form["viewKind"].ToString() is "sdks" or "runtimes" ? form["viewKind"].ToString() : "all";
+    var sort = form["sort"].ToString() is "name" or "path" ? form["sort"].ToString() : "version";
+    var direction = form["direction"].ToString() == "asc" ? "asc" : "desc";
+    var query = form["q"].ToString().Trim();
+    var result = $"/?q={Uri.EscapeDataString(query)}&kind={kind}&sort={sort}&direction={direction}&notice={notice}";
+    return $"{result}#inventory";
 }
 
 await app.StartAsync();

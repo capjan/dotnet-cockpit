@@ -36,9 +36,16 @@ internal sealed class DotnetInstallationService
         var uninstallable = DotnetOutputParser.ParseUninstallList(uninstallListTask.Result);
         var sdks = DotnetOutputParser.ParseSdks(infoTask.Result)
             .Where(sdk => uninstallable.SdkVersions.Contains(sdk.Version, StringComparer.OrdinalIgnoreCase))
+            .Select(sdk => sdk with { CanRemove = true })
             .ToArray();
         var runtimes = DotnetOutputParser.ParseRuntimes(infoTask.Result)
             .Where(runtime => uninstallable.RuntimeVersions.Contains(runtime.Version, StringComparer.OrdinalIgnoreCase))
+            .Select(runtime => runtime with
+            {
+                CanRemove = uninstallable.Runtimes.Any(candidate =>
+                    string.Equals(candidate.Name, runtime.Name, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(candidate.Version, runtime.Version, StringComparison.OrdinalIgnoreCase))
+            })
             .ToArray();
         return InstallationSnapshot.Create("ready", executable, sdks, runtimes);
     }

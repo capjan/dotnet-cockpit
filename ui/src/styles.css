@@ -91,6 +91,8 @@ td:last-child { padding-right: 24px; }
 .version-badge, .installation-path, .host-info code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
 .installation-paths { display: flex; flex-direction: column; gap: 4px; }
 .installation-path { color: var(--muted); white-space: nowrap; }
+.installation-actions { width: 110px; text-align: right; }
+.installation-actions form { margin: 0; }
 fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px solid var(--line); border-radius: 12px; font-size: 12px; background: var(--brand-soft); color: var(--brand); }
 .inventory-footer { display: flex; justify-content: space-between; gap: 12px; padding: 13px 24px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); }
 .empty-state { padding: 48px 24px; text-align: center; }

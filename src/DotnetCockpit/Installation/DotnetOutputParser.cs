@@ -8,7 +8,9 @@ internal static partial class DotnetOutputParser
     {
         None,
         Sdk,
-        Runtime
+        Runtime,
+        AspNetRuntime,
+        WindowsDesktopRuntime
     }
 
     [GeneratedRegex(@"^(?<version>\S+)\s+\[(?<path>.+)\]$")]
@@ -32,7 +34,7 @@ internal static partial class DotnetOutputParser
     public static UninstallListInventory ParseUninstallList(string output)
     {
         var sdks = new List<string>();
-        var runtimes = new List<string>();
+        var runtimes = new List<UninstallableRuntime>();
         var section = UninstallSection.None;
         foreach (var line in Lines(output))
         {
@@ -45,7 +47,13 @@ internal static partial class DotnetOutputParser
 
             if (heading.Contains("ASP.NET Core Runtime", StringComparison.OrdinalIgnoreCase) && heading.EndsWith('s'))
             {
-                section = UninstallSection.Runtime;
+                section = UninstallSection.AspNetRuntime;
+                continue;
+            }
+
+            if (heading.Contains("Windows Desktop Runtime", StringComparison.OrdinalIgnoreCase) && heading.EndsWith('s'))
+            {
+                section = UninstallSection.WindowsDesktopRuntime;
                 continue;
             }
 
@@ -65,7 +73,17 @@ internal static partial class DotnetOutputParser
             if (!match.Success) continue;
             var version = match.Groups["version"].Value;
             if (section == UninstallSection.Sdk && !sdks.Contains(version, StringComparer.OrdinalIgnoreCase)) sdks.Add(version);
-            if (section == UninstallSection.Runtime && !runtimes.Contains(version, StringComparer.OrdinalIgnoreCase)) runtimes.Add(version);
+            if (section is UninstallSection.Runtime or UninstallSection.AspNetRuntime or UninstallSection.WindowsDesktopRuntime)
+            {
+                var name = section switch
+                {
+                    UninstallSection.AspNetRuntime => "Microsoft.AspNetCore.App",
+                    UninstallSection.WindowsDesktopRuntime => "Microsoft.WindowsDesktop.App",
+                    _ => "Microsoft.NETCore.App"
+                };
+                if (!runtimes.Any(runtime => string.Equals(runtime.Name, name, StringComparison.OrdinalIgnoreCase) && string.Equals(runtime.Version, version, StringComparison.OrdinalIgnoreCase)))
+                    runtimes.Add(new(name, version));
+            }
         }
 
         return new(sdks.ToArray(), runtimes.ToArray());
@@ -75,4 +93,9 @@ internal static partial class DotnetOutputParser
         output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }
 
-internal sealed record UninstallListInventory(string[] SdkVersions, string[] RuntimeVersions);
+internal sealed record UninstallListInventory(string[] SdkVersions, UninstallableRuntime[] Runtimes)
+{
+    public string[] RuntimeVersions => Runtimes.Select(runtime => runtime.Version).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+}
+
+internal sealed record UninstallableRuntime(string Name, string Version);

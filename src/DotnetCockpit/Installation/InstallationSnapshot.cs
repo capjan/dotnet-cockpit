@@ -1,14 +1,21 @@
 using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
 
 namespace DotnetCockpit.Installation;
 
 internal sealed record SdkInstallation(string Version, string Path)
 {
+    [JsonIgnore]
+    public bool CanRemove { get; init; }
+
     public string InstallationPath => System.IO.Path.Combine(Path, Version);
 }
 
 internal sealed record RuntimeInstallation(string Name, string Version, string Path)
 {
+    [JsonIgnore]
+    public bool CanRemove { get; init; }
+
     public string InstallationPath => System.IO.Path.Combine(Path, Version);
 }
 
