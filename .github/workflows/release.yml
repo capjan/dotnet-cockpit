@@ -51,4 +51,6 @@ jobs:
           PACKAGE_VERSION: ${{ inputs.version }}
         run: |
           (cd artifacts/release && sha256sum *.tar.gz *.zip *.nupkg > SHA256SUMS)
-          gh release create "v$PACKAGE_VERSION" artifacts/release/* --target "$GITHUB_SHA" --title ".NET Cockpit $PACKAGE_VERSION" --generate-notes
+          options=()
+          if [[ "$PACKAGE_VERSION" == *-* ]]; then options+=(--prerelease); fi
+          gh release create "v$PACKAGE_VERSION" artifacts/release/* --target "$GITHUB_SHA" --title ".NET Cockpit $PACKAGE_VERSION" --generate-notes "${options[@]}"
