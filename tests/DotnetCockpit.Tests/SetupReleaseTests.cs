@@ -44,6 +44,21 @@ public sealed class SetupReleaseTests
         Assert.Contains("could not be loaded", snapshot.ReleaseListError);
     }
 
+    [Fact]
+    public async Task DoesNotUseGenericMacOsArchivesOnArm64()
+    {
+        if (!OperatingSystem.IsMacOS() || RuntimeInformation.OSArchitecture != Architecture.Arm64) return;
+
+        var handler = new ReleaseHandler("dotnet-core-uninstall.tar.gz", pageTwo: false);
+        using var client = new HttpClient(handler);
+        var service = new DotnetUninstallToolService(NullLogger<DotnetUninstallToolService>.Instance, client);
+
+        var snapshot = await service.ReadAsync(CancellationToken.None);
+
+        Assert.Null(snapshot.AvailableReleases);
+        Assert.Contains("could not be loaded", snapshot.ReleaseListError);
+    }
+
     private sealed class ReleaseHandler(string asset, bool pageTwo) : HttpMessageHandler
     {
         public List<Uri> Requests { get; } = [];

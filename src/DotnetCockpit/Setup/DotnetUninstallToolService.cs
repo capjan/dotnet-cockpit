@@ -277,6 +277,13 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
 
     private string? FindAssetName(string version, IReadOnlyList<string> assetNames)
     {
+        if (OperatingSystem.IsMacOS() && RuntimeInformation.OSArchitecture == Architecture.Arm64)
+        {
+            return assetNames.FirstOrDefault(asset =>
+                asset.StartsWith("dotnet-core-uninstall", StringComparison.OrdinalIgnoreCase) &&
+                asset.EndsWith("-osx-arm64.tar.gz", StringComparison.OrdinalIgnoreCase));
+        }
+
         var expected = OperatingSystem.IsWindows()
             ? new[] { "dotnet-core-uninstall.msi", $"dotnet-core-uninstall-{version}.msi" }
             : new[] { $"dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz", "dotnet-core-uninstall.tar.gz" };

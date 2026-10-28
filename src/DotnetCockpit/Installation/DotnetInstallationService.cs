@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace DotnetCockpit.Installation;
 
 internal sealed class DotnetInstallationService
@@ -21,7 +23,16 @@ internal sealed class DotnetInstallationService
         }
 
         var uninstallListTask = DotnetCommand.RunAsync(uninstallTool, ["list"], timeout.Token);
-        await Task.WhenAll(infoTask, uninstallListTask);
+        try
+        {
+            await Task.WhenAll(infoTask, uninstallListTask);
+        }
+        catch (Exception exception) when ((exception is Win32Exception or InvalidOperationException) && infoTask.Status == TaskStatus.RanToCompletion)
+        {
+            return InstallationSnapshot.Create("ready", executable,
+                DotnetOutputParser.ParseSdks(infoTask.Result), DotnetOutputParser.ParseRuntimes(infoTask.Result));
+        }
+
         var uninstallable = DotnetOutputParser.ParseUninstallList(uninstallListTask.Result);
         var sdks = DotnetOutputParser.ParseSdks(infoTask.Result)
             .Where(sdk => uninstallable.SdkVersions.Contains(sdk.Version, StringComparer.OrdinalIgnoreCase))
