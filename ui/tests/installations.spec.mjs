@@ -51,7 +51,7 @@ test('switches Fluent themes with the keyboard and retains the choice across nav
 });
 
 test('refreshes the server-rendered inventory', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?q=&kind=all&sort=version&direction=desc#inventory');
   const before = await page.locator('time').getAttribute('datetime');
   await page.getByRole('link', { name: 'Refresh', exact: true }).click();
   await expect(page.locator('time')).not.toHaveAttribute('datetime', before);

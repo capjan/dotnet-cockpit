@@ -113,5 +113,6 @@ public sealed class InstallationPageTests
         Assert.Contains("No .NET installation found", missing);
         Assert.Contains("role=\"alert\"", error);
         Assert.Contains("Cannot read &lt;host&gt;", error);
+        Assert.Contains("refresh=", error);
     }
 }

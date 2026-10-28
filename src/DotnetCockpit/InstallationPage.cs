@@ -38,7 +38,7 @@ internal static class InstallationPage
             "notFound" => """
                 <div class="empty-state"><h3>No .NET installation found</h3><p>The dotnet command is not available on PATH.</p><p class="muted">.NET Cockpit runs independently. After installing .NET, restart Cockpit if PATH has changed.</p></div>
                 """,
-            "error" => $"<div class=\"empty-state error-state\" role=\"alert\"><h3>Installation information is unavailable</h3><p>{Encode(snapshot.Error ?? "The installation could not be read.")}</p><a class=\"button\" href=\"{Link(options)}\">Try again</a></div>",
+            "error" => $"<div class=\"empty-state error-state\" role=\"alert\"><h3>Installation information is unavailable</h3><p>{Encode(snapshot.Error ?? "The installation could not be read.")}</p><a class=\"button\" href=\"{RefreshLink(options, snapshot.CheckedAt)}\">Try again</a></div>",
             _ when total == 0 => $"<div class=\"empty-state\"><h3>No SDKs or runtimes found</h3><p class=\"muted\">{(snapshot.ExecutablePath is null ? "dotnet-core-uninstall reported no removable SDKs or runtimes." : "The dotnet host reported no installed SDKs or runtimes.")}</p></div>",
             _ => RenderTable(rows, options)
         };
@@ -47,7 +47,7 @@ internal static class InstallationPage
                   <div class="breadcrumb">Environment <span>/</span> Installations</div>
                   <div class="page-heading">
                     <div><h1>Your .NET environment</h1><p class="muted intro">Installed SDKs and runtimes, in one place.</p></div>
-                    <a class="button primary" href="{{Link(options)}}">{{Icon("refresh")}} Refresh</a>
+                    <a class="button primary" href="{{RefreshLink(options, snapshot.CheckedAt)}}">{{Icon("refresh")}} Refresh</a>
                   </div>
                   {{RenderNotice(options.Notice)}}
                   <section class="summary-grid" aria-label="Installation summary">
@@ -156,6 +156,9 @@ internal static class InstallationPage
         var direction = active ? options.Ascending ? "ascending" : "descending" : "none";
         return $"<th scope=\"col\" aria-sort=\"{direction}\"><a href=\"{Link(options with { Sort = column, Ascending = !active || !options.Ascending })}\">{label}{(active ? options.Ascending ? " ↑" : " ↓" : "")}</a></th>";
     }
+
+    private static string RefreshLink(InstallationViewOptions options, DateTimeOffset checkedAt) => Encode(
+        $"/?q={Uri.EscapeDataString(options.Query)}&kind={options.Kind}&sort={options.Sort}&direction={(options.Ascending ? "asc" : "desc")}&refresh={checkedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)}#inventory");
 
     private static string Link(InstallationViewOptions options) => Encode(
         $"/?q={Uri.EscapeDataString(options.Query)}&kind={options.Kind}&sort={options.Sort}&direction={(options.Ascending ? "asc" : "desc")}#inventory");
