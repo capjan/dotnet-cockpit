@@ -24,11 +24,17 @@ let uninstallSection = '';
 for (const line of uninstallList.split(/\r?\n/)) {
   const heading = line.trim().replace(/:$/, '');
   if (heading.includes('SDK') && heading.endsWith('s')) uninstallSection = 'sdks';
-  else if (heading.includes('ASP.NET Core Runtime') && heading.endsWith('s')) uninstallSection = 'runtimes';
-  else if (heading.includes('.NET Core Runtimes')) uninstallSection = 'runtimes';
+  else if (heading.includes('ASP.NET Core Runtime') && heading.endsWith('s')) uninstallSection = 'aspnet';
+  else if (heading.includes('Windows Desktop Runtime') && heading.endsWith('s')) uninstallSection = 'windowsdesktop';
+  else if (heading.includes('.NET Core Runtimes')) uninstallSection = 'core';
   else if (line.trimStart().startsWith('.') && line.trimEnd().endsWith(':')) uninstallSection = '';
   const match = line.match(/^\s*(\d+(?:\.\d+)*(?:[-+][^\s]+)?)\b/);
-  if (match && uninstallSection) uninstallable[uninstallSection].add(match[1]);
+  if (match && uninstallSection) {
+    if (uninstallSection === 'sdks') uninstallable.sdks.add(match[1]);
+    if (['core', 'aspnet', 'windowsdesktop'].includes(uninstallSection)) {
+      uninstallable.runtimes.add(match[1]);
+    }
+  }
 }
 const expectedSdks = uninstallList.length > 0 ? sdks.filter(sdk => uninstallable.sdks.has(sdk.version)) : sdks;
 const expectedRuntimes = uninstallList.length > 0 ? runtimes.filter(runtime => uninstallable.runtimes.has(runtime.version)) : runtimes;
@@ -155,11 +161,20 @@ console.log('PASS: server-rendered installations, global/local tools, filtering,
 
 if (native) {
   await runWithoutRepositoryFiles({ ...process.env, PATH: '' }, async (data, html, get) => {
-    assert.equal(data.status, 'notFound');
-    assert.equal(data.executablePath, null);
-    assert.deepEqual(data.sdks, []);
-    assert.deepEqual(data.runtimes, []);
-    assert.ok(html.includes('No .NET installation found'));
+    if (uninstallOutput.status === 0) {
+      assert.equal(data.status, 'ready');
+      assert.equal(data.executablePath, null);
+      assert.deepEqual(data.sdks.toSorted((left, right) => left.version.localeCompare(right.version)), expectedSdks.map(sdk => ({ version: sdk.version, path: '', installationPath: '' })).toSorted((left, right) => left.version.localeCompare(right.version)));
+      assert.deepEqual(data.runtimes.map(runtime => runtime.version), [...uninstallable.runtimes]);
+      assert.ok(data.runtimes.every(runtime => runtime.path === '' && runtime.installationPath === ''));
+      assert.ok(html.includes('Versions reported by dotnet-core-uninstall'));
+    } else {
+      assert.equal(data.status, 'notFound');
+      assert.equal(data.executablePath, null);
+      assert.deepEqual(data.sdks, []);
+      assert.deepEqual(data.runtimes, []);
+      assert.ok(html.includes('No .NET installation found'));
+    }
     assert.ok((await (await get('tools')).text()).includes('No .NET installation found'));
     assert.equal((await (await get('api/tools')).json()).status, 'notFound');
   });
@@ -169,15 +184,26 @@ if (native) {
   try {
     await writeFile(join(brokenHost, process.platform === 'win32' ? 'dotnet.exe' : 'dotnet'), 'invalid executable', { mode: 0o755 });
     await runWithoutRepositoryFiles({ ...process.env, PATH: brokenHost }, async (data, html, get) => {
-      assert.equal(data.status, 'error');
-      assert.ok(html.includes('Installation information is unavailable'));
-      assert.equal((await get('tools')).status, 503);
-      assert.equal((await get('api/tools')).status, 503);
-    }, 503);
+      if (uninstallOutput.status === 0) {
+        assert.equal(data.status, 'ready');
+        assert.equal(data.executablePath, null);
+        assert.deepEqual(data.sdks.toSorted((left, right) => left.version.localeCompare(right.version)), expectedSdks.map(sdk => ({ version: sdk.version, path: '', installationPath: '' })).toSorted((left, right) => left.version.localeCompare(right.version)));
+      assert.deepEqual(data.runtimes.map(runtime => runtime.version), [...uninstallable.runtimes]);
+      assert.ok(data.runtimes.every(runtime => runtime.path === '' && runtime.installationPath === ''));
+        assert.ok(html.includes('Versions reported by dotnet-core-uninstall'));
+        assert.equal((await get('tools')).status, 503);
+        assert.equal((await get('api/tools')).status, 503);
+      } else {
+        assert.equal(data.status, 'error');
+        assert.ok(html.includes('Installation information is unavailable'));
+        assert.equal((await get('tools')).status, 503);
+        assert.equal((await get('api/tools')).status, 503);
+      }
+    }, uninstallOutput.status === 0 ? 200 : 503);
   } finally {
     await rm(brokenHost, { recursive: true, force: true });
   }
-  console.log('PASS: a broken dotnet host returns an error page and HTTP 503 instead of an empty inventory.');
+  console.log('PASS: a broken dotnet host uses uninstall inventory when available and otherwise returns HTTP 503.');
 
   await runWithoutRepositoryFiles(process.env, async (_, __, get) => {
     const tools = await (await get('api/tools')).json();

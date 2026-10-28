@@ -30,13 +30,16 @@ internal static class InstallationPage
         var rows = FilterRows(allRows, options);
         var total = allRows.Length;
         var runtimeCount = allRows.Count(row => row.Kind == "runtime");
+        var inventoryDescription = snapshot.ExecutablePath is null
+            ? "Versions reported by dotnet-core-uninstall."
+            : "The .NET installation available on your PATH.";
         var content = snapshot.Status switch
         {
             "notFound" => """
                 <div class="empty-state"><h3>No .NET installation found</h3><p>The dotnet command is not available on PATH.</p><p class="muted">.NET Cockpit runs independently. After installing .NET, restart Cockpit if PATH has changed.</p></div>
                 """,
             "error" => $"<div class=\"empty-state error-state\" role=\"alert\"><h3>Installation information is unavailable</h3><p>{Encode(snapshot.Error ?? "The installation could not be read.")}</p><a class=\"button\" href=\"{Link(options)}\">Try again</a></div>",
-            _ when total == 0 => "<div class=\"empty-state\"><h3>No SDKs or runtimes found</h3><p class=\"muted\">The dotnet host is available, but it reported no installed SDKs or runtimes.</p></div>",
+            _ when total == 0 => $"<div class=\"empty-state\"><h3>No SDKs or runtimes found</h3><p class=\"muted\">{(snapshot.ExecutablePath is null ? "dotnet-core-uninstall reported no removable SDKs or runtimes." : "The dotnet host reported no installed SDKs or runtimes.")}</p></div>",
             _ => RenderTable(rows, options)
         };
 
@@ -53,7 +56,7 @@ internal static class InstallationPage
                     {{SummaryCard("This machine", snapshot.Architecture.ToUpperInvariant(), snapshot.OperatingSystem, "desktop")}}
                   </section>
                   <section class="inventory" id="inventory" aria-labelledby="inventory-title">
-                    <div class="inventory-heading"><div><h2 id="inventory-title">Installed versions</h2><p class="muted">The .NET installation available on your PATH.</p></div><fluent-badge appearance="outline" color="brand" class="inventory-count">{{total}} installed</fluent-badge></div>
+                    <div class="inventory-heading"><div><h2 id="inventory-title">Installed versions</h2><p class="muted">{{inventoryDescription}}</p></div><fluent-badge appearance="outline" color="brand" class="inventory-count">{{total}} installed</fluent-badge></div>
                     <div class="inventory-toolbar">
                       <nav class="type-filter" aria-label="Installation type">
                         {{TypeLink("All versions", "all", options)}}{{TypeLink("SDKs", "sdks", options)}}{{TypeLink("Runtimes", "runtimes", options)}}
@@ -76,7 +79,12 @@ internal static class InstallationPage
 
     private static Row[] BuildRows(InstallationSnapshot snapshot)
     {
-        var sdkRows = snapshot.Sdks.Select(sdk => new Row("sdk", ".NET SDK", "Software development kit", sdk.Version, [sdk.InstallationPath], sdk.CanRemove));
+        var sdkRows = snapshot.Sdks.Select(sdk =>
+        {
+            var path = sdk.InstallationPath;
+            return new Row("sdk", ".NET SDK", "Software development kit", sdk.Version,
+                string.IsNullOrWhiteSpace(path) ? [] : [path], sdk.CanRemove);
+        });
         var runtimeRows = snapshot.Runtimes
             .GroupBy(runtime => runtime.Version, StringComparer.OrdinalIgnoreCase)
             .Select(group =>
@@ -84,7 +92,9 @@ internal static class InstallationPage
                 var runtimes = group.ToArray();
                 var names = runtimes.Select(runtime => RuntimeName(runtime.Name)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 var descriptions = runtimes.Select(runtime => runtime.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-                var paths = runtimes.Select(runtime => runtime.InstallationPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                var paths = runtimes.Select(runtime => runtime.InstallationPath)
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 return new Row("runtime", names.Length == 1 ? names[0] : ".NET Runtime", string.Join(" · ", descriptions), group.Key, paths, runtimes.Any(runtime => runtime.CanRemove));
             });
         return sdkRows.Concat(runtimeRows).ToArray();

@@ -68,6 +68,23 @@ public sealed class InstallationPageTests
     }
 
     [Fact]
+    public void RendersUninstallListEntriesWithoutUnavailablePaths()
+    {
+        var snapshot = InstallationSnapshot.Create("ready", null,
+            [new SdkInstallation("10.0.403", "") { CanRemove = true }],
+            [new RuntimeInstallation("Microsoft.NETCore.App", "10.0.14", "") { CanRemove = true }]);
+
+        var html = InstallationPage.Render(snapshot, new());
+
+        Assert.Contains("10.0.403</fluent-badge>", html);
+        Assert.Contains("10.0.14</fluent-badge>", html);
+        Assert.Contains("name=\"version\" value=\"10.0.403\"", html);
+        Assert.DoesNotContain("/10.0.403", html);
+        Assert.DoesNotContain("/10.0.14", html);
+        Assert.DoesNotContain("dotnet host", html);
+    }
+
+    [Fact]
     public void SortsVersionsNumericallyInBothDirections()
     {
         var descending = InstallationPage.Render(Snapshot(), new());

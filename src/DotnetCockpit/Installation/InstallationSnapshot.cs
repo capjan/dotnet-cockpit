@@ -8,7 +8,7 @@ internal sealed record SdkInstallation(string Version, string Path)
     [JsonIgnore]
     public bool CanRemove { get; init; }
 
-    public string InstallationPath => System.IO.Path.Combine(Path, Version);
+    public string InstallationPath => string.IsNullOrWhiteSpace(Path) ? "" : System.IO.Path.Combine(Path, Version);
 }
 
 internal sealed record RuntimeInstallation(string Name, string Version, string Path)
@@ -16,7 +16,7 @@ internal sealed record RuntimeInstallation(string Name, string Version, string P
     [JsonIgnore]
     public bool CanRemove { get; init; }
 
-    public string InstallationPath => System.IO.Path.Combine(Path, Version);
+    public string InstallationPath => string.IsNullOrWhiteSpace(Path) ? "" : System.IO.Path.Combine(Path, Version);
 }
 
 internal sealed record InstallationSnapshot(

@@ -58,12 +58,18 @@ test('refreshes the server-rendered inventory', async ({ page }) => {
   await expect(page.getByRole('table')).toBeVisible();
 });
 
-test('renders an absent installation on a narrow screen without JavaScript', async ({ browser }) => {
+test('renders the no-host installation view on a narrow screen without JavaScript', async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   try {
-    await page.goto('http://127.0.0.1:5232/');
-    await expect(page.getByRole('heading', { name: 'No .NET installation found' })).toBeVisible();
+    const response = await page.goto('http://127.0.0.1:5232/');
+    const html = await response.text();
+    if (html.includes('No .NET installation found')) {
+      await expect(page.getByRole('heading', { name: 'No .NET installation found' })).toBeVisible();
+    } else {
+      await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Installed versions' })).toBeVisible();
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   } finally { await context.close(); }
 });
