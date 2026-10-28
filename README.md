@@ -2,7 +2,7 @@
 
 A local browser workspace for your .NET environment, built with **server-rendered HTML**, **Fluent UI Web Components**, and an **ASP.NET Core Minimal API** backend. React is not required.
 
-The prototype lists installed .NET SDKs and runtimes and supports filtering, sorting, and refreshing. A separate **.NET Tools** page at the same navigation level as **Installations** lists global and local tools in server-rendered tabs with their package IDs, versions, commands, and local manifest paths. C# renders the complete pages and handles searches, sorting, and tab selection through normal GET forms and links. Inventory display and controls work with JavaScript disabled. A small local script adds Fluent components and a persistent light/dark theme switch. Installation and tool-management actions are not implemented yet.
+The prototype lists installed .NET SDKs and runtimes and supports filtering, sorting, and refreshing. A separate **.NET Tools** page at the same navigation level as **Installations** lists global and local tools in server-rendered tabs with their package IDs, versions, commands, and local manifest paths. The **Setup** page detects and installs the official .NET Uninstall Tool for supported Windows and macOS systems. C# renders the complete pages and handles searches, sorting, tab selection, and setup actions through normal GET forms and links. Inventory display and controls work with JavaScript disabled. A small local script adds Fluent components and a persistent light/dark theme switch.
 
 ## Run without installing .NET
 
@@ -46,6 +46,10 @@ If `dotnet` is absent, the application still starts and explains that no install
 Open **.NET Tools** in the navigation or visit `/tools`. Cockpit reads `dotnet tool list --global` for the current user and `dotnet tool list --local` from the directory where Cockpit was launched. The page displays this working directory. To inspect another project's local tools, start Cockpit from that project's directory.
 
 Local tools are declared in the manifests visible from that directory, including applicable parent manifests. Listing a declaration does not verify that its package has been restored. The view does not scan unrelated projects. A .NET SDK is required for tool queries; missing SDKs, empty lists, and failed queries have distinct messages. A failing local manifest does not hide the global list. The page can search NuGet tool packages, install a search result globally or locally, uninstall installed tools, initialize a local manifest, and remove a manifest owned by the current workspace. Removing a manifest leaves cached packages untouched; inherited parent manifests are shown but cannot be removed here. Until a local manifest exists, search results offer global installation and an initialization button.
+
+### Setup
+
+Open **Setup** in the navigation or visit `/setup` to check for `dotnet-core-uninstall`. The page offers a user installation under `~/dotnet-core-uninstall` and a global installation under `/usr/local/bin` on macOS or `C:\Program Files\dotnet-core-uninstall` on Windows. Global installation requests administrator approval. The page downloads only official assets from the [dotnet/cli-lab releases](https://github.com/dotnet/cli-lab/releases) and links to the [Microsoft documentation](https://learn.microsoft.com/en-us/dotnet/core/additional-tools/uninstall-tool-overview?pivots=os-macos) for limitations and commands. Linux is not supported by the official tool.
 
 ## Development
 
@@ -98,7 +102,7 @@ Run the **Release** workflow manually from `main` and supply a version to repeat
 
 ## Structure
 
-- `src/DotnetCockpit`: loopback-only Minimal API host, shared HTML layout, C# installation and tools pages, installation/tool discovery, embedded browser assets, and tool packaging.
+- `src/DotnetCockpit`: loopback-only Minimal API host, shared HTML layout, C# installation, tools, and setup pages, installation/tool discovery, embedded browser assets, and tool packaging.
 - `ui`: CSS, Fluent UI Web Components, a small theme script, an asset bundler, and browser tests.
 - `tests`: installation and tool parsing, HTML rendering, executable discovery, and command-line tests.
 - `scripts/smoke.mjs`: cross-platform tests against the actual published application.

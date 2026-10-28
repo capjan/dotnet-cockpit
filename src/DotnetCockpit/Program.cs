@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using DotnetCockpit;
 using DotnetCockpit.Installation;
+using DotnetCockpit.Setup;
 using DotnetCockpit.Tools;
 
 if (args is ["--help"] or ["-h"])
@@ -29,6 +30,13 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
 builder.Services.AddSingleton<DotnetInstallationService>();
 builder.Services.AddSingleton<DotnetToolsService>();
+builder.Services.AddSingleton<HttpClient>(_ =>
+{
+    var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("dotnet-cockpit");
+    return client;
+});
+builder.Services.AddSingleton<DotnetUninstallToolService>();
 builder.Services.AddSingleton<WebAssets>();
 
 var app = builder.Build();
@@ -57,6 +65,17 @@ app.MapGet("/api/installation", async (DotnetInstallationService service, HttpCo
     context.Response.Headers.CacheControl = "no-store";
     var snapshot = await ReadInstallation(service, context, logger);
     return Results.Json(snapshot, AppJsonContext.Default.InstallationSnapshot, statusCode: snapshot.Status == "error" ? 503 : 200);
+});
+app.MapGet("/setup", (DotnetUninstallToolService service, HttpContext context) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    return Results.Content(SetupPage.Render(service.Read(), SetupViewOptions.From(context.Request.Query)), "text/html; charset=utf-8");
+});
+app.MapPost("/setup/install", async (HttpContext context, DotnetUninstallToolService service) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var result = await service.InstallAsync(form["scope"].ToString(), context.RequestAborted);
+    return Results.Redirect($"/setup?notice={(result.Success ? "installed" : "failed")}");
 });
 app.MapGet("/tools", async (DotnetToolsService service, HttpContext context, ILogger<Program> logger) =>
 {

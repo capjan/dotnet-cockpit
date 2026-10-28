@@ -111,6 +111,19 @@ fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px 
 .working-directory code { color: var(--muted); overflow-wrap: anywhere; padding-left: 38px; font-size: 12px; }
 .action-notice { color: var(--text); }
 .action-notice.error-state { color: #c50f1f; background: transparent; }
+.setup-card { margin-top: 20px; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; }
+.setup-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.setup-title { display: flex; align-items: flex-start; gap: 12px; }
+.setup-title p { margin: 6px 0 0; font-size: 12px; }
+.setup-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 8px; color: var(--brand); background: var(--brand-soft); }
+.setup-icon svg { width: 18px; height: 18px; }
+.setup-installed { display: flex; flex-direction: column; gap: 5px; margin-top: 24px; padding: 16px; background: var(--brand-soft); border-radius: 7px; }
+.setup-installed span { font-size: 12px; overflow-wrap: anywhere; }
+.setup-install-options { display: grid; gap: 10px; margin-top: 24px; }
+.setup-install-option { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 7px; }
+.setup-install-option p { margin: 4px 0 0; font-size: 12px; }
+.setup-install-option code, .setup-note code { overflow-wrap: anywhere; }
+.setup-note { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 11px; }
 .manifest-action { margin: 0; }
 .manifest-status { font-size: 11px; white-space: nowrap; }
 .tool-search { position: relative; overflow: hidden; margin-top: 20px; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
@@ -167,6 +180,7 @@ fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px 
   .header-actions > :first-child { display: none; } main { padding: 24px 18px; } .breadcrumb { margin-bottom: 20px; }
   .working-directory-heading { align-items: flex-start; } .context-badge { display: none; } .working-directory code { padding-left: 38px; }
   .action-notice { align-items: flex-start; flex-direction: column; } .tool-search-controls { width: 100%; }
+  .setup-card { padding: 20px 18px; } .setup-card-heading, .setup-install-option { align-items: flex-start; flex-direction: column; }
   .search-result { grid-template-columns: minmax(0, 1fr); gap: 9px; } .search-result-meta { white-space: normal; } .tool-install-actions { flex-wrap: wrap; }
   .summary-grid { grid-template-columns: minmax(0, 1fr); } .summary-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .summary-top { grid-column: 1; gap: 12px; justify-content: flex-start; } .summary-number { grid-column: 2; grid-row: 1 / 3; }

@@ -117,6 +117,12 @@ await runWithoutRepositoryFiles(process.env, async (data, html, get, url) => {
   const toolsAfterRemoval = await (await get('api/tools')).json();
   assert.equal(toolsAfterRemoval.localManifestInitialized, false);
   assert.equal(toolsAfterRemoval.localManifestPath, null);
+  const setupPage = await get('setup');
+  assert.equal(setupPage.status, 200);
+  const setupHtml = await setupPage.text();
+  assert.ok(setupHtml.includes('<h1>Setup</h1>'));
+  assert.ok(setupHtml.includes('.NET Uninstall Tool'));
+  assert.ok(setupHtml.includes('learn.microsoft.com/en-us/dotnet/core/additional-tools/uninstall-tool-overview'));
   const invalidAction = await fetch(new URL('tools/install', url), {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
