@@ -74,12 +74,13 @@ app.MapGet("/setup", async (DotnetUninstallToolService service, HttpContext cont
 });
 app.MapPost("/setup/install", async (HttpContext context, DotnetUninstallToolService service) =>
 {
-    var result = await service.InstallAsync(context.RequestAborted);
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var result = await service.InstallAsync(form["version"].ToString(), context.RequestAborted);
     return Results.Redirect($"/setup?notice={(result.Success ? "installed" : "failed")}");
 });
 app.MapPost("/setup/update", async (HttpContext context, DotnetUninstallToolService service) =>
 {
-    var result = await service.InstallAsync(context.RequestAborted);
+    var result = await service.InstallAsync("latest", context.RequestAborted);
     return Results.Redirect($"/setup?notice={(result.Success ? "updated" : "update-failed")}");
 });
 app.MapPost("/setup/uninstall", async (HttpContext context, DotnetUninstallToolService service) =>

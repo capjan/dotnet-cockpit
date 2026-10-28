@@ -50,27 +50,46 @@ internal static class SetupPage
         var status = installed
             ? "<fluent-badge appearance=\"tint\" color=\"success\">Installed</fluent-badge>"
             : "<fluent-badge appearance=\"outline\" color=\"neutral\">Not installed</fluent-badge>";
+        var headerActions = installed && snapshot.UninstallTool.Scope == "global"
+            ? $"<div class=\"setup-card-actions\">{status}<form method=\"post\" action=\"/setup/uninstall\"><button class=\"button danger\" type=\"submit\">Uninstall</button></form></div>"
+            : status;
         var details = installed
             ? RenderInstalledDetails(snapshot)
-            : $"""
-                <div class="setup-install-options">
-                  <div class="setup-install-option">
-                    <div><strong>Install globally</strong><p class="muted">Available to all users at <code>{Encode(snapshot.GlobalInstallPath)}</code>. Administrator approval is required.</p></div>
-                    <form method="post" action="/setup/install"><button class="button primary" type="submit">Install globally</button></form>
-                  </div>
-                </div>
-                """;
+            : RenderInstallDetails(snapshot);
 
         return $"""
             <section class="setup-card" aria-labelledby="uninstall-tool-title">
               <div class="setup-card-heading">
                 <div class="setup-title"><span class="setup-icon">{Icon("settings")}</span><div><h2 id="uninstall-tool-title">.NET Uninstall Tool</h2><p class="muted">Remove SDKs and runtimes that were installed by supported installers.</p></div></div>
-                {status}
+                {headerActions}
               </div>
               {details}
+              {RenderReleaseList(snapshot)}
               <div class="setup-note"><strong>{Encode(snapshot.OperatingSystem)} · {Encode(snapshot.Architecture)}</strong><span class="muted">The tool requires administrator privileges when it removes .NET installations.</span></div>
             </section>
             """;
+    }
+
+    private static string RenderInstallDetails(SetupSnapshot snapshot)
+    {
+        if (snapshot.AvailableReleases is null)
+            return "<div class=\"setup-install-options\"><p class=\"muted\" role=\"alert\">Available releases could not be loaded. Refresh to try again.</p></div>";
+
+        var latestLabel = snapshot.LatestVersion is null ? "Latest" : $"Latest ({Encode(snapshot.LatestVersion)})";
+        var options = $"<option value=\"latest\">{latestLabel}</option>" + string.Join("", snapshot.AvailableReleases
+            .Where(release => !string.Equals(release.Version, snapshot.LatestVersion, StringComparison.OrdinalIgnoreCase))
+            .Select(release => $"<option value=\"{Encode(release.Version)}\">{Encode(release.Version)}</option>"));
+        return $"""
+                <div class="setup-install-options">
+                  <div class="setup-install-option">
+                    <div><strong>Install globally</strong><p class="muted">Choose a release available to all users at <code>{Encode(snapshot.GlobalInstallPath)}</code>. Administrator approval is required.</p></div>
+                    <form class="setup-version-form" method="post" action="/setup/install">
+                      <label class="setup-version-picker" for="setup-version"><span class="visually-hidden">Version</span><select id="setup-version" name="version">{options}</select></label>
+                      <button class="button primary setup-install-button" type="submit" aria-label="Install selected version" title="Install selected version">{Icon("download")}</button>
+                    </form>
+                  </div>
+                </div>
+                """;
     }
 
     private static string RenderInstalledDetails(SetupSnapshot snapshot)
@@ -80,23 +99,33 @@ internal static class SetupPage
             ? "Version could not be read from the executable."
             : $"Installed version <code>{Encode(installation.Version)}</code>.";
         var latest = snapshot.LatestVersion is null
-            ? Encode(snapshot.UpdateCheckError ?? "The latest release could not be checked right now.")
-            : $"Latest official release <code>{Encode(snapshot.LatestVersion)}</code>.";
+            ? Encode(snapshot.ReleaseListError ?? "The latest release could not be checked right now.")
+            : $"Latest official release <a href=\"{Encode(snapshot.LatestReleaseUrl ?? DocumentationUrl)}\"><code>{Encode(snapshot.LatestVersion)}</code></a>.";
         var update = IsUpdateAvailable(installation.Version, snapshot.LatestVersion)
             ? $"<form method=\"post\" action=\"/setup/update\"><button class=\"button primary\" type=\"submit\">Update to {Encode(snapshot.LatestVersion!)}</button></form>"
             : "";
         var actions = installation.Scope == "global"
-            ? $"<div class=\"setup-installed-actions\">{update}<form method=\"post\" action=\"/setup/uninstall\"><button class=\"button danger\" type=\"submit\">Uninstall globally</button></form></div>"
+            ? update
             : "<span class=\"muted\">This installation is outside the managed global location and must be removed manually.</span>";
 
         return $"""
                 <div class="setup-installed" role="status">
-                  <strong>Ready to manage installed .NET versions</strong>
+                  <label class="setup-ready"><input type="checkbox" checked disabled><span>Ready to list and remove .NET Installations</span></label>
                   <span class="muted">Detected at <code>{Encode(installation.Path ?? "")}</code> ({Encode(installation.Scope ?? "path")} installation).</span>
                   <span class="muted">{version} {latest}</span>
                   {actions}
                 </div>
                 """;
+    }
+
+    private static string RenderReleaseList(SetupSnapshot snapshot)
+    {
+        if (snapshot.AvailableReleases is null)
+            return "<div class=\"setup-release-list\"><p class=\"muted\" role=\"alert\">Available releases are currently unavailable.</p></div>";
+
+        var releases = string.Join("", snapshot.AvailableReleases.Select(release =>
+            $"<li><a href=\"{Encode(release.Url)}\">{Encode(release.Version)}</a>{(string.IsNullOrWhiteSpace(release.PublishedAt) ? "" : $"<span class=\"muted\">{Encode(release.PublishedAt!)}</span>")}</li>"));
+        return $"<div class=\"setup-release-list\"><strong>Available releases</strong><ul>{releases}</ul></div>";
     }
 
     private static bool IsUpdateAvailable(string? installedVersion, string? latestVersion) =>

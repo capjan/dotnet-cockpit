@@ -1,5 +1,7 @@
 namespace DotnetCockpit.Setup;
 
+internal sealed record SetupRelease(string Version, string Url, string? PublishedAt, string AssetName);
+
 internal sealed record UninstallToolInstallation(bool Installed, string? Path, string? Scope, string? Version = null);
 
 internal sealed record SetupSnapshot(
@@ -9,7 +11,9 @@ internal sealed record SetupSnapshot(
     UninstallToolInstallation UninstallTool,
     string GlobalInstallPath,
     string? LatestVersion = null,
-    string? UpdateCheckError = null,
+    string? LatestReleaseUrl = null,
+    string? ReleaseListError = null,
+    IReadOnlyList<SetupRelease>? AvailableReleases = null,
     string? Error = null);
 
 internal sealed record SetupActionResult(bool Success, string? Error = null);

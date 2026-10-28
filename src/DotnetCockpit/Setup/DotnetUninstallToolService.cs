@@ -9,8 +9,10 @@ namespace DotnetCockpit.Setup;
 
 internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolService> logger, HttpClient httpClient)
 {
+    private sealed record SetupReleaseCatalog(string LatestVersion, string LatestReleaseUrl, IReadOnlyList<SetupRelease> Releases);
+
     private const string ReleaseDownloadBase = "https://github.com/dotnet/cli-lab/releases/latest/download/";
-    private const string LatestReleaseUrl = "https://api.github.com/repos/dotnet/cli-lab/releases/latest";
+    private const string ReleaseListUrl = "https://api.github.com/repos/dotnet/cli-lab/releases?per_page=100&page=1";
 
     public SetupSnapshot Read()
     {
@@ -37,12 +39,34 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
     public async Task<SetupSnapshot> ReadAsync(CancellationToken cancellationToken)
     {
         var snapshot = Read();
-        if (snapshot.Status != "ready" || !snapshot.UninstallTool.Installed || snapshot.UninstallTool.Path is null)
+        if (snapshot.Status != "ready")
             return snapshot;
 
-        string? installedVersion;
-        using (var versionTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        SetupReleaseCatalog? releaseCatalog = null;
+        string? releaseListError = null;
+        using (var releaseTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
+            releaseTimeout.CancelAfter(TimeSpan.FromSeconds(30));
+            try
+            {
+                releaseCatalog = await ReadReleaseCatalogAsync(releaseTimeout.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                logger.LogWarning("Timed out while reading the dotnet-core-uninstall releases.");
+                releaseListError = "The available releases could not be loaded right now.";
+            }
+            catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidDataException or InvalidOperationException or UriFormatException)
+            {
+                logger.LogWarning(exception, "Could not read the dotnet-core-uninstall releases.");
+                releaseListError = "The available releases could not be loaded right now.";
+            }
+        }
+
+        string? installedVersion = null;
+        if (snapshot.UninstallTool.Installed && snapshot.UninstallTool.Path is not null)
+        {
+            using var versionTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             versionTimeout.CancelAfter(TimeSpan.FromSeconds(5));
             try
             {
@@ -51,37 +75,20 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 logger.LogWarning("Timed out while reading the installed dotnet-core-uninstall version.");
-                installedVersion = null;
             }
-        }
-        string? latestVersion = null;
-        string? updateCheckError = null;
-        using var updateTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        updateTimeout.CancelAfter(TimeSpan.FromSeconds(5));
-        try
-        {
-            latestVersion = await ReadLatestVersionAsync(updateTimeout.Token);
-        }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidDataException or InvalidOperationException)
-        {
-            logger.LogWarning(exception, "Could not check the latest dotnet-core-uninstall release.");
-            updateCheckError = "The latest release could not be checked right now.";
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            logger.LogWarning("Timed out while checking the latest dotnet-core-uninstall release.");
-            updateCheckError = "The latest release could not be checked right now.";
         }
 
         return snapshot with
         {
             UninstallTool = snapshot.UninstallTool with { Version = installedVersion },
-            LatestVersion = latestVersion,
-            UpdateCheckError = updateCheckError
+            LatestVersion = releaseCatalog?.LatestVersion,
+            LatestReleaseUrl = releaseCatalog?.LatestReleaseUrl,
+            ReleaseListError = releaseListError,
+            AvailableReleases = releaseCatalog?.Releases
         };
     }
 
-    public async Task<SetupActionResult> InstallAsync(CancellationToken cancellationToken)
+    public async Task<SetupActionResult> InstallAsync(string? version, CancellationToken cancellationToken)
     {
         if (!IsSupported()) return new(false, "The .NET Uninstall Tool supports Windows and macOS only.");
 
@@ -91,10 +98,11 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromMinutes(5));
+            var (downloadBase, assetName) = await ResolveInstallAssetAsync(version, timeout.Token);
             if (OperatingSystem.IsMacOS())
-                await InstallMacOsAsync(temporaryDirectory, timeout.Token);
+                await InstallMacOsAsync(downloadBase, assetName, temporaryDirectory, timeout.Token);
             else
-                await InstallWindowsAsync(temporaryDirectory, timeout.Token);
+                await InstallWindowsAsync(downloadBase, assetName, temporaryDirectory, timeout.Token);
 
             if (!Read().UninstallTool.Installed)
                 return new(false, "The installer completed, but the dotnet-core-uninstall executable was not found at the expected path.");
@@ -147,10 +155,10 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         }
     }
 
-    private async Task InstallMacOsAsync(string temporaryDirectory, CancellationToken cancellationToken)
+    private async Task InstallMacOsAsync(string downloadBase, string assetName, string temporaryDirectory, CancellationToken cancellationToken)
     {
         var archive = Path.Combine(temporaryDirectory, "dotnet-core-uninstall.tar.gz");
-        await DownloadAsync($"{ReleaseDownloadBase}dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz", archive, cancellationToken);
+        await DownloadAsync($"{downloadBase}{assetName}", archive, cancellationToken);
         var staging = Path.Combine(temporaryDirectory, "staged");
         Directory.CreateDirectory(staging);
         await ExtractTarGzAsync(archive, staging, cancellationToken);
@@ -160,10 +168,10 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken, useShellExecute: false);
     }
 
-    private async Task InstallWindowsAsync(string temporaryDirectory, CancellationToken cancellationToken)
+    private async Task InstallWindowsAsync(string downloadBase, string assetName, string temporaryDirectory, CancellationToken cancellationToken)
     {
         var installer = Path.Combine(temporaryDirectory, "dotnet-core-uninstall.msi");
-        await DownloadAsync($"{ReleaseDownloadBase}dotnet-core-uninstall.msi", installer, cancellationToken);
+        await DownloadAsync($"{downloadBase}{assetName}", installer, cancellationToken);
         var target = Path.Combine(GetGlobalDirectory(), "");
         await RunProcessAsync("msiexec.exe", ["/i", installer, "/qn", $"DOTNETCOREUNINSTALL={target}"], cancellationToken, useShellExecute: true, elevate: true);
     }
@@ -221,18 +229,77 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         }
     }
 
-    private async Task<string> ReadLatestVersionAsync(CancellationToken cancellationToken)
+    private async Task<SetupReleaseCatalog> ReadReleaseCatalogAsync(CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseUrl);
-        request.Headers.Accept.ParseAdd("application/vnd.github+json");
-        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-        if (!document.RootElement.TryGetProperty("tag_name", out var tag))
-            throw new InvalidDataException("The latest release did not contain a version tag.");
-        return NormalizeVersion(tag.GetString()) ?? throw new InvalidDataException("The latest release contained an invalid version tag.");
+        var releases = new List<SetupRelease>();
+        var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var requestUrl = ReleaseListUrl;
+        while (requestUrl is not null)
+        {
+            if (!seenUrls.Add(requestUrl)) throw new InvalidDataException("The release pagination repeated a page.");
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+            request.Headers.Accept.ParseAdd("application/vnd.github+json");
+            using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                throw new InvalidDataException("The releases response was not an array.");
+
+            foreach (var release in document.RootElement.EnumerateArray())
+            {
+                if (ParseRelease(release) is { } parsed) releases.Add(parsed);
+            }
+
+            requestUrl = GetNextLink(response);
+        }
+
+        var sorted = releases
+            .GroupBy(release => release.Version, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderByDescending(release => release.Version, VersionComparer.Instance)
+            .ToArray();
+        if (sorted.Length == 0) throw new InvalidDataException("No compatible dotnet-core-uninstall releases were found.");
+        return new(sorted[0].Version, sorted[0].Url, sorted);
     }
+
+    private SetupRelease? ParseRelease(JsonElement release)
+    {
+        if (GetBoolean(release, "draft") || GetBoolean(release, "prerelease")) return null;
+        var version = NormalizeVersion(GetString(release, "tag_name"));
+        var url = GetString(release, "html_url");
+        if (version is null || string.IsNullOrWhiteSpace(url)) return null;
+        if (!release.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array) return null;
+        var assetNames = assets.EnumerateArray().Select(asset => GetString(asset, "name")).OfType<string>().ToArray();
+        var asset = FindAssetName(version, assetNames);
+        return asset is null ? null : new(version, url, GetString(release, "published_at"), asset);
+    }
+
+    private string? FindAssetName(string version, IReadOnlyList<string> assetNames)
+    {
+        var expected = OperatingSystem.IsWindows()
+            ? new[] { "dotnet-core-uninstall.msi", $"dotnet-core-uninstall-{version}.msi" }
+            : new[] { $"dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz", "dotnet-core-uninstall.tar.gz" };
+        return expected.FirstOrDefault(candidate => assetNames.Contains(candidate, StringComparer.Ordinal));
+    }
+
+    private static string? GetNextLink(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("Link", out var values)) return null;
+        foreach (var link in values.SelectMany(value => value.Split(',')))
+        {
+            var parts = link.Split(';', StringSplitOptions.TrimEntries);
+            if (parts.Length > 1 && parts.Skip(1).Any(part => string.Equals(part, "rel=\"next\"", StringComparison.OrdinalIgnoreCase)))
+                return parts[0].Trim().Trim('<', '>');
+        }
+        return null;
+    }
+
+    private static string? GetString(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static bool GetBoolean(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.True;
 
     private static string? NormalizeVersion(string? value)
     {
@@ -242,6 +309,43 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         var suffix = token.IndexOfAny(['+', '-']);
         if (suffix >= 0) token = token[..suffix];
         return token.Length > 0 && token.Split('.').All(part => int.TryParse(part, out _)) ? token : null;
+    }
+
+    private async Task<(string DownloadBase, string AssetName)> ResolveInstallAssetAsync(string? version, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(version) || string.Equals(version.Trim(), "latest", StringComparison.OrdinalIgnoreCase))
+            return (ReleaseDownloadBase, CurrentAssetName());
+        var normalized = NormalizeVersion(version);
+        if (normalized is null) throw new InvalidOperationException("The requested release version is invalid.");
+        var catalog = await ReadReleaseCatalogAsync(cancellationToken);
+        var release = catalog.Releases.FirstOrDefault(candidate => string.Equals(candidate.Version, normalized, StringComparison.OrdinalIgnoreCase));
+        return release is null
+            ? throw new InvalidOperationException("The requested release version is not available for this platform.")
+            : ($"https://github.com/dotnet/cli-lab/releases/download/{normalized}/", release.AssetName);
+    }
+
+    private string CurrentAssetName() => OperatingSystem.IsWindows()
+        ? "dotnet-core-uninstall.msi"
+        : $"dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz";
+
+    private sealed class VersionComparer : IComparer<string>
+    {
+        public static VersionComparer Instance { get; } = new();
+
+        public int Compare(string? left, string? right)
+        {
+            if (ReferenceEquals(left, right)) return 0;
+            if (left is null) return -1;
+            if (right is null) return 1;
+            var leftParts = left.Split('.').Select(int.Parse).ToArray();
+            var rightParts = right.Split('.').Select(int.Parse).ToArray();
+            for (var index = 0; index < Math.Max(leftParts.Length, rightParts.Length); index++)
+            {
+                var comparison = (index < leftParts.Length ? leftParts[index] : 0).CompareTo(index < rightParts.Length ? rightParts[index] : 0);
+                if (comparison != 0) return comparison;
+            }
+            return 0;
+        }
     }
 
     private static async Task ExtractTarGzAsync(string archive, string destination, CancellationToken cancellationToken)
