@@ -113,9 +113,12 @@ fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px 
 .action-notice.error-state { color: #c50f1f; background: transparent; }
 .setup-card { margin-top: 20px; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; }
 .setup-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-.setup-card-actions { display: flex; align-items: center; gap: 10px; }
+.setup-card-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .setup-card-actions form { margin: 0; }
-.setup-icon-button { width: 34px; min-width: 34px; padding-inline: 8px; }
+.setup-card .button { transition: none; }
+.setup-card .button:active { transform: none; }
+.setup-card-actions .button.danger { color: #fff; background: #c50f1f; border-color: #c50f1f; }
+.setup-card-actions .button.danger:hover { color: #fff; background: #a4262c; border-color: #a4262c; }
 .setup-title { display: flex; align-items: flex-start; gap: 12px; }
 .setup-title p { margin: 6px 0 0; font-size: 12px; }
 .setup-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 8px; color: var(--brand); background: var(--brand-soft); }
@@ -124,10 +127,9 @@ fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px 
 .setup-installed span { font-size: 12px; overflow-wrap: anywhere; }
 .setup-ready { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .setup-ready input { width: 16px; height: 16px; margin: 0; accent-color: var(--brand); }
-.setup-install-options { display: grid; gap: 10px; margin-top: 24px; }
-.setup-install-option { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 7px; }
-.setup-install-option p { margin: 4px 0 0; font-size: 12px; }
-.setup-install-option code, .setup-note code { overflow-wrap: anywhere; }
+.setup-install-summary { margin-top: 24px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 7px; }
+.setup-install-summary p { margin: 4px 0 0; font-size: 12px; }
+.setup-install-summary code, .setup-note code { overflow-wrap: anywhere; }
 .setup-version-form { display: flex; align-items: center; gap: 8px; }
 .setup-version-picker select { min-height: 32px; min-width: 170px; padding: 5px 28px 5px 10px; border: 1px solid var(--line); border-radius: 4px; color: var(--text); background: var(--canvas); }
 .setup-install-button { min-width: 34px; padding-inline: 8px; }
@@ -193,7 +195,7 @@ fluent-badge:not(:defined) { display: inline-block; padding: 0 6px; border: 1px 
   .header-actions > :first-child { display: none; } main { padding: 24px 18px; } .breadcrumb { margin-bottom: 20px; }
   .working-directory-heading { align-items: flex-start; } .context-badge { display: none; } .working-directory code { padding-left: 38px; }
   .action-notice { align-items: flex-start; flex-direction: column; } .tool-search-controls { width: 100%; }
-  .setup-card { padding: 20px 18px; } .setup-card-heading, .setup-install-option { align-items: flex-start; flex-direction: column; } .setup-card-actions { width: 100%; justify-content: space-between; } .setup-version-form { width: 100%; } .setup-version-picker { flex: 1; } .setup-version-picker select { width: 100%; }
+  .setup-card { padding: 20px 18px; } .setup-card-heading { align-items: flex-start; flex-direction: column; } .setup-card-actions { align-self: stretch; justify-content: flex-end; } .setup-version-form { width: 100%; } .setup-version-picker { flex: 1; } .setup-version-picker select { width: 100%; }
   .search-result { grid-template-columns: minmax(0, 1fr); gap: 9px; } .search-result-meta { white-space: normal; } .tool-install-actions { flex-wrap: wrap; }
   .summary-grid { grid-template-columns: minmax(0, 1fr); } .summary-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .summary-top { grid-column: 1; gap: 12px; justify-content: flex-start; } .summary-number { grid-column: 2; grid-row: 1 / 3; }

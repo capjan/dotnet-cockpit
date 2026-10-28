@@ -42,13 +42,19 @@ public sealed class SetupPageTests
         Assert.Contains("/usr/local/bin/dotnet-core-uninstall", html);
         Assert.Contains("Installed version <code>1.7.661902</code>", html);
         Assert.Contains("Ready to list and remove .NET Installations", html);
-        Assert.Contains("aria-label=\"Uninstall .NET Uninstall Tool\"", html);
-        Assert.Contains("title=\"Uninstall .NET Uninstall Tool\"", html);
-        Assert.Contains("setup-icon-button", html);
+        Assert.Contains("aria-label=\"Remove .NET Uninstall Tool\"", html);
+        Assert.Contains("title=\"Remove .NET Uninstall Tool\"", html);
+        Assert.Contains(">Remove</button>", html);
+        Assert.Contains("setup-card-actions", html);
+        Assert.DoesNotContain("setup-icon-button", html);
         Assert.Contains("action=\"/setup/uninstall\"", html);
         Assert.DoesNotContain("Uninstall globally", html);
         Assert.DoesNotContain("action=\"/setup/update\"", html);
         Assert.DoesNotContain("action=\"/setup/install\"", html);
+
+        var headerActionsIndex = html.IndexOf("setup-card-actions", StringComparison.Ordinal);
+        var installedDetailsIndex = html.IndexOf("setup-installed", StringComparison.Ordinal);
+        Assert.True(headerActionsIndex >= 0 && installedDetailsIndex >= 0 && headerActionsIndex < installedDetailsIndex);
     }
 
     [Fact]
