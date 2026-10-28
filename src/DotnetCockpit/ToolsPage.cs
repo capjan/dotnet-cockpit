@@ -3,15 +3,20 @@ using static DotnetCockpit.PageLayout;
 
 namespace DotnetCockpit;
 
-internal sealed record ToolsViewOptions(string Scope = "global")
+internal sealed record ToolsViewOptions(string Scope = "global", string SearchQuery = "", string Notice = "")
 {
     public static ToolsViewOptions From(IQueryCollection query) => new(
-        query["scope"].ToString() is "local" ? "local" : "global");
+        query["scope"].ToString() is "local" ? "local" : "global",
+        query["q"].ToString().Trim() is { Length: <= 100 } search ? search : "",
+        query["notice"].ToString());
 }
 
 internal static class ToolsPage
 {
-    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options)
+    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options) =>
+        Render(snapshot, options, new(options.SearchQuery, []));
+
+    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search)
     {
         var content = snapshot.Status switch
         {
@@ -27,6 +32,9 @@ internal static class ToolsPage
               <a class="button primary" href="{{RefreshLink(options)}}">{{Icon("refresh")}} Refresh</a>
             </div>
             <div class="working-directory"><strong>Working directory</strong><code>{{Encode(snapshot.WorkingDirectory)}}</code></div>
+            {{RenderNotice(options.Notice)}}
+            {{(snapshot.Status == "ready" && !snapshot.LocalManifestInitialized ? RenderManifestNotice(options) : "")}}
+            {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
             {{content}}
             <p class="scope-note muted">Local tools are declared in manifests for this working directory or its parents. This view does not check whether they have been restored.</p>
             """, "/tools", ".NET Tools | .NET Cockpit");
@@ -41,7 +49,7 @@ internal static class ToolsPage
               {{RenderTab("global", "Global", snapshot.Global, !local)}}
               {{RenderTab("local", "Local", snapshot.Local, local)}}
             </div>
-            {{RenderList(local ? "Local tools" : "Global tools", local ? "local-tools" : "global-tools", selected, local, scope)}}
+            {{RenderList(local ? "Local tools" : "Global tools", local ? "local-tools" : "global-tools", selected, local, snapshot.LocalManifestInitialized, scope)}}
             """;
     }
 
@@ -54,12 +62,12 @@ internal static class ToolsPage
     private static string RefreshLink(ToolsViewOptions options) =>
         options.Scope == "local" ? "/tools?scope=local" : "/tools";
 
-    private static string RenderList(string title, string id, ToolList list, bool local, string scope)
+    private static string RenderList(string title, string id, ToolList list, bool local, bool localInitialized, string scope)
     {
         var content = list.Error is not null
             ? $"<div class=\"empty-state error-state\" role=\"alert\"><h3>{title} could not be read</h3><p>{Encode(list.Error)}</p><a class=\"button\" href=\"{(scope == "local" ? "/tools?scope=local" : "/tools")}\">Try again</a></div>"
             : list.Tools.Length == 0
-                ? $"<div class=\"empty-state\"><h3>{(local ? "No local tools found" : "No global tools installed")}</h3><p class=\"muted\">{(local ? "No tools are declared in the tool manifests for this working directory." : "No global tools were reported for this user account.")}</p></div>"
+                ? $"<div class=\"empty-state\"><h3>{(local ? (localInitialized ? "No local tools found" : "No local tools initialized") : "No global tools installed")}</h3><p class=\"muted\">{(local ? (localInitialized ? "No tools are declared in the tool manifests for this working directory." : "Initialize local tools to add a manifest in this working directory.") : "No global tools were reported for this user account.")}</p></div>"
                 : RenderTable(list.Tools, local, title);
         return $$"""
             <section class="inventory tool-panel" role="tabpanel" aria-labelledby="{{id}}" id="{{id}}-panel">
@@ -72,16 +80,65 @@ internal static class ToolsPage
     private static string RenderTable(DotnetTool[] tools, bool local, string title) => $$"""
         <div class="table-scroll" role="region" aria-label="{{title}}" tabindex="0">
           <table class="tools-table" aria-label="{{title}}">
-            <thead><tr><th scope="col">Package ID</th><th scope="col">Version</th><th scope="col">Commands</th>{{(local ? "<th scope=\"col\">Manifest</th>" : "")}}</tr></thead>
+            <thead><tr><th scope="col">Package ID</th><th scope="col">Version</th><th scope="col">Commands</th>{{(local ? "<th scope=\"col\">Manifest</th>" : "")}}<th scope="col">Actions</th></tr></thead>
             <tbody>{{string.Concat(tools.OrderBy(tool => tool.PackageId, StringComparer.OrdinalIgnoreCase).Select(tool => $"""
               <tr data-tool-scope="{(local ? "local" : "global")}">
                 <td><strong>{Encode(tool.PackageId)}</strong></td>
                 <td><fluent-badge appearance="tint" color="brand" class="version-badge">{Encode(tool.Version)}</fluent-badge></td>
                 <td>{string.Join(", ", tool.Commands.Select(command => $"<code>{Encode(command)}</code>"))}</td>
                 {(local ? $"<td><code class=\"tool-manifest\">{Encode(tool.Manifest ?? "")}</code></td>" : "")}
+                <td><form method="post" action="/tools/uninstall" class="tool-action"><input type="hidden" name="packageId" value="{Encode(tool.PackageId)}"><input type="hidden" name="scope" value="{(local ? "local" : "global")}"><button class="button danger" type="submit">Uninstall</button></form></td>
               </tr>
               """))}}</tbody>
           </table>
         </div>
         """;
+
+    private static string RenderManifestNotice(ToolsViewOptions options) => $$"""
+        <section class="tool-manifest-notice" aria-label="Local tools setup">
+          <div><strong>Local tools are not initialized</strong><p class="muted">Search results will be installed globally until you create a local tool manifest.</p></div>
+          <form method="post" action="/tools/init"><input type="hidden" name="scope" value="{{options.Scope}}"><input type="hidden" name="q" value="{{Encode(options.SearchQuery)}}"><button class="button" type="submit">Initialize local tools</button></form>
+        </section>
+        """;
+
+    private static string RenderSearch(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search)
+    {
+        var localChoice = snapshot.LocalManifestInitialized
+            ? "<button class=\"button\" type=\"submit\" name=\"scope\" value=\"local\">Install locally</button>"
+            : "";
+        var results = search.Error is not null
+            ? $"<div class=\"empty-state error-state\" role=\"alert\"><h3>Search failed</h3><p>{Encode(search.Error)}</p></div>"
+            : options.SearchQuery.Length == 0
+                ? ""
+                : search.Results.Length == 0
+                    ? $"<div class=\"empty-state\"><h3>No tools found</h3><p class=\"muted\">No tools matched <strong>{Encode(options.SearchQuery)}</strong>.</p></div>"
+                    : $"<div class=\"search-results\"><h3>Search results for <strong>{Encode(options.SearchQuery)}</strong></h3><div class=\"search-result-list\">{string.Concat(search.Results.Select(result => RenderSearchResult(result, options.SearchQuery, localChoice)))}</div></div>";
+
+        return $$"""
+            <section class="tool-search" aria-labelledby="tool-search-title">
+              <form method="get" action="/tools" class="tool-search-form">
+                <label id="tool-search-title" for="tool-search-input">Search .NET tools</label>
+                <div class="tool-search-controls"><input id="tool-search-input" name="q" value="{{Encode(options.SearchQuery)}}" placeholder="Search by package ID or description"><input type="hidden" name="scope" value="{{options.Scope}}"><button class="button primary" type="submit">Search</button></div>
+              </form>
+              {{results}}
+            </section>
+            """;
+    }
+
+    private static string RenderSearchResult(ToolSearchResult result, string query, string localChoice) => $$"""
+        <article class="search-result">
+          <div><strong>{{Encode(result.PackageId)}}</strong><span class="muted">{{Encode(result.Version)}} · {{Encode(result.Authors)}}</span></div>
+          <div class="search-result-meta"><span>{{Encode(result.Downloads)}} downloads</span>{{(result.Verified ? "<span class=\"verified\">Verified</span>" : "")}}</div>
+          <form method="post" action="/tools/install" class="tool-install-actions"><input type="hidden" name="packageId" value="{{Encode(result.PackageId)}}"><input type="hidden" name="version" value="{{Encode(result.Version)}}"><input type="hidden" name="q" value="{{Encode(query)}}"><button class="button" type="submit" name="scope" value="global">Install globally</button>{{localChoice}}</form>
+        </article>
+        """;
+
+    private static string RenderNotice(string notice) => notice switch
+    {
+        "installed" => "<div class=\"action-notice\" role=\"status\">Tool installed successfully.</div>",
+        "uninstalled" => "<div class=\"action-notice\" role=\"status\">Tool uninstalled successfully.</div>",
+        "initialized" => "<div class=\"action-notice\" role=\"status\">Local tools are now initialized in this working directory.</div>",
+        "failed" => "<div class=\"action-notice error-state\" role=\"alert\">The requested tool action failed. Check the SDK and package sources, then try again.</div>",
+        _ => ""
+    };
 }

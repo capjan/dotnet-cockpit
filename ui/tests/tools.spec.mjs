@@ -23,6 +23,8 @@ test('navigates to the tools page and lists both scopes without JavaScript', asy
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('cockpit.fixture.tool');
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('fixture-alt');
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('dotnet-tools.json');
+    await expect(page.getByRole('button', { name: 'Uninstall', exact: true })).toHaveCount(1);
+    await expect(page.getByRole('textbox', { name: 'Search .NET tools' })).toBeVisible();
     await expect(page.locator('a.tool-tab[href="/tools?scope=local"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('link', { name: 'Refresh', exact: true })).toHaveAttribute('href', '/tools?scope=local');
     await page.getByRole('link', { name: 'Refresh', exact: true }).click();
@@ -37,8 +39,16 @@ test('keeps tools navigation available on narrow screens', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '.NET Tools', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Global tools', exact: true })).toBeVisible();
   await page.locator('a.tool-tab[href="/tools?scope=local"]').click();
-  await expect(page.getByRole('heading', { name: 'No local tools found' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No local tools initialized' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Initialize local tools', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('offers local manifest initialization when none exists', async ({ page }) => {
+  await page.goto('/tools?scope=local');
+  await expect(page.getByRole('heading', { name: 'No local tools initialized' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Initialize local tools', exact: true })).toBeVisible();
+  await expect(page.getByText('Search results will be installed globally', { exact: false })).toBeVisible();
 });
 
 test('explains why tools cannot be listed without a dotnet host', async ({ page }) => {

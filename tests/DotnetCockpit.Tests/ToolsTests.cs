@@ -27,6 +27,18 @@ public sealed class ToolsTests
     public void EmptyTableIsAnEmptyToolList() =>
         Assert.Empty(ToolOutputParser.Parse("Package Id      Version      Commands      Manifest\n-----------------------------------------------------\n"));
 
+    [Fact]
+    public void ParsesSearchResults()
+    {
+        var results = ToolOutputParser.ParseSearch("Package-ID      Aktuelle Version      Autoren      Downloads      Überprüft\n-------------------------------------------------------------------------------------\ndotnet-ef       10.0.0               Microsoft    12345          x\n");
+        var result = Assert.Single(results);
+        Assert.Equal("dotnet-ef", result.PackageId);
+        Assert.Equal("10.0.0", result.Version);
+        Assert.Equal("Microsoft", result.Authors);
+        Assert.Equal("12345", result.Downloads);
+        Assert.True(result.Verified);
+    }
+
     [Theory]
     [InlineData("Unexpected output")]
     [InlineData("Package Id\n----------\nincomplete")]
@@ -74,7 +86,7 @@ public sealed class ToolsTests
     public void DistinguishesEmptyListsFromMissingSdk()
     {
         var empty = ToolsPage.Render(ToolsSnapshot.Empty("ready", "/workspace"), new("global"));
-        var emptyLocal = ToolsPage.Render(ToolsSnapshot.Empty("ready", "/workspace"), new("local"));
+        var emptyLocal = ToolsPage.Render(new ToolsSnapshot("ready", "/workspace", new([]), new([]), null, true, "/workspace/.config/dotnet-tools.json"), new("local"));
         var missingSdk = ToolsPage.Render(ToolsSnapshot.Empty("sdkMissing", "/workspace"), new("global"));
         var missingHost = ToolsPage.Render(ToolsSnapshot.Empty("notFound", "/workspace"), new("global"));
         Assert.Contains("No global tools installed", empty);
@@ -82,5 +94,21 @@ public sealed class ToolsTests
         Assert.Contains("A .NET SDK is required", missingSdk);
         Assert.DoesNotContain("No global tools installed", missingSdk);
         Assert.Contains("No .NET installation found", missingHost);
+    }
+
+    [Fact]
+    public void RendersSearchInstallTargetsAndUninstallActions()
+    {
+        var snapshot = new ToolsSnapshot("ready", "/workspace", new([new("global.tool", "1.0.0", ["global"], null)]), new([]), null, false);
+        var search = new ToolSearch("format", [new("format.tool", "2.0.0", "Author", "123", true)]);
+        var withoutManifest = ToolsPage.Render(snapshot, new("global", "format"), search);
+        Assert.Contains("Initialize local tools", withoutManifest);
+        Assert.Contains("Install globally", withoutManifest);
+        Assert.DoesNotContain("Install locally", withoutManifest);
+        Assert.Contains("action=\"/tools/uninstall\"", withoutManifest);
+
+        var initialized = snapshot with { LocalManifestInitialized = true };
+        var withManifest = ToolsPage.Render(initialized, new("global", "format"), search);
+        Assert.Contains("Install locally", withManifest);
     }
 }

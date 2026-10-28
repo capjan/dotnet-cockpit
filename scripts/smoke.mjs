@@ -64,7 +64,7 @@ async function runWithoutRepositoryFiles(environment, verify, expectedStatus = 2
     assert.equal(untrustedHostStatus, 400);
     const response = await get('api/installation');
     assert.equal(response.status, expectedStatus);
-    await verify(await response.json(), html, get);
+    await verify(await response.json(), html, get, url);
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
       child.kill();
@@ -74,7 +74,7 @@ async function runWithoutRepositoryFiles(environment, verify, expectedStatus = 2
   }
 }
 
-await runWithoutRepositoryFiles(process.env, async (data, html, get) => {
+await runWithoutRepositoryFiles(process.env, async (data, html, get, url) => {
   assert.equal(data.status, 'ready');
   assert.deepEqual(data.sdks, sdks, 'SDKs must match the real dotnet CLI inventory.');
   assert.deepEqual(data.runtimes, runtimes, 'Runtimes must match the real dotnet CLI inventory.');
@@ -105,6 +105,14 @@ await runWithoutRepositoryFiles(process.env, async (data, html, get) => {
   const localToolsHtml = await localToolsPage.text();
   assert.ok(localToolsHtml.includes('data-tool-scope="local"'));
   assert.ok(localToolsHtml.includes('cockpit.fixture.tool'));
+  const invalidAction = await fetch(new URL('tools/install', url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ packageId: '', version: '', scope: 'global' }),
+    redirect: 'manual',
+  });
+  assert.equal(invalidAction.status, 302);
+  assert.match(invalidAction.headers.get('location'), /notice=failed/);
 });
 console.log('PASS: server-rendered installations, global/local tools, filtering, embedded assets, and loopback host validation.');
 

@@ -21,4 +21,21 @@ internal static partial class ToolOutputParser
                 columns.Length == 4 ? columns[3] : null);
         }).ToArray();
     }
+
+    public static ToolSearchResult[] ParseSearch(string output)
+    {
+        var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var separator = Array.FindIndex(lines, line => line.All(character => character == '-'));
+        if (separator < 0) return [];
+
+        return lines.Skip(separator + 1).Select(line => Columns().Split(line, 5))
+            .Where(columns => columns.Length >= 2)
+            .Select(columns => new ToolSearchResult(
+                columns[0],
+                columns[1],
+                columns.Length > 2 ? columns[2] : "",
+                columns.Length > 3 ? columns[3] : "",
+                columns.Length > 4 && columns[4].Equals("x", StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+    }
 }

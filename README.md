@@ -45,7 +45,7 @@ If `dotnet` is absent, the application still starts and explains that no install
 
 Open **.NET Tools** in the navigation or visit `/tools`. Cockpit reads `dotnet tool list --global` for the current user and `dotnet tool list --local` from the directory where Cockpit was launched. The page displays this working directory. To inspect another project's local tools, start Cockpit from that project's directory.
 
-Local tools are declared in the manifests visible from that directory, including applicable parent manifests. Listing a declaration does not verify that its package has been restored. The view does not scan unrelated projects. A .NET SDK is required for tool queries; missing SDKs, empty lists, and failed queries have distinct messages. A failing local manifest does not hide the global list.
+Local tools are declared in the manifests visible from that directory, including applicable parent manifests. Listing a declaration does not verify that its package has been restored. The view does not scan unrelated projects. A .NET SDK is required for tool queries; missing SDKs, empty lists, and failed queries have distinct messages. A failing local manifest does not hide the global list. The page can search NuGet tool packages, install a search result globally or locally, uninstall installed tools, and initialize a local manifest. Until a local manifest exists, search results offer global installation and an initialization button.
 
 ## Development
 

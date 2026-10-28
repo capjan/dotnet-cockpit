@@ -60,7 +60,31 @@ app.MapGet("/tools", async (DotnetToolsService service, HttpContext context, ILo
 {
     context.Response.Headers.CacheControl = "no-store";
     var snapshot = await ReadTools(service, context, logger);
-    return Results.Content(ToolsPage.Render(snapshot, ToolsViewOptions.From(context.Request.Query)), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
+    var options = ToolsViewOptions.From(context.Request.Query);
+    var search = snapshot.Status == "ready" && options.SearchQuery.Length > 0
+        ? await service.SearchAsync(options.SearchQuery, context.RequestAborted)
+        : new ToolSearch(options.SearchQuery, []);
+    return Results.Content(ToolsPage.Render(snapshot, options, search), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
+});
+app.MapPost("/tools/install", async (HttpContext context, DotnetToolsService service) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var scope = form["scope"].ToString();
+    var result = await service.InstallAsync(form["packageId"].ToString(), form["version"].ToString(), scope, context.RequestAborted);
+    return Results.Redirect(ToolRedirect(scope, form["q"].ToString(), result.Success ? "installed" : "failed"));
+});
+app.MapPost("/tools/uninstall", async (HttpContext context, DotnetToolsService service) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var scope = form["scope"].ToString();
+    var result = await service.UninstallAsync(form["packageId"].ToString(), scope, context.RequestAborted);
+    return Results.Redirect(ToolRedirect(scope, "", result.Success ? "uninstalled" : "failed"));
+});
+app.MapPost("/tools/init", async (HttpContext context, DotnetToolsService service) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var result = await service.InitializeLocalAsync(context.RequestAborted);
+    return Results.Redirect(ToolRedirect(form["scope"].ToString(), form["q"].ToString(), result.Success ? "initialized" : "failed"));
 });
 app.MapGet("/api/tools", async (DotnetToolsService service, HttpContext context, ILogger<Program> logger) =>
 {
@@ -92,6 +116,15 @@ static async Task<ToolsSnapshot> ReadTools(DotnetToolsService service, HttpConte
         return ToolsSnapshot.Empty("error", Environment.CurrentDirectory,
             "The tools could not be read. Check the .NET installation and try again.");
     }
+}
+
+static string ToolRedirect(string scope, string query, string notice)
+{
+    var normalizedScope = scope == "local" ? "local" : "global";
+    var normalizedQuery = query.Trim();
+    var result = $"/tools?scope={normalizedScope}";
+    if (normalizedQuery.Length is > 0 and <= 100) result += $"&q={Uri.EscapeDataString(normalizedQuery)}";
+    return $"{result}&notice={notice}";
 }
 
 await app.StartAsync();
