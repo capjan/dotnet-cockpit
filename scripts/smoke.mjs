@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { get as httpGet } from 'node:http';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -14,9 +14,15 @@ assert.equal(sdkOutput.status, 0, 'The smoke-test runner needs an SDK for the re
 assert.equal(runtimeOutput.status, 0);
 const sdks = [...sdkOutput.stdout.matchAll(/^(\S+)\s+\[(.+)\]\s*$/gm)].map(([, version, path]) => ({ version, path, installationPath: join(path, version) }));
 const runtimes = [...runtimeOutput.stdout.matchAll(/^(\S+)\s+(\S+)\s+\[(.+)\]\s*$/gm)].map(([, name, version, path]) => ({ name, version, path, installationPath: join(path, version) }));
+const globalOutput = spawnSync('dotnet', ['tool', 'list', '--global', '--format', 'json'], { encoding: 'utf8', env: { ...process.env, DOTNET_NOLOGO: '1' } });
+assert.equal(globalOutput.status, 0);
+const globalTools = JSON.parse(globalOutput.stdout).data.map(tool => ({ ...tool, manifest: null }));
+const manifest = JSON.stringify({ version: 1, isRoot: true, tools: { 'cockpit.fixture.tool': { version: '1.2.3', commands: ['fixture', 'fixture-alt'] } } });
 
-async function runWithoutRepositoryFiles(environment, verify, expectedStatus = 200) {
+async function runWithoutRepositoryFiles(environment, verify, expectedStatus = 200, manifestContents = manifest) {
   const directory = await mkdtemp(join(tmpdir(), 'dotnet-cockpit-smoke-'));
+  await mkdir(join(directory, '.config'));
+  await writeFile(join(directory, '.config', 'dotnet-tools.json'), manifestContents);
   const child = spawn(executable, ['--no-browser', '--port', '0'], { cwd: directory, env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   try {
@@ -80,28 +86,53 @@ await runWithoutRepositoryFiles(process.env, async (data, html, get) => {
   const filtered = await (await get('?kind=sdks')).text();
   assert.equal([...filtered.matchAll(/<tr data-kind="sdk"/g)].length, sdks.length);
   assert.ok(!filtered.includes('<tr data-kind="runtime"'), 'Filtering must happen on the server.');
+  const toolsResponse = await get('api/tools');
+  assert.equal(toolsResponse.status, 200);
+  const tools = await toolsResponse.json();
+  assert.equal(tools.status, 'ready');
+  assert.deepEqual(tools.global.tools, globalTools, 'Global tools must match the real dotnet CLI inventory.');
+  assert.deepEqual(tools.local.tools, [{ packageId: 'cockpit.fixture.tool', version: '1.2.3', commands: ['fixture', 'fixture-alt'], manifest: join(tools.workingDirectory, '.config', 'dotnet-tools.json') }]);
+  assert.equal(tools.global.error, null);
+  assert.equal(tools.local.error, null);
+  const toolsPage = await get('tools');
+  assert.equal(toolsPage.status, 200);
+  const toolsHtml = await toolsPage.text();
+  assert.ok(toolsHtml.includes('data-tool-scope="local"'));
+  assert.ok(toolsHtml.includes('cockpit.fixture.tool'));
 });
-console.log('PASS: server-rendered inventory, server-side filtering, embedded assets, health endpoint, and loopback host validation.');
+console.log('PASS: server-rendered installations, global/local tools, filtering, embedded assets, and loopback host validation.');
 
 if (native) {
-  await runWithoutRepositoryFiles({ ...process.env, PATH: '' }, (data, html) => {
+  await runWithoutRepositoryFiles({ ...process.env, PATH: '' }, async (data, html, get) => {
     assert.equal(data.status, 'notFound');
     assert.equal(data.executablePath, null);
     assert.deepEqual(data.sdks, []);
     assert.deepEqual(data.runtimes, []);
     assert.ok(html.includes('No .NET installation found'));
+    assert.ok((await (await get('tools')).text()).includes('No .NET installation found'));
+    assert.equal((await (await get('api/tools')).json()).status, 'notFound');
   });
   console.log('PASS: native executable starts and serves its UI without dotnet on PATH.');
 
   const brokenHost = await mkdtemp(join(tmpdir(), 'dotnet-cockpit-broken-host-'));
   try {
     await writeFile(join(brokenHost, process.platform === 'win32' ? 'dotnet.exe' : 'dotnet'), 'invalid executable', { mode: 0o755 });
-    await runWithoutRepositoryFiles({ ...process.env, PATH: brokenHost }, (data, html) => {
+    await runWithoutRepositoryFiles({ ...process.env, PATH: brokenHost }, async (data, html, get) => {
       assert.equal(data.status, 'error');
       assert.ok(html.includes('Installation information is unavailable'));
+      assert.equal((await get('tools')).status, 503);
+      assert.equal((await get('api/tools')).status, 503);
     }, 503);
   } finally {
     await rm(brokenHost, { recursive: true, force: true });
   }
   console.log('PASS: a broken dotnet host returns an error page and HTTP 503 instead of an empty inventory.');
+
+  await runWithoutRepositoryFiles(process.env, async (_, __, get) => {
+    const tools = await (await get('api/tools')).json();
+    assert.deepEqual(tools.global.tools, globalTools);
+    assert.ok(tools.local.error);
+    assert.ok((await (await get('tools')).text()).includes('Local tools could not be read'));
+  }, 200, '{ invalid manifest');
+  console.log('PASS: a malformed local manifest does not hide the global tool inventory.');
 }

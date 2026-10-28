@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using DotnetCockpit;
 using DotnetCockpit.Installation;
+using DotnetCockpit.Tools;
 
 if (args is ["--help"] or ["-h"])
 {
@@ -25,6 +26,7 @@ builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
 builder.Services.AddSingleton<DotnetInstallationService>();
+builder.Services.AddSingleton<DotnetToolsService>();
 builder.Services.AddSingleton<WebAssets>();
 
 var app = builder.Build();
@@ -54,6 +56,18 @@ app.MapGet("/api/installation", async (DotnetInstallationService service, HttpCo
     var snapshot = await ReadInstallation(service, context, logger);
     return Results.Json(snapshot, AppJsonContext.Default.InstallationSnapshot, statusCode: snapshot.Status == "error" ? 503 : 200);
 });
+app.MapGet("/tools", async (DotnetToolsService service, HttpContext context, ILogger<Program> logger) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var snapshot = await ReadTools(service, context, logger);
+    return Results.Content(ToolsPage.Render(snapshot), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
+});
+app.MapGet("/api/tools", async (DotnetToolsService service, HttpContext context, ILogger<Program> logger) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var snapshot = await ReadTools(service, context, logger);
+    return Results.Json(snapshot, AppJsonContext.Default.ToolsSnapshot, statusCode: snapshot.Status == "error" ? 503 : 200);
+});
 app.MapGet("/{**path}", (HttpContext context, WebAssets assets, string? path) => assets.Get(context, path));
 
 static async Task<InstallationSnapshot> ReadInstallation(DotnetInstallationService service, HttpContext context, ILogger<Program> logger)
@@ -65,6 +79,18 @@ static async Task<InstallationSnapshot> ReadInstallation(DotnetInstallationServi
         logger.LogWarning(exception, "Could not query the .NET installation.");
         return InstallationSnapshot.Create("error", null,
             error: "The .NET installation could not be read. Check your PATH and try again.");
+    }
+}
+
+static async Task<ToolsSnapshot> ReadTools(DotnetToolsService service, HttpContext context, ILogger<Program> logger)
+{
+    try { return await service.ReadAsync(context.RequestAborted); }
+    catch (Exception exception) when (exception is Win32Exception or IOException or InvalidOperationException or OperationCanceledException)
+    {
+        if (context.RequestAborted.IsCancellationRequested) throw;
+        logger.LogWarning(exception, "Could not query .NET tools.");
+        return ToolsSnapshot.Empty("error", Environment.CurrentDirectory,
+            "The tools could not be read. Check the .NET installation and try again.");
     }
 }
 
