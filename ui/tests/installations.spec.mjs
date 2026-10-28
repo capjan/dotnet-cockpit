@@ -2,11 +2,12 @@ import { expect, test } from '@playwright/test';
 
 test('receives the real inventory in the initial HTML with version-specific directories', async ({ page, request }) => {
   const snapshot = await (await request.get('/api/installation')).json();
+  const runtimeCards = new Set(snapshot.runtimes.map(runtime => runtime.version)).size;
   const response = await page.goto('/');
   const html = await response.text();
   expect(html).toContain('<tr data-kind="sdk">');
   await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
-  await expect(page.locator('tbody tr')).toHaveCount(snapshot.sdks.length + snapshot.runtimes.length);
+  await expect(page.locator('tbody tr')).toHaveCount(snapshot.sdks.length + runtimeCards);
   for (const item of [...snapshot.sdks, ...snapshot.runtimes]) {
     await expect(page.locator('.installation-path').filter({ hasText: item.installationPath })).toBeVisible();
   }
@@ -14,6 +15,7 @@ test('receives the real inventory in the initial HTML with version-specific dire
 
 test('filters and sorts on the server with JavaScript disabled', async ({ browser, baseURL, request }) => {
   const snapshot = await (await request.get('/api/installation')).json();
+  const runtimeCards = new Set(snapshot.runtimes.map(runtime => runtime.version)).size;
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   try {
@@ -31,7 +33,7 @@ test('filters and sorts on the server with JavaScript disabled', async ({ browse
     await page.getByRole('button', { name: 'Filter', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'No matching versions' })).toBeVisible();
     await page.getByRole('link', { name: 'Clear filters' }).click();
-    await expect(page.locator('tbody tr')).toHaveCount(snapshot.sdks.length + snapshot.runtimes.length);
+    await expect(page.locator('tbody tr')).toHaveCount(snapshot.sdks.length + runtimeCards);
   } finally { await context.close(); }
 });
 

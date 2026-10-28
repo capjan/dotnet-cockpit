@@ -15,14 +15,20 @@ internal sealed record InstallationViewOptions(string Query = "", string Kind = 
 
 internal static class InstallationPage
 {
-    private sealed record Row(string Kind, string Name, string Description, string Version, string Path);
+    private sealed record Row(string Kind, string Name, string Description, string Version, IReadOnlyList<string> Paths)
+    {
+        public string Path => string.Join(" ", Paths);
+    }
+
     private static readonly IComparer<string> VersionComparer = Comparer<string>.Create((left, right) =>
         CultureInfo.InvariantCulture.CompareInfo.Compare(left, right, CompareOptions.IgnoreCase | CompareOptions.NumericOrdering));
 
     public static string Render(InstallationSnapshot snapshot, InstallationViewOptions options)
     {
-        var rows = FilterRows(snapshot, options);
-        var total = snapshot.Sdks.Length + snapshot.Runtimes.Length;
+        var allRows = BuildRows(snapshot);
+        var rows = FilterRows(allRows, options);
+        var total = allRows.Length;
+        var runtimeCount = allRows.Count(row => row.Kind == "runtime");
         var content = snapshot.Status switch
         {
             "notFound" => """
@@ -41,7 +47,7 @@ internal static class InstallationPage
                   </div>
                   <section class="summary-grid" aria-label="Installation summary">
                     {{SummaryCard("Installed SDKs", snapshot.Sdks.Length.ToString(CultureInfo.InvariantCulture), "Build and develop applications", "code")}}
-                    {{SummaryCard("Installed runtimes", snapshot.Runtimes.Length.ToString(CultureInfo.InvariantCulture), "Run .NET applications", "server")}}
+                    {{SummaryCard("Installed runtimes", runtimeCount.ToString(CultureInfo.InvariantCulture), "Run .NET applications", "server")}}
                     {{SummaryCard("This machine", snapshot.Architecture.ToUpperInvariant(), snapshot.OperatingSystem, "desktop")}}
                   </section>
                   <section class="inventory" id="inventory" aria-labelledby="inventory-title">
@@ -62,14 +68,29 @@ internal static class InstallationPage
                     <div class="inventory-footer"><span>{{rows.Length}} of {{total}} installations shown</span><span>Checked <time datetime="{{snapshot.CheckedAt.ToString("O", CultureInfo.InvariantCulture)}}">{{snapshot.CheckedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)}}</time></span></div>
                   </section>
                   {{(snapshot.ExecutablePath is null ? "" : $"<div class=\"host-info\"><span class=\"status-dot\"></span><span>dotnet host</span><code>{Encode(snapshot.ExecutablePath)}</code></div>")}}
-                  <p class="scope-note muted">Locations include the version subfolder. This view lists the SDKs and runtimes reported by the selected dotnet host. Separate installations and other architectures may not appear here.</p>
+                  <p class="scope-note muted">Locations include the version subfolder. When dotnet-core-uninstall is installed, only versions it can remove are shown; runtime frameworks that share a version are grouped together. Separate installations and other architectures may not appear here.</p>
             """, "/");
     }
 
-    private static Row[] FilterRows(InstallationSnapshot snapshot, InstallationViewOptions options)
+    private static Row[] BuildRows(InstallationSnapshot snapshot)
     {
-        var rows = snapshot.Sdks.Select(sdk => new Row("sdk", ".NET SDK", "Software development kit", sdk.Version, sdk.InstallationPath))
-            .Concat(snapshot.Runtimes.Select(runtime => new Row("runtime", RuntimeName(runtime.Name), runtime.Name, runtime.Version, runtime.InstallationPath)));
+        var sdkRows = snapshot.Sdks.Select(sdk => new Row("sdk", ".NET SDK", "Software development kit", sdk.Version, [sdk.InstallationPath]));
+        var runtimeRows = snapshot.Runtimes
+            .GroupBy(runtime => runtime.Version, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var runtimes = group.ToArray();
+                var names = runtimes.Select(runtime => RuntimeName(runtime.Name)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                var descriptions = runtimes.Select(runtime => runtime.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                var paths = runtimes.Select(runtime => runtime.InstallationPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                return new Row("runtime", names.Length == 1 ? names[0] : ".NET Runtime", string.Join(" · ", descriptions), group.Key, paths);
+            });
+        return sdkRows.Concat(runtimeRows).ToArray();
+    }
+
+    private static Row[] FilterRows(Row[] allRows, InstallationViewOptions options)
+    {
+        var rows = allRows.AsEnumerable();
         var terms = options.Query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         rows = rows.Where(row => (options.Kind == "all" || (options.Kind == "sdks" ? row.Kind == "sdk" : row.Kind == "runtime")) &&
             terms.All(term => $"{row.Name} {row.Description} {row.Version} {row.Path}".Contains(term, StringComparison.OrdinalIgnoreCase)));
@@ -87,7 +108,7 @@ internal static class InstallationPage
               <tr data-kind="{row.Kind}">
                 <td><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "code" : "server")}</span><div><strong>{Encode(row.Name)}</strong><span class="muted framework-name">{Encode(row.Description)}</span></div></div></td>
                 <td><fluent-badge appearance="tint" color="{(row.Kind == "sdk" ? "brand" : "informative")}" class="version-badge">{Encode(row.Version)}</fluent-badge></td>
-                <td><code class="installation-path">{Encode(row.Path)}</code></td>
+                <td><div class="installation-paths">{string.Concat(row.Paths.Select(path => $"<code class=\"installation-path\">{Encode(path)}</code>"))}</div></td>
               </tr>
               """))}}</tbody>
           </table>

@@ -14,6 +14,25 @@ assert.equal(sdkOutput.status, 0, 'The smoke-test runner needs an SDK for the re
 assert.equal(runtimeOutput.status, 0);
 const sdks = [...sdkOutput.stdout.matchAll(/^(\S+)\s+\[(.+)\]\s*$/gm)].map(([, version, path]) => ({ version, path, installationPath: join(path, version) }));
 const runtimes = [...runtimeOutput.stdout.matchAll(/^(\S+)\s+(\S+)\s+\[(.+)\]\s*$/gm)].map(([, name, version, path]) => ({ name, version, path, installationPath: join(path, version) }));
+const uninstallExecutable = process.platform === 'win32'
+  ? join(process.env.ProgramFiles ?? '', 'dotnet-core-uninstall', 'dotnet-core-uninstall.exe')
+  : '/usr/local/bin/dotnet-core-uninstall';
+const uninstallOutput = spawnSync(uninstallExecutable, ['list'], { encoding: 'utf8' });
+const uninstallList = uninstallOutput.status === 0 ? uninstallOutput.stdout : '';
+const uninstallable = { sdks: new Set(), runtimes: new Set() };
+let uninstallSection = '';
+for (const line of uninstallList.split(/\r?\n/)) {
+  const heading = line.trim().replace(/:$/, '');
+  if (heading.includes('SDK') && heading.endsWith('s')) uninstallSection = 'sdks';
+  else if (heading.includes('ASP.NET Core Runtime') && heading.endsWith('s')) uninstallSection = 'runtimes';
+  else if (heading.includes('.NET Core Runtimes')) uninstallSection = 'runtimes';
+  else if (line.trimStart().startsWith('.') && line.trimEnd().endsWith(':')) uninstallSection = '';
+  const match = line.match(/^\s*(\d+(?:\.\d+)*(?:[-+][^\s]+)?)\b/);
+  if (match && uninstallSection) uninstallable[uninstallSection].add(match[1]);
+}
+const expectedSdks = uninstallList.length > 0 ? sdks.filter(sdk => uninstallable.sdks.has(sdk.version)) : sdks;
+const expectedRuntimes = uninstallList.length > 0 ? runtimes.filter(runtime => uninstallable.runtimes.has(runtime.version)) : runtimes;
+const runtimeCards = new Set(expectedRuntimes.map(runtime => runtime.version)).size;
 const globalOutput = spawnSync('dotnet', ['tool', 'list', '--global', '--format', 'json'], { encoding: 'utf8', env: { ...process.env, DOTNET_NOLOGO: '1' } });
 assert.equal(globalOutput.status, 0);
 const globalTools = JSON.parse(globalOutput.stdout).data.map(tool => ({ ...tool, manifest: null }));
@@ -76,15 +95,15 @@ async function runWithoutRepositoryFiles(environment, verify, expectedStatus = 2
 
 await runWithoutRepositoryFiles(process.env, async (data, html, get, url) => {
   assert.equal(data.status, 'ready');
-  assert.deepEqual(data.sdks, sdks, 'SDKs must match the real dotnet CLI inventory.');
-  assert.deepEqual(data.runtimes, runtimes, 'Runtimes must match the real dotnet CLI inventory.');
+  assert.deepEqual(data.sdks, expectedSdks, 'SDKs must match the selected inventory source.');
+  assert.deepEqual(data.runtimes, expectedRuntimes, 'Runtimes must match the selected inventory source.');
   assert.ok(data.executablePath);
   assert.ok(data.operatingSystem);
   assert.ok(data.architecture);
   assert.ok(Number.isFinite(Date.parse(data.checkedAt)));
-  assert.equal([...html.matchAll(/<tr data-kind=/g)].length, sdks.length + runtimes.length, 'The initial HTML must contain the complete inventory without executing JavaScript.');
+  assert.equal([...html.matchAll(/<tr data-kind=/g)].length, expectedSdks.length + runtimeCards, 'The initial HTML must contain the complete inventory without executing JavaScript.');
   const filtered = await (await get('?kind=sdks')).text();
-  assert.equal([...filtered.matchAll(/<tr data-kind="sdk"/g)].length, sdks.length);
+  assert.equal([...filtered.matchAll(/<tr data-kind="sdk"/g)].length, expectedSdks.length);
   assert.ok(!filtered.includes('<tr data-kind="runtime"'), 'Filtering must happen on the server.');
   const toolsResponse = await get('api/tools');
   assert.equal(toolsResponse.status, 200);

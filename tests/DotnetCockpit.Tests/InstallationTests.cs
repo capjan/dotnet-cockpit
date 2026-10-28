@@ -23,6 +23,29 @@ public sealed class InstallationTests
     }
 
     [Fact]
+    public void ParsesUninstallableSdkAndRuntimeSections()
+    {
+        var inventory = DotnetOutputParser.ParseUninstallList("""
+            The versions that can be uninstalled with this tool are:
+
+            .NET Core SDKs:
+              10.0.403  (arm64)
+
+            .NET Core Runtimes:
+              10.0.14  (arm64)
+
+            ASP.NET Core Runtimes:
+              10.0.14  (arm64)
+
+            .NET Core Runtime & Hosting Bundles:
+              10.0.14
+            """);
+
+        Assert.Equal(["10.0.403"], inventory.SdkVersions);
+        Assert.Equal(["10.0.14"], inventory.RuntimeVersions);
+    }
+
+    [Fact]
     public void EmptySdkListIsValidForRuntimeOnlyInstallations()
     {
         Assert.Empty(DotnetOutputParser.ParseSdks("\r\n"));

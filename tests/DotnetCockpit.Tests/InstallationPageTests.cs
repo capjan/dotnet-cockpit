@@ -34,6 +34,25 @@ public sealed class InstallationPageTests
     }
 
     [Fact]
+    public void GroupsRuntimeFrameworksWithTheSameVersionInOneCard()
+    {
+        var snapshot = InstallationSnapshot.Create("ready", "/opt/dotnet/dotnet",
+            runtimes: [
+                new("Microsoft.NETCore.App", "10.0.7", "/opt/dotnet/shared/Microsoft.NETCore.App"),
+                new("Microsoft.AspNetCore.App", "10.0.7", "/opt/dotnet/shared/Microsoft.AspNetCore.App")]);
+
+        var html = InstallationPage.Render(snapshot, new());
+
+        Assert.Single(Regex.Matches(html, "<tr data-kind=\"runtime\">"));
+        Assert.Contains("Microsoft.NETCore.App", html);
+        Assert.Contains("Microsoft.AspNetCore.App", html);
+        Assert.Contains("/opt/dotnet/shared/Microsoft.NETCore.App/10.0.7", html);
+        Assert.Contains("/opt/dotnet/shared/Microsoft.AspNetCore.App/10.0.7", html);
+        Assert.Contains("Installed runtimes", html);
+        Assert.Contains("<strong class=\"summary-number\">1</strong>", html);
+    }
+
+    [Fact]
     public void SortsVersionsNumericallyInBothDirections()
     {
         var descending = InstallationPage.Render(Snapshot(), new());

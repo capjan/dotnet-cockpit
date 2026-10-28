@@ -9,10 +9,39 @@ internal sealed class DotnetInstallationService
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
-        var sdkTask = DotnetCommand.RunAsync(executable, ["--list-sdks"], timeout.Token);
-        var runtimeTask = DotnetCommand.RunAsync(executable, ["--list-runtimes"], timeout.Token);
-        await Task.WhenAll(sdkTask, runtimeTask);
-        return InstallationSnapshot.Create("ready", executable,
-            DotnetOutputParser.ParseSdks(sdkTask.Result), DotnetOutputParser.ParseRuntimes(runtimeTask.Result));
+        var infoTask = DotnetCommand.RunAsync(executable, ["--info"], timeout.Token);
+        var uninstallTool = FindUninstallTool();
+        if (uninstallTool is null)
+        {
+            var sdkTask = DotnetCommand.RunAsync(executable, ["--list-sdks"], timeout.Token);
+            var runtimeTask = DotnetCommand.RunAsync(executable, ["--list-runtimes"], timeout.Token);
+            await Task.WhenAll(sdkTask, runtimeTask, infoTask);
+            return InstallationSnapshot.Create("ready", executable,
+                DotnetOutputParser.ParseSdks(sdkTask.Result), DotnetOutputParser.ParseRuntimes(runtimeTask.Result));
+        }
+
+        var uninstallListTask = DotnetCommand.RunAsync(uninstallTool, ["list"], timeout.Token);
+        await Task.WhenAll(infoTask, uninstallListTask);
+        var uninstallable = DotnetOutputParser.ParseUninstallList(uninstallListTask.Result);
+        var sdks = DotnetOutputParser.ParseSdks(infoTask.Result)
+            .Where(sdk => uninstallable.SdkVersions.Contains(sdk.Version, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+        var runtimes = DotnetOutputParser.ParseRuntimes(infoTask.Result)
+            .Where(runtime => uninstallable.RuntimeVersions.Contains(runtime.Version, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+        return InstallationSnapshot.Create("ready", executable, sdks, runtimes);
+    }
+
+    private static string? FindUninstallTool()
+    {
+        var executable = OperatingSystem.IsWindows() ? "dotnet-core-uninstall.exe" : "dotnet-core-uninstall";
+        var globalDirectory = OperatingSystem.IsWindows()
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet-core-uninstall")
+            : "/usr/local/bin";
+        var candidates = new[] { Path.Combine(globalDirectory, executable) }
+            .Concat((Environment.GetEnvironmentVariable("PATH") ?? "")
+                .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .Select(directory => Path.Combine(directory.Trim('"'), executable)));
+        return candidates.FirstOrDefault(path => Path.IsPathFullyQualified(path) && File.Exists(path));
     }
 }
