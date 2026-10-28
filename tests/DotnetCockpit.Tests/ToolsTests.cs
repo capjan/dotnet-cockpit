@@ -102,7 +102,10 @@ public sealed class ToolsTests
         var snapshot = new ToolsSnapshot("ready", "/workspace", new([new("global.tool", "1.0.0", ["global"], null)]), new([]), null, false);
         var search = new ToolSearch("format", [new("format.tool", "2.0.0", "Author", "123", true)]);
         var withoutManifest = ToolsPage.Render(snapshot, new("global", "format"), search);
-        Assert.Contains("Initialize local tools", withoutManifest);
+        var withoutManifestLocal = ToolsPage.Render(snapshot, new("local", "format"), search);
+        Assert.DoesNotContain("Initialize local tools", withoutManifest);
+        Assert.Contains("Initialize local tools", withoutManifestLocal);
+        Assert.Contains("action=\"/tools/init\"", withoutManifestLocal);
         Assert.Contains("Install globally", withoutManifest);
         Assert.DoesNotContain("Install locally", withoutManifest);
         Assert.Contains("action=\"/tools/uninstall\"", withoutManifest);
@@ -123,7 +126,7 @@ public sealed class ToolsTests
 
         var inherited = owned with { LocalManifestOwned = false, LocalManifestPath = "/workspace/../.config/dotnet-tools.json" };
         var inheritedHtml = ToolsPage.Render(inherited, new("local"));
-        Assert.Contains("Using an inherited local tool manifest", inheritedHtml);
+        Assert.Contains("Using an inherited manifest", inheritedHtml);
         Assert.DoesNotContain("Remove local tools", inheritedHtml);
     }
 }

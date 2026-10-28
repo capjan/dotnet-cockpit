@@ -12,6 +12,7 @@ test('navigates to the tools page and lists both scopes without JavaScript', asy
     await expect(page.getByRole('heading', { name: '.NET Tools', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Global tools', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Local tools', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Initialize local tools', exact: true })).toHaveCount(0);
     await expect(page.locator('a.tool-tab[href="/tools?scope=local"]')).toHaveAttribute('aria-selected', 'false');
     await expect(page.getByRole('link', { name: '.NET Tools', exact: true })).not.toHaveClass(/nav-child/);
     await expect(page.getByRole('link', { name: '.NET Tools', exact: true })).toHaveAttribute('aria-current', 'page');
@@ -41,15 +42,16 @@ test('keeps tools navigation available on narrow screens', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Global tools', exact: true })).toBeVisible();
   await page.locator('a.tool-tab[href="/tools?scope=local"]').click();
   await expect(page.getByRole('heading', { name: 'No local tools initialized' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Initialize local tools', exact: true })).toBeVisible();
+  await expect(page.locator('#local-tools-panel').getByRole('button', { name: 'Initialize local tools', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
 test('offers local manifest initialization when none exists', async ({ page }) => {
   await page.goto('/tools?scope=local');
   await expect(page.getByRole('heading', { name: 'No local tools initialized' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Initialize local tools', exact: true })).toBeVisible();
-  await expect(page.getByText('Search results will be installed globally', { exact: false })).toBeVisible();
+  await expect(page.locator('#local-tools-panel').getByRole('button', { name: 'Initialize local tools', exact: true })).toBeVisible();
+  await expect(page.locator('.tool-manifest-notice')).toHaveCount(0);
+  await expect(page.getByText('Search results will be installed globally', { exact: false })).toHaveCount(0);
 });
 
 test('explains why tools cannot be listed without a dotnet host', async ({ page }) => {
