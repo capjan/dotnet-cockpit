@@ -4,7 +4,7 @@ namespace DotnetCockpit;
 
 internal static class PageLayout
 {
-    public static string Render(string content, string currentPath, string title = ".NET Cockpit") => $$"""
+    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0) => $$"""
         <!doctype html>
         <html lang="en" data-theme="auto">
         <head>
@@ -32,7 +32,7 @@ internal static class PageLayout
               <a href="/" class="nav-link"{{(currentPath == "/" ? " aria-current=\"page\"" : "")}}>{{Icon("versions")}} Installations</a>
               <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}}>{{Icon("tools")}} .NET Tools</a>
               <a href="/setup" class="nav-link"{{(currentPath == "/setup" ? " aria-current=\"page\"" : "")}}>{{Icon("settings")}} Setup</a>
-              <a href="/preflight" class="nav-link"{{(currentPath == "/preflight" ? " aria-current=\"page\"" : "")}}>{{Icon("pulse")}} Pre-flight</a>
+              {{(issueCount > 0 ? $"<a href=\"/preflight\" class=\"nav-link pf-nav-link\">{Icon("pulse")} Pre-flight <span class=\"badge warn pf-issue-badge\">{issueCount}</span></a>" : "")}}
 
               <div class="rail-foot">
                 <div class="ws-card">

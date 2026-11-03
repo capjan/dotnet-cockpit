@@ -54,6 +54,9 @@ internal static class SetupPage
             _ => RenderToolCard(snapshot)
         };
         var sdkSection = SdkDownloadsSection.Render(sdkDownloads, installation, SdkDownloadsViewOptions.From(options));
+        var issues = (installation.Status is "notFound" or "error" ? 1 : 0) +
+                     installation.Sdks.Count(s => IsEol(s.Version)) +
+                     installation.Runtimes.Count(r => IsEol(r.Version));
 
         return PageLayout.Render($"""
             <div class="page-heading">
@@ -64,7 +67,7 @@ internal static class SetupPage
             {content}
             {sdkSection}
             <p class="scope-note muted">Choose a package to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package. The .NET Uninstall Tool uses official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
-            """, "/setup", "Setup | .NET Cockpit");
+            """, "/setup", "Setup | .NET Cockpit", issues);
     }
 
     private static string RenderToolCard(SetupSnapshot snapshot)
@@ -154,6 +157,8 @@ internal static class SetupPage
             $"<li><a href=\"{Encode(release.Url)}\">{Encode(release.Version)}</a>{(string.IsNullOrWhiteSpace(release.PublishedAt) ? "" : $"<span class=\"muted\">{Encode(release.PublishedAt!)}</span>")}</li>"));
         return $"<div class=\"setup-release-list\"><strong>Available releases</strong><ul>{releases}</ul></div>";
     }
+
+    private static bool IsEol(string version) => version.Split('.')[0] is "7" or "6" or "5" or "3" or "2" or "1";
 
     private static bool IsUpdateAvailable(string? installedVersion, string? latestVersion) =>
         Version.TryParse(installedVersion, out var installed) && Version.TryParse(latestVersion, out var latest) && latest > installed;

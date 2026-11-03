@@ -25,6 +25,7 @@ internal static class ToolsPage
             "error" => $"<section class=\"inventory empty-state error-state\" role=\"alert\"><h2>Tool information is unavailable</h2><p>{Encode(snapshot.Error ?? "The tools could not be read.")}</p><a class=\"button\" href=\"/tools\">Try again</a></section>",
             _ => RenderTabs(snapshot, options)
         };
+        var issues = snapshot.Status is "notFound" or "sdkMissing" or "error" ? 1 : 0;
         return PageLayout.Render($$"""
             <div class="page-heading">
               <div><h1>.NET Tools</h1><p class="muted intro">Global tools for your account and local tools for this workspace.</p></div>
@@ -35,7 +36,7 @@ internal static class ToolsPage
             {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
             {{content}}
             <p class="scope-note muted">Local tools are declared in manifests for this working directory or its parents. This view does not check whether they have been restored.</p>
-            """, "/tools", ".NET Tools | .NET Cockpit");
+            """, "/tools", ".NET Tools | .NET Cockpit", issues);
     }
 
     private static string RenderTabs(ToolsSnapshot snapshot, ToolsViewOptions options)

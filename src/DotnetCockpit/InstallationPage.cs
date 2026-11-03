@@ -58,6 +58,10 @@ internal static class InstallationPage
               """
             : "";
 
+        var issues = (snapshot.Status is "notFound" or "error" ? 1 : 0) +
+                     snapshot.Sdks.Count(s => IsEol(s.Version)) +
+                     snapshot.Runtimes.Count(r => IsEol(r.Version));
+
         return PageLayout.Render($$"""
                   {{preflightBanner}}
                   <div class="page-heading">
@@ -89,7 +93,7 @@ internal static class InstallationPage
                   </section>
                   {{(snapshot.ExecutablePath is null ? "" : $"<div class=\"host-info\"><span class=\"status-dot\"></span><span>dotnet host</span><code>{Encode(snapshot.ExecutablePath)}</code></div>")}}
                   <p class="scope-note muted">Locations include the version subfolder. When dotnet-core-uninstall is installed, only versions it can remove are shown; runtime frameworks that share a version are grouped together. Separate installations and other architectures may not appear here.</p>
-            """, "/");
+            """, "/", ".NET Cockpit", issues);
     }
 
     private static Row[] BuildRows(InstallationSnapshot snapshot)
@@ -127,11 +131,13 @@ internal static class InstallationPage
             .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
+    private static bool IsEol(string version) => version.Split('.')[0] is "7" or "6" or "5" or "3" or "2" or "1";
+
     private static string ChannelTag(string version)
     {
         var major = version.Split('.')[0];
         var isLts = major is "8" or "10";
-        var isEol = major is "7" or "6";
+        var isEol = IsEol(version);
         var badgeCls = isEol ? "bad" : isLts ? "ok" : "warn";
         var label = isEol ? "EOL" : (isLts ? "LTS" : "STS");
         return $"<span class=\"channel-tag {badgeCls}\">{label}</span>";
