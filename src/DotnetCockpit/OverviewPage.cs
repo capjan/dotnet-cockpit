@@ -154,7 +154,10 @@ internal static class OverviewPage
             ? string.Concat(tools.Local.Tools.Select(t => $"<code class=\"ws-tool-pill\">{Encode(t.PackageId)} {Encode(t.Version)}</code>"))
             : "<span class=\"muted\">None declared</span>";
 
-        var hasNet10 = installedChannels.Contains("10");
+        var sdk10Ver = snapshot.Sdks.FirstOrDefault(s => s.Version.StartsWith("10."))?.Version;
+        var sdk9Ver = snapshot.Sdks.FirstOrDefault(s => s.Version.StartsWith("9."))?.Version;
+        var sdk8Ver = snapshot.Sdks.FirstOrDefault(s => s.Version.StartsWith("8."))?.Version;
+        var sdk7Ver = snapshot.Sdks.FirstOrDefault(s => s.Version.StartsWith("7."))?.Version;
 
         return PageLayout.Render($$"""
             <div class="page-heading">
@@ -261,7 +264,7 @@ internal static class OverviewPage
                   <div class="shortcuts-list">
                     <a class="shortcut-row" href="/?tab=all-releases">
                       <span>{{Icon("download", "xs")}} Install the latest LTS SDK</span>
-                      <span class="badge {{(hasNet10 ? "ok" : "brand")}} sm">{{(hasNet10 ? "Installed" : "Download")}}</span>
+                      <span class="badge {{(installedChannels.Contains("10") ? "ok" : "brand")}} sm">{{(installedChannels.Contains("10") ? "Installed" : "Download")}}</span>
                     </a>
                     <a class="shortcut-row" href="/tools#tool-search-title">
                       <span>{{Icon("plus", "xs")}} Find a .NET tool on NuGet</span>
@@ -298,66 +301,69 @@ internal static class OverviewPage
                     <span>2026</span>
                     <span>2027</span>
                     <span>2028</span>
-                    <div class="tl-today-marker" style="left: 64%;">
-                      <span class="tl-today-pill">Today</span>
-                    </div>
                   </div>
                   <span></span>
                 </div>
 
-                <div class="timeline-row">
-                  <div class="tl-channel">
-                    <b>.NET 11</b>
-                    <span class="channel-tag preview">Preview</span>
+                <div class="tl-rows">
+                  <div class="tl-today-marker" style="left: calc(130px + 16px + (100% - 272px) * 0.64);">
+                    <span class="tl-today-pill">Today</span>
                   </div>
-                  <div class="tl-track">
-                    <div class="tl-bar preview" style="left: 55%; width: 32%;"></div>
-                  </div>
-                  <span class="tl-status muted">GA Nov 2026</span>
-                </div>
 
-                <div class="timeline-row">
-                  <div class="tl-channel">
-                    <b>.NET 10</b>
-                    <span class="channel-tag lts">LTS</span>
+                  <div class="timeline-row">
+                    <div class="tl-channel">
+                      <b>.NET 11</b>
+                      <span class="channel-tag preview">Preview</span>
+                    </div>
+                    <div class="tl-track">
+                      <div class="tl-bar preview" style="left: 55%; width: 32%;">Preview · Nov 2026</div>
+                    </div>
+                    <span class="tl-status muted">GA Nov 2026</span>
                   </div>
-                  <div class="tl-track">
-                    <div class="tl-bar lts {{(installedChannels.Contains("10") ? "installed" : "")}}" style="left: 48%; width: 48%;"></div>
-                  </div>
-                  <span class="tl-status ok">until Nov 2028</span>
-                </div>
 
-                <div class="timeline-row">
-                  <div class="tl-channel">
-                    <b>.NET 9</b>
-                    <span class="channel-tag sts">STS</span>
+                  <div class="timeline-row">
+                    <div class="tl-channel">
+                      <b>.NET 10</b>
+                      <span class="channel-tag lts">LTS</span>
+                    </div>
+                    <div class="tl-track">
+                      <div class="tl-bar lts {{(installedChannels.Contains("10") ? "installed" : "")}}" style="left: 48%; width: 48%;">{{(sdk10Ver != null ? $"{Encode(sdk10Ver)} installed" : "10.0 LTS")}}</div>
+                    </div>
+                    <span class="tl-status ok">until Nov 2028</span>
                   </div>
-                  <div class="tl-track">
-                    <div class="tl-bar sts {{(installedChannels.Contains("9") ? "installed" : "")}}" style="left: 31%; width: 34%;"></div>
-                  </div>
-                  <span class="tl-status warn">until Nov 2026</span>
-                </div>
 
-                <div class="timeline-row">
-                  <div class="tl-channel">
-                    <b>.NET 8</b>
-                    <span class="channel-tag lts">LTS</span>
+                  <div class="timeline-row">
+                    <div class="tl-channel">
+                      <b>.NET 9</b>
+                      <span class="channel-tag sts">STS</span>
+                    </div>
+                    <div class="tl-track">
+                      <div class="tl-bar sts {{(installedChannels.Contains("9") ? "installed" : "")}}" style="left: 31%; width: 34%;">{{(sdk9Ver != null ? $"{Encode(sdk9Ver)} installed" : "9.0 STS")}}</div>
+                    </div>
+                    <span class="tl-status warn">until Nov 2026</span>
                   </div>
-                  <div class="tl-track">
-                    <div class="tl-bar lts {{(installedChannels.Contains("8") ? "installed" : "")}}" style="left: 15%; width: 50%;"></div>
-                  </div>
-                  <span class="tl-status warn">until Nov 2026</span>
-                </div>
 
-                <div class="timeline-row">
-                  <div class="tl-channel">
-                    <b>.NET 7</b>
-                    <span class="channel-tag sts">STS</span>
+                  <div class="timeline-row">
+                    <div class="tl-channel">
+                      <b>.NET 8</b>
+                      <span class="channel-tag lts">LTS</span>
+                    </div>
+                    <div class="tl-track">
+                      <div class="tl-bar lts {{(installedChannels.Contains("8") ? "installed" : "")}}" style="left: 15%; width: 50%;">{{(sdk8Ver != null ? $"{Encode(sdk8Ver)} installed" : "8.0 LTS")}}</div>
+                    </div>
+                    <span class="tl-status warn">until Nov 2026</span>
                   </div>
-                  <div class="tl-track">
-                    <div class="tl-bar eol {{(installedChannels.Contains("7") ? "installed" : "")}}" style="left: 2%; width: 24%;"></div>
+
+                  <div class="timeline-row">
+                    <div class="tl-channel">
+                      <b>.NET 7</b>
+                      <span class="channel-tag sts">STS</span>
+                    </div>
+                    <div class="tl-track">
+                      <div class="tl-bar eol {{(installedChannels.Contains("7") ? "installed" : "")}}" style="left: 2%; width: 24%;">{{(sdk7Ver != null ? $"{Encode(sdk7Ver)} · EOL" : "7.0 · EOL")}}</div>
+                    </div>
+                    <span class="tl-status bad">ended 2024</span>
                   </div>
-                  <span class="tl-status bad">ended 2024</span>
                 </div>
               </div>
             </section>

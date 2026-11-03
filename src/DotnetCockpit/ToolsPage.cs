@@ -68,27 +68,25 @@ internal static class ToolsPage
     {
         var local = options.Scope == "local";
         var selected = local ? snapshot.Local : snapshot.Global;
-        return $$"""
-            <div class="tools-toolbar">
-              <div class="tool-tabs" role="tablist" aria-label="Tool scope">
-                {{RenderTab("global", "Global", snapshot.Global, !local)}}
-                {{RenderTab("local", "Local", snapshot.Local, local)}}
-              </div>
+        var tabsHtml = $"""
+            <div class="tool-tabs version-scope-pills" role="tablist" aria-label="Tool scope">
+              {RenderTab("global", "Global", snapshot.Global, !local)}
+              {RenderTab("local", "Local", snapshot.Local, local)}
             </div>
-            {{RenderList(local ? "Local tools" : "Global tools", local ? "local-tools" : "global-tools", selected, local, snapshot.LocalManifestInitialized, snapshot.LocalManifestOwned, options)}}
             """;
+        return RenderList(local ? "Local tools" : "Global tools", local ? "local-tools" : "global-tools", selected, local, snapshot.LocalManifestInitialized, snapshot.LocalManifestOwned, options, tabsHtml);
     }
 
     private static string RenderTab(string scope, string label, ToolList list, bool selected)
     {
-        var count = list.Error is null ? $"<span class=\"tool-tab-count\">{list.Tools.Length}</span>" : "";
-        return $"<a class=\"tool-tab\" href=\"/tools?scope={scope}\" role=\"tab\" aria-selected=\"{selected.ToString().ToLowerInvariant()}\" aria-controls=\"{scope}-tools-panel\">{label}{count}</a>";
+        var count = list.Error is null ? $"<span class=\"tool-tab-count summary-count\">{list.Tools.Length}</span>" : "";
+        return $"<a class=\"tool-tab pill-badge {(selected ? "active" : "")}\" href=\"/tools?scope={scope}\" role=\"tab\" aria-selected=\"{selected.ToString().ToLowerInvariant()}\" aria-controls=\"{scope}-tools-panel\">{label}{count}</a>";
     }
 
     private static string RefreshLink(ToolsViewOptions options) =>
         options.Scope == "local" ? "/tools?scope=local" : "/tools";
 
-    private static string RenderList(string title, string id, ToolList list, bool local, bool localInitialized, bool localOwned, ToolsViewOptions options)
+    private static string RenderList(string title, string id, ToolList list, bool local, bool localInitialized, bool localOwned, ToolsViewOptions options, string tabsHtml)
     {
         var content = list.Error is not null
             ? $"<div class=\"empty-state error-state\" role=\"alert\"><h3>{title} could not be read</h3><p>{Encode(list.Error)}</p><a class=\"button\" href=\"{(options.Scope == "local" ? "/tools?scope=local" : "/tools")}\">Try again</a></div>"
@@ -96,13 +94,19 @@ internal static class ToolsPage
                 ? $"<div class=\"empty-state\"><h3>{(local ? (localInitialized ? "No local tools found" : "No local tools initialized") : "No global tools installed")}</h3><p class=\"muted\">{(local ? (localInitialized ? "No tools are declared in the tool manifests for this working directory." : "Initialize local tools to add a manifest in this working directory.") : "No global tools were reported for this user account.")}</p></div>"
                 : RenderTable(list.Tools, local, title, localOwned);
         var filterInput = list.Tools.Length > 0
-            ? $"<label class=\"filter-input\" style=\"margin-left:auto\">{Icon("search")}<input type=\"search\" data-tools-table-filter placeholder=\"Filter {title.ToLowerInvariant()}\" aria-label=\"Filter {title.ToLowerInvariant()}\"></label>"
+            ? $"<label class=\"filter-input\">{Icon("search", "xs")}<input type=\"search\" data-tools-table-filter placeholder=\"Filter {title.ToLowerInvariant()}...\" aria-label=\"Filter {title.ToLowerInvariant()}\"></label>"
             : "";
         var localAction = local ? RenderLocalManifestAction(localInitialized, localOwned, options) : "";
         return $$"""
-            <section class="inventory tool-panel" role="tabpanel" aria-labelledby="{{id}}" id="{{id}}-panel">
-              <div class="inventory-heading"><div><h2 id="{{id}}">{{title}}</h2><p class="muted">{{(local ? "Tools declared in the manifests for this workspace." : "Tools installed for the current user account.")}}</p></div><div class="inventory-heading-actions">{{filterInput}}{{localAction}}</div></div>
-              {{content}}
+            <section class="tool-panel-wrapper" role="tabpanel" aria-labelledby="{{id}}" id="{{id}}-panel">
+              <div class="sr-only"><h2 id="{{id}}">{{title}}</h2></div>
+              <div class="tools-toolbar">
+                {{tabsHtml}}
+                <div class="inventory-heading-actions">{{filterInput}}{{localAction}}</div>
+              </div>
+              <div class="inventory tool-panel">
+                {{content}}
+              </div>
             </section>
             """;
     }
@@ -190,7 +194,7 @@ internal static class ToolsPage
                     : $"<div class=\"search-results\"><h3>Search results for <strong>{Encode(options.SearchQuery)}</strong></h3><div class=\"search-result-list\">{string.Concat(search.Results.Select(result => RenderSearchResult(result, options.SearchQuery, localChoice)))}</div></div>";
 
         return $$"""
-            <section class="tool-search" id="tool-search-section" aria-labelledby="tool-search-title">
+            <section class="tool-search" id="tool-search-section" data-has-query="{{(options.SearchQuery.Length > 0 ? "true" : "false")}}" aria-labelledby="tool-search-title">
               <div class="tool-search-heading">
                 <div class="tool-search-title">
                   <span class="search-icon">{{Icon("search")}}</span>

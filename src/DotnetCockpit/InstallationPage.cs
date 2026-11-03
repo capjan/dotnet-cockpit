@@ -7,7 +7,7 @@ using static DotnetCockpit.SdkDownloadsSection;
 
 namespace DotnetCockpit;
 
-internal sealed record InstallationViewOptions(string Query = "", string Kind = "all", string Sort = "version", bool Ascending = false, string Notice = "", string Selected = "", string Tab = "installed")
+internal sealed record InstallationViewOptions(string Query = "", string Kind = "all", string Sort = "version", bool Ascending = false, string Notice = "", string Selected = "", string Tab = "installed", SdkDownloadsViewOptions? CatalogOptions = null)
 {
     public static InstallationViewOptions From(IQueryCollection query) => new(
         query["q"].ToString(),
@@ -16,7 +16,8 @@ internal sealed record InstallationViewOptions(string Query = "", string Kind = 
         query["direction"] == "asc",
         query["notice"].ToString(),
         query["selected"].ToString(),
-        query["tab"].ToString() is "all-releases" or "all" ? "all-releases" : "installed");
+        query["tab"].ToString() is "all-releases" or "all" ? "all-releases" : "installed",
+        SdkDownloadsViewOptions.From(SetupViewOptions.From(query)));
 }
 
 internal static class InstallationPage
@@ -69,7 +70,8 @@ internal static class InstallationPage
         string content;
         if (isAllReleases)
         {
-            content = SdkDownloadsSection.Render(sdkSnapshot ?? new("ready", []), snapshot, new SdkDownloadsViewOptions(Query: options.Query, Product: options.Kind == "runtimes" ? "runtime" : "sdk"));
+            var catOpts = options.CatalogOptions ?? new SdkDownloadsViewOptions(Query: options.Query, Product: options.Kind == "runtimes" ? "runtime" : "sdk");
+            content = SdkDownloadsSection.Render(sdkSnapshot ?? new("ready", []), snapshot, catOpts);
         }
         else
         {
@@ -90,7 +92,10 @@ internal static class InstallationPage
                       <h1>Versions</h1>
                       <p class="muted intro">Installed SDKs and runtimes, organised by release channel.</p>
                     </div>
-                    <a class="button sm ghost refresh-btn" href="{{RefreshLink(options, snapshot.CheckedAt)}}">{{Icon("refresh", "xs")}} Refresh</a>
+                    <div class="overview-header-actions">
+                      <a class="button sm ghost refresh-btn" href="{{RefreshLink(options, snapshot.CheckedAt)}}">{{Icon("refresh", "xs")}} Refresh</a>
+                      <a class="button primary" href="/?tab=all-releases">{{Icon("download", "xs")}} Install .NET</a>
+                    </div>
                   </div>
                   {{RenderNotice(options.Notice)}}
                   <div class="sr-only" aria-label="Installation summary">
@@ -113,7 +118,7 @@ internal static class InstallationPage
                           <a href="{{Link(options with { Kind = "all" })}}" class="sr-only" {(!isAllReleases && options.Kind == "all" ? " aria-current=\"page\"" : "")}>All versions</a>
                           {{TypeLink("SDKs", "sdks", options, showCheck: true)}}
                           {{TypeLink("Runtimes", "runtimes", options, showCheck: true)}}
-                          <a href="#" class="filter-pill ghost">Previews</a>
+                          <a href="/?tab=all-releases&amp;preview=true&amp;rc=true" class="filter-pill">Previews</a>
                         </nav>
                         {{(!isAllReleases ? $"""
                         <form method="get" action="/" class="filter-form version-search-compact" role="search" data-versions-filter>
@@ -170,6 +175,11 @@ internal static class InstallationPage
                     ? $"Latest patch {group.FirstOrDefault(r => r.Kind == "sdk")?.LatestPatchVersion ?? group.First().LatestPatchVersion} · Runtime {channel}.0"
                     : $"Active .NET {channel} channel";
 
+            var lifeState = isEol ? "bad" : (channel is "9" or "8" ? "warn" : "ok");
+            var lifeLeftLabel = isEol ? "Unsupported" : (channel is "9" or "8" ? "Ends soon" : "Active support");
+            var lifeRightLabel = isEol ? "Ended May 14, 2024" : (channel is "9" or "8" ? "Nov 10, 2026" : "until Nov 14, 2028");
+            var lifeWidth = isEol ? "100%" : (channel is "9" or "8" ? "95%" : "92%");
+
             var headerRow = $"""
                 <tr class="channel-header-row" data-channel-header="{channel}">
                   <td colspan="{columnCount}">
@@ -183,7 +193,14 @@ internal static class InstallationPage
                         </div>
                         <span class="channel-subtitle muted">{channelSubtitle}</span>
                       </div>
-                      {(isEol ? "<span class=\"eol-unsupported-tag\">Unsupported</span>" : "")}
+                      <div class="channel-life">
+                        <div class="channel-life-top">
+                          <span class="life-status {lifeState}">{lifeLeftLabel}</span>
+                          <span>{lifeRightLabel}</span>
+                        </div>
+                        <div class="channel-life-bar {lifeState}"><i style="width:{lifeWidth}"></i></div>
+                      </div>
+                      <button type="button" class="button icon sm ghost channel-collapse-btn" data-collapse-channel="{channel}" aria-label="Toggle .NET {channel} channel">{Icon("chevd", "sm")}</button>
                     </div>
                   </td>
                 </tr>

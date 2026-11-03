@@ -139,31 +139,45 @@ internal static class SetupPage
                   </div>
                   <div class="endpoint-list">
                     <div class="endpoint-row">
-                      <div class="endpoint-host">
-                        <span class="badge ok sm">GET</span>
-                        <code>builds.dotnet.microsoft.com</code>
+                      <div class="endpoint-left">
+                        <span class="endpoint-icon">{Icon("globe", "sm")}</span>
+                        <div>
+                          <strong>Microsoft release metadata</strong>
+                          <p class="muted text-xs">Official release index, lifecycle dates, CVEs, SHA-512 checksums, and .pkg installers.</p>
+                        </div>
                       </div>
-                      <span class="muted text-xs">Official Microsoft release index, lifecycle dates, CVEs, SHA-512 checksums, and .pkg installers.</span>
+                      <code class="muted">builds.dotnet.microsoft.com</code>
                     </div>
                     <div class="endpoint-row">
-                      <div class="endpoint-host">
-                        <span class="badge ok sm">GET</span>
-                        <code>api.nuget.org</code>
+                      <div class="endpoint-left">
+                        <span class="endpoint-icon">{Icon("search", "sm")}</span>
+                        <div>
+                          <strong>NuGet search</strong>
+                          <p class="muted text-xs">Queried only when you search in "Add tool".</p>
+                        </div>
                       </div>
-                      <span class="muted text-xs">NuGet package search when searching for .NET CLI tools.</span>
+                      <code class="muted">api.nuget.org</code>
                     </div>
                     <div class="endpoint-row">
-                      <div class="endpoint-host">
-                        <span class="badge ok sm">GET</span>
-                        <code>api.github.com</code>
+                      <div class="endpoint-left">
+                        <span class="endpoint-icon">{Icon("package", "sm")}</span>
+                        <div>
+                          <strong>GitHub Releases</strong>
+                          <p class="muted text-xs">Official <code>dotnet/cli-lab</code> releases for Microsoft's <code>dotnet-core-uninstall</code> tool.</p>
+                        </div>
                       </div>
-                      <span class="muted text-xs">Official <code>dotnet/cli-lab</code> releases for Microsoft's <code>dotnet-core-uninstall</code> tool.</span>
+                      <code class="muted">api.github.com</code>
                     </div>
-                  </div>
-                  <div class="trust settings-trust">
-                    <span>{Icon("lock", "xs")} Loopback 127.0.0.1 only</span>
-                    <span>{Icon("shield", "xs")} Zero telemetry, zero accounts</span>
-                    <span>{Icon("cpu", "xs")} Native AOT single binary</span>
+                    <div class="endpoint-row">
+                      <div class="endpoint-left">
+                        <span class="endpoint-icon ok">{Icon("shieldok", "sm")}</span>
+                        <div>
+                          <strong>No telemetry, no CDN, no accounts</strong>
+                          <p class="muted text-xs">All fonts, icons and scripts are bundled into the binary.</p>
+                        </div>
+                      </div>
+                      <span class="badge ok sm">Enforced</span>
+                    </div>
                   </div>
                 </section>
 
@@ -266,9 +280,11 @@ internal static class SetupPage
                 <div class="setup-installed" role="status">
                   <dl class="settings-dl">
                     <dt>Installed version</dt>
-                    <dd><strong>{Encode(installation.Version ?? "Unknown")}</strong> · <span class="muted">{version} {latest}</span></dd>
+                    <dd><span class="sr-only">{version}</span><strong><code>{Encode(installation.Version ?? "Unknown")}</code></strong> <span class="muted">· {latest}</span></dd>
                     <dt>Location</dt>
                     <dd><code>{Encode(installation.Path ?? "")}</code> <span class="badge sm">{Encode(installation.Scope ?? "path")}</span> <span class="sr-only">Detected at <code>{Encode(installation.Path ?? "")}</code> ({Encode(installation.Scope ?? "path")} installation).</span></dd>
+                    <dt>Source</dt>
+                    <dd><a href="https://github.com/dotnet/cli-lab/releases" target="_blank" rel="noopener">github.com/dotnet/cli-lab/releases ↗</a></dd>
                     <dt>Status</dt>
                     <dd><label class="setup-ready"><input type="checkbox" checked disabled><span>Ready to list and remove .NET Installations</span></label></dd>
                   </dl>

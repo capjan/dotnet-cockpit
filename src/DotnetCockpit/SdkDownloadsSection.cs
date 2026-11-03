@@ -14,7 +14,7 @@ internal static class SdkDownloadsSection
     public static string Render(SdkDownloadSnapshot snapshot, InstallationSnapshot installation, SdkDownloadsViewOptions options)
     {
         if (snapshot.Status == "error")
-            return $"<section class=\"inventory empty-state error-state\" role=\"alert\"><h2>SDK downloads are unavailable</h2><p>{Encode(snapshot.Error ?? "The official release information could not be loaded.")}</p><a class=\"button\" href=\"/setup\">Try again</a></section>";
+            return $"<section class=\"inventory empty-state error-state\" role=\"alert\"><h2>SDK downloads are unavailable</h2><p>{Encode(snapshot.Error ?? "The official release information could not be loaded.")}</p><a class=\"button\" href=\"/?tab=all-releases\">Try again</a></section>";
 
         return RenderCatalog(snapshot.Downloads, installation, options);
     }
@@ -36,12 +36,13 @@ internal static class SdkDownloadsSection
             group.OrderByDescending(download => download.Version, SdkVersionComparer.Instance).ToArray(), options)));
 
         return $$"""
-            <section class="inventory" aria-labelledby="sdk-downloads-title">
-              <div class="inventory-heading"><div><h2 id="sdk-downloads-title">Install .NET SDKs and runtimes</h2><p class="muted">Official macOS .pkg packages for this host's architecture. Stable releases are shown by default.</p></div><fluent-badge appearance="outline" color="brand" class="inventory-count"><span data-sdk-results>{{visibleCount}}</span> shown</fluent-badge></div>
+            <section class="inventory sdk-catalog-section" aria-labelledby="sdk-downloads-title">
+              <div class="inventory-heading"><div><h2 id="sdk-downloads-title">Install .NET SDKs and runtimes</h2><p class="muted">Official macOS .pkg packages for this host's architecture. Stable releases are shown by default.</p></div><span class="badge brand inventory-count"><span data-sdk-results>{{visibleCount}}</span> shown</span></div>
               <div class="tool-tabs" role="tablist" aria-label="Package type">{{RenderTab("sdk", "SDK", CountPackages(downloads, "SDK", options), options)}}{{RenderTab("runtime", ".NET Runtime", CountPackages(downloads, ".NET Runtime", options), options)}}</div>
               <div class="inventory-toolbar">
-                <form method="get" action="/setup" class="filter-form" data-sdk-filter>
+                <form method="get" action="/" class="filter-form" data-sdk-filter>
                   <label class="filter-input">{{Icon("search")}}<input id="sdk-version-filter" type="search" name="q" value="{{Encode(options.Query)}}" placeholder="Filter by version or channel" aria-label="Filter versions"></label>
+                  <input type="hidden" name="tab" value="all-releases">
                   <input type="hidden" name="product" value="{{options.Product}}">
                   <input type="hidden" name="lifecycle-filter" value="true">
                   <fieldset class="sdk-version-filters"><legend>Versions</legend><label><input id="sdk-preview-filter" type="checkbox" name="preview" value="true"{{(options.IncludePreview ? " checked" : "")}}><span>Preview</span></label><label><input id="sdk-rc-filter" type="checkbox" name="rc" value="true"{{(options.IncludeRc ? " checked" : "")}}><span>RC</span></label><label><input id="sdk-supported-filter" type="checkbox" name="supported" value="true"{{(options.SupportedOnly ? " checked" : "")}}><span>Supported</span></label><label><input id="sdk-latest-three-filter" type="checkbox" name="latest3" value="true"{{(options.LatestThree ? " checked" : "")}}><span>Latest 3 per channel</span></label></fieldset>
@@ -66,7 +67,7 @@ internal static class SdkDownloadsSection
         var latestThree = options.LatestThree ? "&latest3=true" : "";
         var lts = options.IncludeLts ? "&lifecycle=LTS" : "";
         var sts = options.IncludeSts ? "&lifecycle=STS" : "";
-        return $"<a class=\"tool-tab\" href=\"/setup?product={product}{query}{preview}{rc}{supported}{latestThree}&lifecycle-filter=true{lts}{sts}\" role=\"tab\" aria-selected=\"{selected.ToString().ToLowerInvariant()}\" aria-controls=\"{product}-packages\">{Encode(label)}<span class=\"tool-tab-count\">{count}</span></a>";
+        return $"<a class=\"tool-tab\" href=\"/?tab=all-releases&product={product}{query}{preview}{rc}{supported}{latestThree}&lifecycle-filter=true{lts}{sts}\" role=\"tab\" aria-selected=\"{selected.ToString().ToLowerInvariant()}\" aria-controls=\"{product}-packages\">{Encode(label)}<span class=\"tool-tab-count\">{count}</span></a>";
     }
 
     private static int CountPackages(SdkDownload[] downloads, string product, SdkDownloadsViewOptions options) =>
@@ -114,7 +115,7 @@ internal static class SdkDownloadsSection
             ? installation.Sdks.Any(sdk => string.Equals(sdk.Version, latest.InstallationVersion, StringComparison.OrdinalIgnoreCase))
             : installation.Runtimes.Any(runtime => string.Equals(runtime.Version, latest.InstallationVersion, StringComparison.OrdinalIgnoreCase)));
         var status = installed
-            ? "<fluent-badge appearance=\"tint\" color=\"success\">Installed</fluent-badge>"
+            ? "<span class=\"badge ok\">✓ Installed</span>"
             : $"<a class=\"button primary\" href=\"{Encode(latest.Url)}\" download>Download latest .pkg</a>";
         var label = product == "runtime" ? ".NET Runtime" : ".NET SDK";
         var includedRuntime = product == "sdk" && latest.IncludedRuntimeVersion is not null
@@ -123,7 +124,7 @@ internal static class SdkDownloadsSection
         var cves = RenderCves(latest.Cves);
         return $$"""
             <section class="sdk-latest-card" aria-label="Latest {{label}}">
-              <div><span class="sdk-latest-kicker">Latest {{label}}</span><strong>{{Encode(latest.Version)}}</strong>{{includedRuntime}}{{cves}}</div>
+              <div><span class="sdk-latest-kicker">Latest {{label}}</span> <strong>{{Encode(latest.Version)}}</strong>{{includedRuntime}}{{cves}}</div>
               {{status}}
             </section>
             """;
@@ -157,7 +158,7 @@ internal static class SdkDownloadsSection
         var releaseType = downloads.Select(download => download.ReleaseType).FirstOrDefault(type => type is "LTS" or "STS");
         var lifecycleTag = releaseType is null
             ? ""
-            : $"<fluent-badge appearance=\"outline\" color=\"neutral\" class=\"lifecycle-badge\">{Encode(releaseType)}</fluent-badge>";
+            : $"<span class=\"channel-tag {(releaseType == "LTS" ? "lts" : "sts")} lifecycle-badge\">{Encode(releaseType)}</span>";
         var endOfLifeTag = downloads.Any(download => string.Equals(download.SupportPhase, "EOL", StringComparison.OrdinalIgnoreCase))
             ? "<span class=\"lifecycle-badge eol-badge\" title=\"End of support\">EOL</span>"
             : "";

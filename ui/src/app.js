@@ -16,7 +16,9 @@ function updateTheme() {
   setTheme(dark ? webDarkTheme : webLightTheme);
   button.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
   button.title = button.getAttribute('aria-label');
-  button.firstElementChild.textContent = dark ? '☀' : '◐';
+  button.firstElementChild.innerHTML = dark
+    ? '<svg class="i sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.1-14.1 1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>'
+    : '<svg class="i sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>';
 }
 
 button.addEventListener('click', () => {
@@ -482,7 +484,7 @@ function openVersionDrawer(version) {
           </div>
           <div class="drawer-code-box">
             <code class="drawer-sha">${shaShort}</code>
-            <button class="button icon ghost copy-btn" data-copy="${data.patchSha || ''}" type="button" title="Copy SHA-512">📋</button>
+            <button class="button icon ghost copy-btn" data-copy="${data.patchSha || ''}" type="button" title="Copy SHA-512"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
           </div>
         </div>`;
     } else {
@@ -535,8 +537,16 @@ if (drawerCloseBtn) {
   });
 }
 
-// Click listener on rows & inspect buttons
+// Click listener on rows, inspect buttons, and channel collapse buttons
 document.addEventListener('click', (e) => {
+  const collapseBtn = e.target.closest('[data-collapse-channel]');
+  if (collapseBtn) {
+    e.preventDefault();
+    const tbody = collapseBtn.closest('tbody.channel-card');
+    if (tbody) tbody.classList.toggle('collapsed');
+    return;
+  }
+
   const row = e.target.closest('tr[data-kind]');
   if (row) {
     // If clicking a form button or link, let it proceed
@@ -617,18 +627,25 @@ if (versionFilterInput) {
   });
 }
 
+// Fallback for <dialog closedby="any"> light-dismiss using pointer bounding-box check
+if (!('closedBy' in HTMLDialogElement.prototype)) {
+  const outside = (e, dialog) => {
+    const r = dialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  for (const dialog of document.querySelectorAll('dialog[closedby="any"]')) {
+    let pressedOutside = false;
+    dialog.addEventListener('pointerdown', (e) => { pressedOutside = outside(e, dialog); });
+    dialog.addEventListener('pointerup', (e) => { if (pressedOutside && outside(e, dialog)) dialog.close(); });
+  }
+}
+
 // Safe Removal Confirmation Dialog (<dialog id="remove-dialog" closedby="any">)
 const removeDialog = document.getElementById('remove-dialog');
 if (removeDialog) {
   let pendingRemoveForm = null;
   const cancelBtn = document.getElementById('remove-dialog-cancel');
   const confirmBtn = document.getElementById('remove-dialog-confirm');
-
-  if (!('closedBy' in HTMLDialogElement.prototype)) {
-    removeDialog.addEventListener('click', (e) => {
-      if (e.target === removeDialog) removeDialog.close();
-    });
-  }
 
   document.addEventListener('submit', (e) => {
     const form = e.target.closest('form[action="/installation/remove"]');
@@ -704,6 +721,11 @@ const openAddToolBtn = document.getElementById('open-add-tool-btn');
 const closeAddToolBtn = document.getElementById('close-add-tool-btn');
 
 if (addToolDialog) {
+  const inlineToolSearch = document.getElementById('tool-search-section');
+  if (inlineToolSearch && inlineToolSearch.dataset.hasQuery === 'false') {
+    inlineToolSearch.hidden = true;
+  }
+
   let sheetScope = 'global';
   let lastFocusedPkg = { packageId: 'dotnet-coverage', version: '18.1.0' };
   let searchTimer = null;
@@ -712,12 +734,6 @@ if (addToolDialog) {
   const cliPreview = document.getElementById('sheet-cli-preview');
   const cliCopy = document.getElementById('sheet-cli-copy');
   const scopeBtns = [...addToolDialog.querySelectorAll('[data-sheet-scope]')];
-
-  if (!('closedBy' in HTMLDialogElement.prototype)) {
-    addToolDialog.addEventListener('click', (e) => {
-      if (e.target === addToolDialog) addToolDialog.close();
-    });
-  }
 
   function updateCliPreview(pkgId, version) {
     const p = pkgId || lastFocusedPkg?.packageId || '<package-id>';
@@ -836,7 +852,7 @@ if (addToolDialog) {
     closeAddToolBtn.addEventListener('click', () => addToolDialog.close());
   }
 
-  if (new URLSearchParams(window.location.search).get('add') === '1') {
+  if (new URLSearchParams(window.location.search).get('add') === '1' || window.location.hash === '#tool-search-title') {
     addToolDialog.showModal();
     searchInput?.focus();
   }
