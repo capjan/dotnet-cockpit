@@ -45,7 +45,7 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
         {
             if (cachedDownloads is not null && cacheExpiresAt > DateTimeOffset.UtcNow) return cachedDownloads;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
             cachedDownloads = await FetchCatalogAsync(timeout.Token);
             cacheExpiresAt = DateTimeOffset.UtcNow.AddHours(1);
             return cachedDownloads;

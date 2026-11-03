@@ -10,7 +10,8 @@ await writeFile(join(directory, '.config', 'dotnet-tools.json'), JSON.stringify(
   'cockpit.fixture.tool': { version: '1.2.3', commands: ['fixture', 'fixture-alt'] },
 } }));
 const executable = fileURLToPath(new URL('../../artifacts/native/dotnet-cockpit', import.meta.url));
-const child = spawn(executable, ['--no-browser', '--port', '5234'], { cwd: directory, stdio: 'inherit' });
+const pathEnv = process.env.PATH?.includes('.dotnet') ? process.env.PATH : `${process.env.HOME}/.dotnet:${process.env.PATH}`;
+const child = spawn(executable, ['--no-browser', '--port', '5234'], { cwd: directory, stdio: 'inherit', env: { ...process.env, PATH: pathEnv } });
 process.on('SIGTERM', () => child.kill());
 process.on('SIGINT', () => child.kill());
 child.on('exit', async code => {

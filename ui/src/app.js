@@ -327,9 +327,9 @@ if (skipPreflightCheckbox) {
   } catch {}
 }
 
-// Quick Copy Affordance for Tool Commands, Paths, Checksums and CLI Snippets
+// Quick Copy Affordance for Tool Commands, Paths, Checksums, and Snippets
 document.addEventListener('click', (e) => {
-  const target = e.target.closest('.tool-command-pill, code.installation-path, .tool-cli-preview code, .sdk-checksum code');
+  const target = e.target.closest('.tool-command-pill, code.installation-path, .tool-cli-preview code, .sdk-checksum code, .copy-btn, .drawer-sha, .drawer-path');
   if (!target) return;
   const text = (target.dataset.copy || target.textContent || '').trim();
   if (!text) return;
@@ -344,3 +344,237 @@ document.addEventListener('click', (e) => {
     }, 1200);
   }).catch(() => {});
 });
+
+// Versions Hub: Instant Client-Side Filter & Detail Drawer
+const versionsDataEl = document.getElementById('versions-data');
+let versionsData = {};
+if (versionsDataEl) {
+  try { versionsData = JSON.parse(versionsDataEl.textContent || '{}'); } catch {}
+}
+
+const versionFilterInput = document.getElementById('installed-version-filter');
+const versionRows = [...document.querySelectorAll('tr[data-kind]')];
+const channelHeaders = [...document.querySelectorAll('tr.channel-group-header-row')];
+const versionsCount = document.querySelector('[data-versions-count]');
+const drawer = document.getElementById('version-drawer');
+const drawerCloseBtn = document.getElementById('drawer-close');
+
+function getRowVersion(row) {
+  return row.querySelector('[data-inspect]')?.dataset.inspect ||
+         row.querySelector('.version-badge')?.textContent.trim() || '';
+}
+
+function getRowChannel(row) {
+  return row.querySelector('[data-inspect]')?.dataset.channel ||
+         getRowVersion(row).split('.')[0] || '';
+}
+
+function openVersionDrawer(version) {
+  const data = versionsData[version];
+  if (!data || !drawer) return;
+
+  drawer.hidden = false;
+
+  versionRows.forEach(row => {
+    const isThis = getRowVersion(row) === version;
+    row.classList.toggle('row-selected', isThis);
+    row.setAttribute('aria-selected', isThis ? 'true' : 'false');
+  });
+
+  const eyebrow = document.getElementById('drawer-eyebrow');
+  const title = document.getElementById('drawer-title');
+  const badge = document.getElementById('drawer-badge');
+  const alert = document.getElementById('drawer-alert');
+  const channel = document.getElementById('drawer-channel');
+  const runtime = document.getElementById('drawer-runtime');
+  const released = document.getElementById('drawer-released');
+  const location = document.getElementById('drawer-location');
+  const patchSection = document.getElementById('drawer-patch-section');
+  const command = document.getElementById('drawer-command');
+  const downloadBtn = document.getElementById('drawer-download-btn');
+  const removeForm = document.getElementById('drawer-remove-form');
+
+  if (eyebrow) eyebrow.textContent = `.NET ${data.channel} · ${data.kind === 'sdk' ? 'SDK' : 'Runtime'}`;
+  if (title) title.textContent = data.version;
+
+  if (badge) {
+    if (data.hasPatch) badge.innerHTML = '<span class="badge warn">Patch available</span>';
+    else if (data.isEol) badge.innerHTML = '<span class="badge bad">End of life</span>';
+    else badge.innerHTML = '<span class="badge ok">Up to date</span>';
+  }
+
+  if (alert) {
+    if (data.isEol) {
+      alert.className = 'drawer-alert drawer-alert-bad';
+      alert.innerHTML = `<strong>🛡 .NET ${data.channel} has reached End of Life</strong><p class="muted">Security updates are no longer released for this channel. We recommend upgrading to a supported LTS release.</p>`;
+    } else if (data.hasPatch) {
+      alert.className = 'drawer-alert drawer-alert-warn';
+      alert.innerHTML = `<strong>⏱ Newer patch ${data.patchVersion} available</strong><p class="muted">A newer servicing update is available with security and reliability fixes.</p>`;
+    } else {
+      alert.className = 'drawer-alert drawer-alert-ok';
+      alert.innerHTML = `<strong>✓ Running latest release for .NET ${data.channel}</strong><p class="muted">This version is actively supported and up to date.</p>`;
+    }
+  }
+
+  const channelType = data.isLts ? 'Long Term Support (LTS)' : 'Standard Term Support (STS)';
+  if (channel) channel.textContent = `.NET ${data.channel} · ${channelType}`;
+  if (runtime) runtime.textContent = data.includedRuntime || (data.kind === 'sdk' ? `${data.channel}.0` : 'Included');
+  if (released) released.textContent = data.released || 'Official release';
+  if (location) {
+    location.textContent = data.location;
+    const copyBtn = location.parentElement?.querySelector('.copy-btn');
+    if (copyBtn) copyBtn.dataset.copy = data.location;
+  }
+
+  if (patchSection) {
+    if (data.hasPatch) {
+      patchSection.hidden = false;
+      const cvesHtml = (data.cves || []).map(c => `<a class="cve-pill" href="${c.url || '#'}" target="_blank" rel="noopener">${c.id}</a>`).join('');
+      const shaShort = (data.patchSha && data.patchSha.length > 32) ? data.patchSha.slice(0, 32) + '...' : (data.patchSha || '');
+      patchSection.innerHTML = `
+        <h4 class="drawer-section-title">Newest patch</h4>
+        <div class="drawer-patch-box">
+          <div class="drawer-patch-header">
+            <strong>${data.patchVersion}</strong>
+            <span class="muted text-xs">${data.patchDate || ''}</span>
+          </div>
+          <div class="drawer-cve-list">
+            ${data.cves?.length ? `<span class="badge warn sm">🛡 ${data.cves.length} security fixes</span>` : ''}
+            ${cvesHtml}
+          </div>
+          <div class="drawer-code-box">
+            <code class="drawer-sha">${shaShort}</code>
+            <button class="button icon ghost copy-btn" data-copy="${data.patchSha || ''}" type="button" title="Copy SHA-512">📋</button>
+          </div>
+        </div>`;
+    } else {
+      patchSection.hidden = true;
+      patchSection.innerHTML = '';
+    }
+  }
+
+  if (command) {
+    command.textContent = data.command;
+    const cmdCopyBtn = command.parentElement?.querySelector('.copy-btn');
+    if (cmdCopyBtn) cmdCopyBtn.dataset.copy = data.command;
+  }
+
+  if (downloadBtn) {
+    if (data.hasPatch && data.patchUrl) {
+      downloadBtn.hidden = false;
+      downloadBtn.href = data.patchUrl;
+    } else {
+      downloadBtn.hidden = true;
+    }
+  }
+
+  if (removeForm) {
+    if (data.canRemove) {
+      removeForm.innerHTML = `
+        <form method="post" action="/installation/remove">
+          <input type="hidden" name="version" value="${data.version}">
+          <input type="hidden" name="kind" value="${data.kind}">
+          <button class="button danger ghost" type="submit">Remove</button>
+        </form>`;
+    } else {
+      removeForm.innerHTML = '';
+    }
+  }
+}
+
+function closeVersionDrawer() {
+  if (drawer) drawer.hidden = true;
+  versionRows.forEach(row => {
+    row.classList.remove('row-selected');
+    row.setAttribute('aria-selected', 'false');
+  });
+}
+
+if (drawerCloseBtn) {
+  drawerCloseBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeVersionDrawer();
+  });
+}
+
+// Click listener on rows & inspect buttons
+document.addEventListener('click', (e) => {
+  const row = e.target.closest('tr[data-kind]');
+  if (row) {
+    // If clicking a form button or link, let it proceed
+    if (e.target.closest('form, a:not(.inspect-btn)')) return;
+    const version = getRowVersion(row);
+    if (version) {
+      e.preventDefault();
+      openVersionDrawer(version);
+    }
+    return;
+  }
+
+  const inspectBtn = e.target.closest('.inspect-btn');
+  if (inspectBtn) {
+    const version = inspectBtn.dataset.inspect;
+    if (version) {
+      e.preventDefault();
+      openVersionDrawer(version);
+    }
+  }
+});
+
+// Arrow key navigation between rows when drawer is open
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && drawer && !drawer.hidden) {
+    closeVersionDrawer();
+    return;
+  }
+
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && drawer && !drawer.hidden) {
+    const visibleRows = versionRows.filter(r => !r.hidden);
+    if (!visibleRows.length) return;
+    const currentIndex = visibleRows.findIndex(r => r.classList.contains('row-selected'));
+    let nextIndex = 0;
+    if (currentIndex >= 0) {
+      nextIndex = e.key === 'ArrowDown'
+        ? (currentIndex + 1 < visibleRows.length ? currentIndex + 1 : 0)
+        : (currentIndex - 1 >= 0 ? currentIndex - 1 : visibleRows.length - 1);
+    }
+    e.preventDefault();
+    const nextRow = visibleRows[nextIndex];
+    const nextVersion = getRowVersion(nextRow);
+    if (nextVersion) {
+      openVersionDrawer(nextVersion);
+      nextRow.scrollIntoView({ block: 'nearest' });
+    }
+  }
+});
+
+// Instant client-side search for versions
+if (versionFilterInput) {
+  versionFilterInput.addEventListener('input', () => {
+    const query = versionFilterInput.value.trim().toLowerCase();
+    const terms = query.split(/\s+/).filter(Boolean);
+    let visibleCount = 0;
+    const channelVisibility = new Map();
+
+    for (const row of versionRows) {
+      const version = getRowVersion(row);
+      const text = `${version} ${row.textContent}`.toLowerCase();
+      const matches = !terms.length || terms.every(t => text.includes(t));
+      row.hidden = !matches;
+      if (matches) {
+        visibleCount++;
+        channelVisibility.set(getRowChannel(row), true);
+      }
+    }
+
+    for (const header of channelHeaders) {
+      const channel = header.dataset.channelHeader;
+      header.hidden = !channelVisibility.has(channel);
+    }
+
+    if (versionsCount) versionsCount.textContent = `${visibleCount} of ${versionRows.length} installations shown`;
+
+    const emptyRow = document.querySelector('tr.empty-row');
+    if (emptyRow) emptyRow.hidden = visibleCount > 0;
+  });
+}

@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 const directory = await mkdtemp(join(tmpdir(), 'cockpit-browser-empty-'));
 const port = process.argv[2] ?? '5231';
 const executable = fileURLToPath(new URL('../../artifacts/native/dotnet-cockpit', import.meta.url));
-const child = spawn(executable, ['--no-browser', '--port', port], { cwd: directory, stdio: 'inherit' });
+const pathEnv = process.env.PATH?.includes('.dotnet') ? process.env.PATH : `${process.env.HOME}/.dotnet:${process.env.PATH}`;
+const child = spawn(executable, ['--no-browser', '--port', port], { cwd: directory, stdio: 'inherit', env: { ...process.env, PATH: pathEnv } });
 process.on('SIGTERM', () => child.kill());
 process.on('SIGINT', () => child.kill());
 child.on('exit', async code => {

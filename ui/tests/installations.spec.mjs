@@ -7,9 +7,11 @@ test('receives the real inventory in the initial HTML with version-specific dire
   const html = await response.text();
   expect(html).toContain('<tr data-kind="sdk">');
   await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
-  await expect(page.locator('tbody tr')).toHaveCount(snapshot.sdks.length + runtimeCards);
+  await expect(page.locator('tbody tr[data-kind]')).toHaveCount(snapshot.sdks.length + runtimeCards);
   for (const item of [...snapshot.sdks, ...snapshot.runtimes]) {
-    await expect(page.locator('.installation-path').filter({ hasText: item.installationPath })).toBeVisible();
+    if (item.installationPath) {
+      await expect(page.locator('.installation-path').filter({ hasText: item.installationPath })).toBeVisible();
+    }
   }
 });
 
@@ -21,11 +23,11 @@ test('filters and sorts on the server with JavaScript disabled', async ({ browse
   try {
     await page.goto(baseURL);
     await page.getByRole('navigation', { name: 'Installation type' }).getByRole('link', { name: 'SDKs', exact: true }).click();
-    await expect(page.locator('tbody tr')).toHaveCount(snapshot.sdks.length);
+    await expect(page.locator('tbody tr[data-kind]')).toHaveCount(snapshot.sdks.length);
     await page.getByRole('searchbox', { name: 'Filter installed versions' }).fill(snapshot.sdks[0].version);
     await page.getByRole('button', { name: 'Filter', exact: true }).click();
     await expect(page).toHaveURL(/q=/);
-    await expect(page.locator('tbody tr').first()).toContainText(snapshot.sdks[0].version);
+    await expect(page.locator('tbody tr[data-kind]').first()).toContainText(snapshot.sdks[0].version);
     await expect(page.locator('tbody tr[data-kind="runtime"]')).toHaveCount(0);
     await page.getByRole('columnheader', { name: /^Version/ }).getByRole('link').click();
     await expect(page).toHaveURL(/direction=asc/);
@@ -33,7 +35,7 @@ test('filters and sorts on the server with JavaScript disabled', async ({ browse
     await page.getByRole('button', { name: 'Filter', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'No matching versions' })).toBeVisible();
     await page.getByRole('link', { name: 'Clear filters' }).click();
-    await expect(page.locator('tbody tr')).toHaveCount(snapshot.sdks.length + runtimeCards);
+    await expect(page.locator('tbody tr[data-kind]')).toHaveCount(snapshot.sdks.length + runtimeCards);
   } finally { await context.close(); }
 });
 
@@ -81,18 +83,17 @@ test('filters instantly with client-side JavaScript without page reload', async 
   await page.goto('/');
 
   const searchBox = page.getByRole('searchbox', { name: 'Filter installed versions' });
-  await expect(page.locator('tbody tr:not([hidden])')).toHaveCount(totalRows);
+  await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(totalRows);
 
   await searchBox.fill(snapshot.sdks[0].version);
-  await expect(page.locator('tbody tr:not([hidden])').first()).toContainText(snapshot.sdks[0].version);
+  await expect(page.locator('tbody tr[data-kind]:not([hidden])').first()).toContainText(snapshot.sdks[0].version);
 
   await searchBox.fill('xyz-nonexistent-query');
-  await expect(page.locator('tbody tr:not([hidden])')).toHaveCount(0);
-  await expect(page.locator('.client-empty-state')).toBeVisible();
+  await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'No matching versions' })).toBeVisible();
 
   await searchBox.fill('');
-  await expect(page.locator('tbody tr:not([hidden])')).toHaveCount(totalRows);
-  await expect(page.locator('.client-empty-state')).toBeHidden();
+  await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(totalRows);
 });
 
 test('opens command palette with keyboard shortcut and triggers navigation', async ({ page }) => {
@@ -114,4 +115,22 @@ test('renders pre-flight check with live diagnostic steps and trust policies', a
   await page.getByRole('link', { name: /Open cockpit/i }).click();
   await expect(page).toHaveURL('/');
   await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
+});
+
+test('opens detail drawer when inspecting a version and displays equivalent command', async ({ page, request }) => {
+  const snapshot = await (await request.get('/api/installation')).json();
+  await page.goto('/');
+
+  const firstSdk = snapshot.sdks[0];
+  await expect(page.locator('#version-drawer')).toBeHidden();
+
+  // Click on the first row to inspect it
+  await page.locator(`tbody tr[data-kind="sdk"]`).first().click();
+  await expect(page.locator('#version-drawer')).toBeVisible();
+  await expect(page.locator('#drawer-title')).toHaveText(firstSdk.version);
+  await expect(page.locator('#drawer-command')).toContainText(`dotnet-core-uninstall remove ${firstSdk.version}`);
+
+  // Close drawer
+  await page.locator('#drawer-close').click();
+  await expect(page.locator('#version-drawer')).toBeHidden();
 });

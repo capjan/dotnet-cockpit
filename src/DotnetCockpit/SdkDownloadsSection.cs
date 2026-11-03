@@ -199,7 +199,7 @@ internal static class SdkDownloadsSection
             """;
     }
 
-    private sealed class SdkVersionComparer : IComparer<string>
+    internal sealed class SdkVersionComparer : IComparer<string>
     {
         public static SdkVersionComparer Instance { get; } = new();
 
