@@ -142,7 +142,7 @@ internal static class InstallationPage
                     </div>
                   </section>
                   <p class="scope-note muted">Locations include the version subfolder. When dotnet-core-uninstall is installed, only versions it can remove are shown; runtime frameworks that share a version are grouped together. Separate installations and other architectures may not appear here.</p>
-                  """, "/", ".NET Cockpit", snapshot.IssueCount);
+                  """, "/", ".NET Cockpit", snapshot.IssueCount, total);
     }
 
     private static string RenderVersionsHub(Row[] allRows, Row[] rows, InstallationViewOptions options, Row? selectedRow, int catalogTotal)
@@ -200,6 +200,7 @@ internal static class InstallationPage
                         </div>
                         <div class="channel-life-bar {lifeState}"><i style="width:{lifeWidth}"></i></div>
                       </div>
+                      {(isEol && group.Any(r => r.CanRemove) ? $"<button type=\"button\" class=\"button sm danger\" data-remove-channel=\"{channel}\">{Icon("trash", "xs")} Remove channel</button>" : "")}
                       <button type="button" class="button icon sm ghost channel-collapse-btn" data-collapse-channel="{channel}" aria-label="Toggle .NET {channel} channel">{Icon("chevd", "sm")}</button>
                     </div>
                   </td>
@@ -217,7 +218,7 @@ internal static class InstallationPage
 
                 return $"""
                     <tr data-kind="{row.Kind}"{(isSelected ? " class=\"row-selected\"" : "")}>
-                      <td class="cell-name"><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "versions" : "server")}</span><div><div class="installation-header"><strong>{Encode(row.Name)}</strong></div><span class="muted framework-name">{Encode(row.Description)}</span></div></div></td>
+                      <td class="cell-name"><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "versions" : "server")}</span><div><div class="installation-header"><strong>{Encode(row.Name)}</strong></div><span class="muted framework-name">{Encode(ShortFrameworkSubtitle(row.Description))}<span class="sr-only"> {Encode(row.Description)}</span></span></div></div></td>
                       <td class="cell-version">{versionCell}</td>
                       <td class="cell-path"><code class="installation-path installation-path-clean">{Encode(row.Path)}</code></td>
                       <td class="cell-actions">
@@ -349,7 +350,7 @@ internal static class InstallationPage
                     {string.Concat((row.Cves ?? []).Select(c => $"<a class=\"cve-pill\" href=\"{Encode(c.Url ?? "")}\" target=\"_blank\" rel=\"noopener\">{Encode(c.Id)}</a>"))}
                   </div>
                   <div class="drawer-code-box">
-                    <code id="drawer-patch-sha" class="drawer-sha">{Encode(row.LatestPatchSha512?.Length > 32 ? row.LatestPatchSha512[..32] + "..." : row.LatestPatchSha512 ?? "")}</code>
+                    <span class="drawer-pkg-meta">{Icon("package", "xs")} <span class="drawer-pkg-name">{Encode(GetInstallerFileName(row.LatestPatchUrl, row.Kind, row.LatestPatchVersion!))}</span> · SHA-512 <code id="drawer-patch-sha" class="drawer-sha">{Encode(row.LatestPatchSha512?.Length > 12 ? row.LatestPatchSha512[..8] + "…" + row.LatestPatchSha512[^4..] : row.LatestPatchSha512 ?? "")}</code></span>
                     <button class="button icon ghost copy-btn" data-copy="{Encode(row.LatestPatchSha512 ?? "")}" type="button" title="Copy SHA-512">{Icon("clipboard")}</button>
                   </div>
                 </div>
@@ -573,6 +574,22 @@ internal static class InstallationPage
     }
 
     private static string ChannelTagLabel(string channel) => channel is "10" or "8" or "6" ? "LTS" : "STS";
+
+    private static string ShortFrameworkSubtitle(string description) =>
+        description
+            .Replace("Microsoft.NETCore.App", ".NET", StringComparison.Ordinal)
+            .Replace("Microsoft.AspNetCore.App", "ASP.NET Core", StringComparison.Ordinal)
+            .Replace("Microsoft.WindowsDesktop.App", "Desktop", StringComparison.Ordinal);
+
+    private static string GetInstallerFileName(string? url, string kind, string version)
+    {
+        if (!string.IsNullOrWhiteSpace(url) && Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            var name = Path.GetFileName(uri.LocalPath);
+            if (!string.IsNullOrWhiteSpace(name)) return name;
+        }
+        return $"dotnet-{(kind == "sdk" ? "sdk" : "runtime")}-{version}-osx-arm64.pkg";
+    }
 
     private static string RemoveAction(Row row, InstallationViewOptions options) => !row.CanRemove
         ? ""

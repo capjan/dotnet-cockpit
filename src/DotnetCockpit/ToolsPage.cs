@@ -6,7 +6,7 @@ namespace DotnetCockpit;
 internal sealed record ToolsViewOptions(string Scope = "global", string SearchQuery = "", string Notice = "")
 {
     public static ToolsViewOptions From(IQueryCollection query) => new(
-        query["scope"].ToString() is "local" ? "local" : "global",
+        query["scope"].ToString() is "local" ? "local" : query["scope"].ToString() is "all" ? "all" : "global",
         query["q"].ToString().Trim() is { Length: <= 100 } search ? search : "",
         query["notice"].ToString());
 }
@@ -61,20 +61,32 @@ internal static class ToolsPage
             {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
             {{(snapshot.Status == "ready" ? RenderAddToolSheet(snapshot, options, search) : "")}}
             <p class="scope-note muted">Local tools are declared in manifests for this working directory or its parents. This view does not check whether they have been restored — run <code>dotnet tool restore</code> in the workspace.</p>
-            """, "/tools", ".NET Tools | .NET Cockpit", issues);
+            """, "/tools", ".NET Tools | .NET Cockpit", issues, toolsCount: snapshot.Global.Tools.Length + snapshot.Local.Tools.Length);
     }
 
     private static string RenderTabs(ToolsSnapshot snapshot, ToolsViewOptions options)
     {
-        var local = options.Scope == "local";
-        var selected = local ? snapshot.Local : snapshot.Global;
+        var isLocal = options.Scope == "local";
+        var isAll = options.Scope == "all";
+        var isGlobal = !isLocal && !isAll;
+        var allCountHtml = (snapshot.Global.Error is null && snapshot.Local.Error is null)
+            ? $"<span class=\"tool-tab-count summary-count\">{snapshot.Global.Tools.Length + snapshot.Local.Tools.Length}</span>"
+            : "";
         var tabsHtml = $"""
             <div class="tool-tabs version-scope-pills" role="tablist" aria-label="Tool scope">
-              {RenderTab("global", "Global", snapshot.Global, !local)}
-              {RenderTab("local", "Local", snapshot.Local, local)}
+              <a class="tool-tab pill-badge {(isAll ? "active" : "")}" href="/tools?scope=all" role="tab" aria-selected="{isAll.ToString().ToLowerInvariant()}" aria-controls="all-tools-panel">All{allCountHtml}</a>
+              {RenderTab("global", "Global", snapshot.Global, isGlobal)}
+              {RenderTab("local", "Local", snapshot.Local, isLocal)}
             </div>
             """;
-        return RenderList(local ? "Local tools" : "Global tools", local ? "local-tools" : "global-tools", selected, local, snapshot.LocalManifestInitialized, snapshot.LocalManifestOwned, options, tabsHtml);
+        if (isAll)
+        {
+            var combined = snapshot.Global.Tools.Concat(snapshot.Local.Tools).ToArray();
+            var allList = new ToolList(combined, snapshot.Global.Error ?? snapshot.Local.Error);
+            return RenderList("All tools", "all-tools", allList, false, snapshot.LocalManifestInitialized, snapshot.LocalManifestOwned, options, tabsHtml);
+        }
+        var selected = isLocal ? snapshot.Local : snapshot.Global;
+        return RenderList(isLocal ? "Local tools" : "Global tools", isLocal ? "local-tools" : "global-tools", selected, isLocal, snapshot.LocalManifestInitialized, snapshot.LocalManifestOwned, options, tabsHtml);
     }
 
     private static string RenderTab(string scope, string label, ToolList list, bool selected)
@@ -117,33 +129,37 @@ internal static class ToolsPage
             <thead><tr><th scope="col">Tool</th><th scope="col">Command</th><th scope="col">Version</th><th scope="col">{{(local ? "Manifest" : "Scope")}}</th><th scope="col">Actions</th></tr></thead>
             <tbody>{{string.Concat(tools.OrderBy(tool => tool.PackageId, StringComparer.OrdinalIgnoreCase).Select(tool =>
             {
+                var isToolLocal = local || tool.Manifest is not null;
                 var monogram = GetMonogram(tool.PackageId);
                 var colorIdx = GetColorIndex(tool.PackageId);
-                var scopeBadge = local
+                var scopeBadge = isToolLocal
                     ? $"<span class=\"tool-scope-pill local\">{Icon("folder", "xs")} {(localOwned ? "Local" : "Local · inherited")}</span>"
                     : $"<span class=\"tool-scope-pill global\">{Icon("tools", "xs")} Global</span>";
+                var primaryCmd = tool.Commands.FirstOrDefault() ?? tool.PackageId;
+                var copyCmd = isToolLocal ? $"dotnet {primaryCmd}" : primaryCmd;
+                var cliEquiv = $"dotnet tool update {(isToolLocal ? "--local" : "--global")} {tool.PackageId}";
 
                 return $"""
-                  <tr data-tool-scope="{(local ? "local" : "global")}" data-tool-row data-search="{Encode($"{tool.PackageId} {tool.Version} {string.Join(' ', tool.Commands)} {tool.Manifest}")}">
+                  <tr data-tool-scope="{(isToolLocal ? "local" : "global")}" data-tool-row data-search="{Encode($"{tool.PackageId} {tool.Version} {string.Join(' ', tool.Commands)} {tool.Manifest}")}">
                     <td>
                       <div class="tool-name">
                         <span class="tool-monogram monogram-{colorIdx}">{Encode(monogram)}</span>
                         <div>
                           <strong>{Encode(tool.PackageId)}</strong>
-                          <span class="muted text-xs">{(local ? "Workspace tool declaration" : "Installed CLI tool")}</span>
+                          <span class="muted text-xs">{(isToolLocal ? "Workspace tool declaration" : "Installed CLI tool")}</span>
                         </div>
                       </div>
                     </td>
                     <td>
                       <div class="row" style="gap:6px;flex-wrap:wrap">
-                        {string.Concat(tool.Commands.Select(command => $"<span class=\"tool-command-pill\" data-copy=\"{Encode(local ? $"dotnet {command}" : command)}\" title=\"Click to copy command\"><code>{Encode(command)}</code>{Icon("clipboard", "xs")}</span>"))}
+                        {string.Concat(tool.Commands.Select(command => $"<span class=\"tool-command-pill\" data-copy=\"{Encode(isToolLocal ? $"dotnet {command}" : command)}\" title=\"Click to copy command\"><code>{Encode(command)}</code>{Icon("clipboard", "xs")}</span>"))}
                       </div>
                     </td>
                     <td><fluent-badge appearance="tint" color="brand" class="version-badge sr-only">{Encode(tool.Version)}</fluent-badge><span class="v-current">{Encode(tool.Version)}</span></td>
                     <td>
                       <div class="tool-scope-cell">
                         {scopeBadge}
-                        {(local ? $"<code class=\"tool-manifest\">{Encode(tool.Manifest ?? "")}</code>" : "")}
+                        {(isToolLocal ? $"<code class=\"tool-manifest\">{Encode(tool.Manifest ?? "")}</code>" : "")}
                       </div>
                     </td>
                     <td>
@@ -151,9 +167,19 @@ internal static class ToolsPage
                         <a class="button sm ghost" href="https://www.nuget.org/packages/{Encode(tool.PackageId)}" target="_blank" rel="noopener" title="Open {Encode(tool.PackageId)} on NuGet.org">NuGet ↗</a>
                         <form method="post" action="/tools/uninstall" class="tool-action">
                           <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
-                          <input type="hidden" name="scope" value="{(local ? "local" : "global")}">
+                          <input type="hidden" name="scope" value="{(isToolLocal ? "local" : "global")}">
                           <button class="button danger sm" type="submit">Uninstall</button>
                         </form>
+                        <div class="tool-more-wrap">
+                          <button type="button" class="button icon sm ghost tool-menu-trigger" data-tool-menu-btn aria-label="More actions for {Encode(tool.PackageId)}" aria-expanded="false">{Icon("more", "sm")}</button>
+                          <div class="tool-context-menu" hidden>
+                            <button type="button" class="tool-menu-item copy-btn" data-copy="{Encode(copyCmd)}">{Icon("copy", "sm")} <span>Copy command</span> <kbd>C</kbd></button>
+                            <a class="tool-menu-item" href="https://www.nuget.org/packages/{Encode(tool.PackageId)}" target="_blank" rel="noopener">{Icon("external", "sm")} <span>Open on NuGet.org</span></a>
+                            <button type="button" class="tool-menu-item copy-btn" data-copy="{Encode(cliEquiv)}">{Icon("terminal", "sm")} <span>Copy CLI update command</span></button>
+                            <hr>
+                            <button type="button" class="tool-menu-item danger" data-tool-menu-uninstall>{Icon("trash", "sm")} <span>Uninstall package…</span></button>
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>

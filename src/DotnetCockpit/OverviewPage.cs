@@ -367,7 +367,7 @@ internal static class OverviewPage
                 </div>
               </div>
             </section>
-            """, "/overview", ".NET Cockpit · Overview", issues);
+            """, "/overview", ".NET Cockpit · Overview", issues, snapshot.Sdks.Length + runtimeCount, tools.Global.Tools.Length + tools.Local.Tools.Length);
     }
 
     private static string ShortenPath(string path)

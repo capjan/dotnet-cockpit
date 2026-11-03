@@ -1,3 +1,4 @@
+using System.Globalization;
 using DotnetCockpit.Setup;
 using DotnetCockpit.SdkDownloads;
 using DotnetCockpit.Installation;
@@ -189,7 +190,7 @@ internal static class SetupPage
                 </section>
               </div>
             </div>
-            """, "/setup", "Setup | .NET Cockpit", issues);
+            """, "/setup", "Setup | .NET Cockpit", issues, installation.Sdks.Length + installation.Runtimes.Select(r => r.Version).Distinct().Count());
     }
 
     private static string RenderToolCard(SetupSnapshot snapshot)
@@ -299,9 +300,14 @@ internal static class SetupPage
             return "<div class=\"setup-release-list\"><p class=\"muted\" role=\"alert\">Available releases are currently unavailable.</p></div>";
 
         var releases = string.Join("", snapshot.AvailableReleases.Select(release =>
-            $"<li><a href=\"{Encode(release.Url)}\">{Encode(release.Version)}</a>{(string.IsNullOrWhiteSpace(release.PublishedAt) ? "" : $"<span class=\"muted\">{Encode(release.PublishedAt!)}</span>")}</li>"));
+            $"<li><a href=\"{Encode(release.Url)}\">{Encode(release.Version)}</a>{(string.IsNullOrWhiteSpace(release.PublishedAt) ? "" : $"<span class=\"muted\">{Encode(FormatReleaseDate(release.PublishedAt!))}</span>")}</li>"));
         return $"<div class=\"setup-release-list\"><strong>Available releases</strong><ul>{releases}</ul></div>";
     }
+
+    private static string FormatReleaseDate(string raw) =>
+        DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto)
+            ? dto.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+            : raw;
 
     private static bool IsUpdateAvailable(string? installedVersion, string? latestVersion) =>
         Version.TryParse(installedVersion, out var installed) && Version.TryParse(latestVersion, out var latest) && latest > installed;

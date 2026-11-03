@@ -470,20 +470,28 @@ function openVersionDrawer(version) {
     if (data.hasPatch) {
       patchSection.hidden = false;
       const cvesHtml = (data.cves || []).map(c => `<a class="cve-pill" href="${c.url || '#'}" target="_blank" rel="noopener">${c.id}</a>`).join('');
-      const shaShort = (data.patchSha && data.patchSha.length > 32) ? data.patchSha.slice(0, 32) + '...' : (data.patchSha || '');
+      const shaShort = (data.patchSha && data.patchSha.length > 12) ? data.patchSha.slice(0, 8) + '…' + data.patchSha.slice(-4) : (data.patchSha || '');
+      let pkgName = `dotnet-${data.kind === 'sdk' ? 'sdk' : 'runtime'}-${data.patchVersion}-osx-arm64.pkg`;
+      if (data.patchUrl) {
+        try {
+          const urlParts = new URL(data.patchUrl).pathname.split('/');
+          const last = urlParts[urlParts.length - 1];
+          if (last) pkgName = last;
+        } catch {}
+      }
       patchSection.innerHTML = `
         <h4 class="drawer-section-title">Newest patch</h4>
         <div class="drawer-patch-box">
           <div class="drawer-patch-header">
             <strong>${data.patchVersion}</strong>
-            <span class="muted text-xs">${data.patchDate || ''}</span>
+            <span class="muted text-xs">${data.patchDate || ''} · Runtime ${data.channel}.0</span>
           </div>
           <div class="drawer-cve-list">
             ${data.cves?.length ? `<span class="badge warn sm">🛡 ${data.cves.length} security fixes</span>` : ''}
             ${cvesHtml}
           </div>
           <div class="drawer-code-box">
-            <code class="drawer-sha">${shaShort}</code>
+            <span class="drawer-pkg-meta"><svg class="i xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m12 12 8-4.5M12 12v9M12 12 4 7.5"/></svg> <span class="drawer-pkg-name">${pkgName}</span> · SHA-512 <code class="drawer-sha">${shaShort}</code></span>
             <button class="button icon ghost copy-btn" data-copy="${data.patchSha || ''}" type="button" title="Copy SHA-512"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
           </div>
         </div>`;
@@ -713,6 +721,51 @@ if (removeDialog) {
       }
     });
   }
+
+  // Channel-level "Remove channel" button
+  document.addEventListener('click', (e) => {
+    const chBtn = e.target.closest('[data-remove-channel]');
+    if (!chBtn) return;
+    e.preventDefault();
+    const channel = chBtn.dataset.removeChannel;
+    const chItems = Object.values(versionsData).filter(v => v.channel === channel && v.canRemove);
+    if (!chItems.length) return;
+
+    const firstForm = [...document.querySelectorAll('form[action="/installation/remove"]')]
+      .find(f => f.querySelector('input[name="version"]')?.value === chItems[0].version);
+    pendingRemoveForm = firstForm || null;
+
+    const titleEl = document.getElementById('remove-dialog-title');
+    const subEl = document.getElementById('remove-dialog-subtitle');
+    const itemsEl = document.getElementById('remove-dialog-items');
+    const warnEl = document.getElementById('remove-dialog-warn');
+    const cmdEl = document.getElementById('remove-dialog-cmd');
+    const copyEl = document.getElementById('remove-dialog-copy');
+    const confirmTextEl = document.getElementById('remove-dialog-confirm-text');
+
+    if (titleEl) titleEl.textContent = `Remove .NET ${channel} from this machine?`;
+    if (subEl) subEl.textContent = `${chItems.length} ${chItems.length === 1 ? 'item' : 'items'} · out of support since May 14, 2024`;
+    if (itemsEl) {
+      itemsEl.innerHTML = chItems.map(item => `
+        <div class="remove-item-row">
+          <input type="checkbox" checked disabled aria-label="Selected for removal">
+          <div class="remove-item-copy">
+            <strong>${item.name} <code>${item.version}</code></strong>
+            <code>${item.location || 'Managed global installation'}</code>
+          </div>
+          <span class="badge bad sm">EOL</span>
+        </div>`).join('');
+    }
+    if (warnEl) {
+      warnEl.textContent = `Removal runs through Microsoft's dotnet-core-uninstall. Projects pinned to net${channel}.0 in global.json will no longer build on this machine.`;
+    }
+    const combinedCmd = chItems.map(i => i.command).join(' && ');
+    if (cmdEl) cmdEl.textContent = combinedCmd;
+    if (copyEl) copyEl.dataset.copy = combinedCmd;
+    if (confirmTextEl) confirmTextEl.textContent = `Remove ${chItems.length} ${chItems.length === 1 ? 'item' : 'items'}`;
+
+    removeDialog.showModal();
+  });
 }
 
 // NuGet Tool Installation Sheet (<dialog id="add-tool-dialog" closedby="any">)
@@ -961,5 +1014,66 @@ window.addEventListener('keydown', (e) => {
   } else if (key === 'p') {
     e.preventDefault();
     window.location.href = '/preflight';
+  }
+});
+
+// Sidebar Count Persistence & Tools Row Context Menu (⋯)
+try {
+  const navVerEl = document.querySelector('[data-nav-versions-count]');
+  if (navVerEl) {
+    if (!navVerEl.hidden && navVerEl.textContent.trim()) {
+      sessionStorage.setItem('cockpit-versions-count', navVerEl.textContent.trim());
+    } else {
+      const saved = sessionStorage.getItem('cockpit-versions-count');
+      if (saved) { navVerEl.textContent = saved; navVerEl.hidden = false; }
+    }
+  }
+  const navToolsEl = document.querySelector('[data-nav-tools-count]');
+  if (navToolsEl) {
+    if (!navToolsEl.hidden && navToolsEl.textContent.trim()) {
+      sessionStorage.setItem('cockpit-tools-count', navToolsEl.textContent.trim());
+    } else {
+      const saved = sessionStorage.getItem('cockpit-tools-count');
+      if (saved) { navToolsEl.textContent = saved; navToolsEl.hidden = false; }
+    }
+  }
+} catch {}
+
+document.addEventListener('click', (e) => {
+  const menuBtn = e.target.closest('[data-tool-menu-btn]');
+  const openMenus = [...document.querySelectorAll('.tool-context-menu:not([hidden])')];
+
+  if (menuBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const wrap = menuBtn.closest('.tool-more-wrap');
+    const menu = wrap?.querySelector('.tool-context-menu');
+    const wasOpen = menu && !menu.hidden;
+    for (const m of openMenus) {
+      m.hidden = true;
+      m.closest('.tool-more-wrap')?.querySelector('[data-tool-menu-btn]')?.setAttribute('aria-expanded', 'false');
+    }
+    if (menu && !wasOpen) {
+      menu.hidden = false;
+      menuBtn.setAttribute('aria-expanded', 'true');
+    }
+    return;
+  }
+
+  const uninstallItem = e.target.closest('[data-tool-menu-uninstall]');
+  if (uninstallItem) {
+    e.preventDefault();
+    const row = uninstallItem.closest('tr[data-tool-row]');
+    const form = row?.querySelector('form.tool-action');
+    if (form) form.requestSubmit();
+    for (const m of openMenus) m.hidden = true;
+    return;
+  }
+
+  if (openMenus.length && !e.target.closest('.tool-context-menu')) {
+    for (const m of openMenus) {
+      m.hidden = true;
+      m.closest('.tool-more-wrap')?.querySelector('[data-tool-menu-btn]')?.setAttribute('aria-expanded', 'false');
+    }
   }
 });

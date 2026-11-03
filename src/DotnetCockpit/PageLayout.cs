@@ -4,7 +4,7 @@ namespace DotnetCockpit;
 
 internal static class PageLayout
 {
-    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0) => $$"""
+    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null) => $$"""
         <!doctype html>
         <html lang="en" data-theme="auto">
         <head>
@@ -30,9 +30,9 @@ internal static class PageLayout
               </div>
 
               <div class="rail-label">Environment</div>
-              <a href="/overview" class="nav-link"{{(currentPath == "/overview" ? " aria-current=\"page\"" : "")}}>{{Icon("dashboard")}} Overview {{(issueCount > 0 ? $"<span class=\"badge warn sm\" style=\"margin-left:auto\">{issueCount}</span>" : "")}}</a>
-              <a href="/" class="nav-link"{{(currentPath is "/" or "/versions" ? " aria-current=\"page\"" : "")}} aria-label="Installations">{{Icon("versions")}} Versions</a>
-              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}} aria-label=".NET Tools">{{Icon("tools")}} Tools</a>
+              <a href="/overview" class="nav-link"{{(currentPath == "/overview" ? " aria-current=\"page\"" : "")}}>{{Icon("dashboard")}} Overview {{(issueCount > 0 ? $"<span class=\"badge warn sm\" style=\"margin-left:auto\" aria-hidden=\"true\">{issueCount}</span>" : "")}}</a>
+              <a href="/" class="nav-link"{{(currentPath is "/" or "/versions" ? " aria-current=\"page\"" : "")}} aria-label="Installations">{{Icon("versions")}} Versions{{(versionsCount is not null ? $"<span class=\"nav-count\" data-nav-versions-count aria-hidden=\"true\">{versionsCount}</span>" : "<span class=\"nav-count\" data-nav-versions-count aria-hidden=\"true\" hidden></span>")}}</a>
+              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}} aria-label=".NET Tools">{{Icon("tools")}} Tools{{(toolsCount is not null ? $"<span class=\"nav-count\" data-nav-tools-count aria-hidden=\"true\">{toolsCount}</span>" : "<span class=\"nav-count\" data-nav-tools-count aria-hidden=\"true\" hidden></span>")}}</a>
 
               <div class="rail-label">Cockpit</div>
               <a href="/setup" class="nav-link"{{(currentPath == "/setup" ? " aria-current=\"page\"" : "")}}>{{Icon("settings")}} Setup</a>

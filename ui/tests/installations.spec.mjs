@@ -124,8 +124,8 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
   const firstSdk = snapshot.sdks[0];
   await expect(page.locator('#version-drawer')).toBeHidden();
 
-  // Click on the first row to inspect it
-  await page.locator(`tbody tr[data-kind="sdk"]`).first().click();
+  // Click on the row for firstSdk to inspect it
+  await page.locator(`tbody tr[data-kind="sdk"]`).filter({ hasText: firstSdk.version }).first().click();
   await expect(page.locator('#version-drawer')).toBeVisible();
   await expect(page.locator('#drawer-title')).toHaveText(firstSdk.version);
   await expect(page.locator('#drawer-command')).toContainText(`dotnet-core-uninstall remove ${firstSdk.version}`);
