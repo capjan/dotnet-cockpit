@@ -29,8 +29,11 @@ internal static class PageLayout
               </div>
 
               <div class="rail-label">Environment</div>
-              <a href="/" class="nav-link"{{(currentPath == "/" ? " aria-current=\"page\"" : "")}}>{{Icon("versions")}} Installations</a>
-              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}}>{{Icon("tools")}} .NET Tools</a>
+              <a href="/overview" class="nav-link"{{(currentPath == "/overview" ? " aria-current=\"page\"" : "")}}>{{Icon("dashboard")}} Overview <span class="badge warn sm">3</span></a>
+              <a href="/" class="nav-link"{{(currentPath is "/" or "/versions" ? " aria-current=\"page\"" : "")}} aria-label="Installations">{{Icon("versions")}} Versions <span class="badge info sm">8</span></a>
+              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}} aria-label=".NET Tools">{{Icon("tools")}} Tools <span class="badge info sm">7</span></a>
+
+              <div class="rail-label">Cockpit</div>
               <a href="/setup" class="nav-link"{{(currentPath == "/setup" ? " aria-current=\"page\"" : "")}}>{{Icon("settings")}} Setup</a>
               {{(issueCount > 0 ? $"<a href=\"/preflight\" class=\"nav-link pf-nav-link\">{Icon("pulse")} Pre-flight <span class=\"badge warn pf-issue-badge\">{issueCount}</span></a>" : "")}}
 
@@ -50,8 +53,6 @@ internal static class PageLayout
             <div class="main">
               <header class="topbar">
                 <div class="crumbs">
-                  <span>Environment</span>
-                  <span>/</span>
                   <b>{{GetPageName(currentPath)}}</b>
                 </div>
                 <div id="cmdk-trigger" class="cmdk" role="button" tabindex="0" aria-label="Open command palette">
@@ -134,10 +135,11 @@ internal static class PageLayout
 
     private static string GetPageName(string path) => path switch
     {
-        "/tools" => ".NET Tools",
-        "/setup" => "Setup",
+        "/overview" => "Overview",
+        "/tools" => "Tools",
+        "/setup" => "Settings",
         "/preflight" => "Pre-flight Check",
-        _ => "Installations"
+        _ => "Versions"
     };
 
     public static string Encode(string value) => HtmlEncoder.Default.Encode(value);
@@ -147,6 +149,7 @@ internal static class PageLayout
         var extraCls = string.IsNullOrEmpty(cls) ? "" : $" {cls}";
         var path = name switch
         {
+            "dashboard" => "<path d=\"M12 14v4M3.34 17a10 10 0 1 1 17.32 0\"/><path d=\"m4.93 4.93 4.24 4.24\"/>",
             "versions" => "<path d=\"m12 3 9 5-9 5-9-5 9-5Z\"/><path d=\"m3 13 9 5 9-5\"/>",
             "tools" or "code" => "<path d=\"M14.7 6.3a4 4 0 0 0-5.4 5.2L3.6 17.2a1.6 1.6 0 0 0 2.3 2.3l5.7-5.7a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.1-.5-.5-2.1 2.5-2.5Z\"/>",
             "server" or "cpu" => "<rect x=\"4\" y=\"2\" width=\"12\" height=\"16\" rx=\"2\"/><path d=\"M7 6h6M7 9h6M7 14h2\"/>",
@@ -163,6 +166,8 @@ internal static class PageLayout
             "warn" => "<path d=\"m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z\"/><path d=\"M12 9v4M12 17h.01\"/>",
             "sparkle" => "<path d=\"m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z\"/>",
             "lock" => "<rect x=\"3\" y=\"11\" width=\"18\" height=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>",
+            "trash" => "<path d=\"M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>",
+            "clipboard" => "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>",
             "shield" => "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/>",
             "chevron-right" => "<polyline points=\"9 18 15 12 9 6\"/>",
             "cloud" => "<path d=\"M17.5 19H9a7 7 0 1 1 6.7-9h.8a5.5 5.5 0 0 1 1 11Z\"/>",

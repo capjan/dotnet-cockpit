@@ -6,7 +6,7 @@ test('receives the real inventory in the initial HTML with version-specific dire
   const response = await page.goto('/');
   const html = await response.text();
   expect(html).toContain('<tr data-kind="sdk">');
-  await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Versions', level: 1 })).toBeVisible();
   await expect(page.locator('tbody tr[data-kind]')).toHaveCount(snapshot.sdks.length + runtimeCards);
   for (const item of [...snapshot.sdks, ...snapshot.runtimes]) {
     if (item.installationPath) {
@@ -69,7 +69,7 @@ test('renders the no-host installation view on a narrow screen without JavaScrip
     if (html.includes('No .NET installation found')) {
       await expect(page.getByRole('heading', { name: 'No .NET installation found' })).toBeVisible();
     } else {
-      await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Versions', level: 1 })).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Installed versions' })).toBeVisible();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -114,7 +114,7 @@ test('renders pre-flight check with live diagnostic steps and trust policies', a
   await expect(page.locator('.trust')).toContainText('No telemetry');
   await page.getByRole('link', { name: /Open cockpit/i }).click();
   await expect(page).toHaveURL('/');
-  await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Versions', level: 1 })).toBeVisible();
 });
 
 test('opens detail drawer when inspecting a version and displays equivalent command', async ({ page, request }) => {
@@ -133,4 +133,12 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
   // Close drawer
   await page.locator('#drawer-close').click();
   await expect(page.locator('#version-drawer')).toBeHidden();
+});
+
+test('renders the overview page with system summary and health cards', async ({ page }) => {
+  await page.goto('/overview');
+  await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
+  await expect(page.getByText('Installed SDKs', { exact: true })).toBeVisible();
+  await expect(page.getByText('System Health')).toBeVisible();
+  await expect(page.getByText('Support Lifecycle Timeline')).toBeVisible();
 });

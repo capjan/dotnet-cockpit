@@ -55,6 +55,16 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/api/health", () => new HealthStatus("ok"));
+app.MapGet("/overview", async (DotnetInstallationService installationService, DotnetToolsService toolsService, DotnetUninstallToolService setupService, SdkDownloadCatalog sdkCatalog, HttpContext context, ILogger<Program> logger) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var installationTask = ReadInstallation(installationService, context, logger);
+    var toolsTask = ReadTools(toolsService, context, logger);
+    var setupTask = setupService.ReadAsync(context.RequestAborted);
+    var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
+    await Task.WhenAll(installationTask, toolsTask, setupTask, sdkTask);
+    return Results.Content(OverviewPage.Render(installationTask.Result, toolsTask.Result, setupTask.Result, sdkTask.Result), "text/html; charset=utf-8");
+});
 app.MapGet("/", async (DotnetInstallationService service, SdkDownloadCatalog sdkCatalog, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
@@ -66,6 +76,7 @@ app.MapGet("/", async (DotnetInstallationService service, SdkDownloadCatalog sdk
     return Results.Content(InstallationPage.Render(snapshot, sdkSnapshot, InstallationViewOptions.From(context.Request.Query)),
         "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
 });
+app.MapGet("/versions", (HttpContext context) => Results.Redirect("/"));
 app.MapGet("/api/installation", async (DotnetInstallationService service, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
