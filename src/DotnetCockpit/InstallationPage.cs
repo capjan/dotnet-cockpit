@@ -44,7 +44,6 @@ internal static class InstallationPage
         };
 
         return PageLayout.Render($$"""
-                  <div class="breadcrumb">Environment <span>/</span> Installations</div>
                   <div class="page-heading">
                     <div><h1>Your .NET environment</h1><p class="muted intro">Installed SDKs and runtimes, in one place.</p></div>
                     <a class="button primary" href="{{RefreshLink(options, snapshot.CheckedAt)}}">{{Icon("refresh")}} Refresh</a>

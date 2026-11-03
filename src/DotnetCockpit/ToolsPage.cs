@@ -26,7 +26,6 @@ internal static class ToolsPage
             _ => RenderTabs(snapshot, options)
         };
         return PageLayout.Render($$"""
-            <div class="breadcrumb">Environment <span>/</span> .NET Tools</div>
             <div class="page-heading">
               <div><h1>.NET Tools</h1><p class="muted intro">Global tools for your account and local tools for this workspace.</p></div>
               <a class="button primary" href="{{RefreshLink(options)}}">{{Icon("refresh")}} Refresh</a>

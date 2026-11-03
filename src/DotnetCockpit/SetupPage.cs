@@ -56,7 +56,6 @@ internal static class SetupPage
         var sdkSection = SdkDownloadsSection.Render(sdkDownloads, installation, SdkDownloadsViewOptions.From(options));
 
         return PageLayout.Render($"""
-            <div class="breadcrumb">Environment <span>/</span> Setup</div>
             <div class="page-heading">
               <div><h1>Setup</h1><p class="muted intro">Install .NET SDKs and runtimes or manage the global uninstall tool.</p></div>
               <div class="inventory-heading-actions"><a class="button" href="/setup">Refresh</a><a class="button primary" href="#sdk-downloads-title">{Icon("download")} Install SDK or runtime</a></div>
