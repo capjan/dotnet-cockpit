@@ -110,8 +110,8 @@ test('renders pre-flight check with live diagnostic steps and trust policies', a
   await expect(page.locator('.step')).toHaveCount(5);
   await expect(page.locator('.step').first()).toContainText('dotnet host');
   await expect(page.locator('.trust')).toContainText('127.0.0.1');
-  await expect(page.locator('.trust')).toContainText('Zero telemetry');
-  await page.getByRole('link', { name: 'Open Cockpit' }).click();
+  await expect(page.locator('.trust')).toContainText('No telemetry');
+  await page.getByRole('link', { name: /Open cockpit/i }).click();
   await expect(page).toHaveURL('/');
   await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
 });

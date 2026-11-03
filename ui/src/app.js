@@ -295,7 +295,7 @@ if (cmdkTrigger && cmdkDialog && cmdkScrim && cmdkInput) {
   });
 }
 
-// Preflight Welcome Banner
+// Preflight Welcome Banner & Skip Checkbox
 const preflightBanner = document.getElementById('preflight-banner');
 const dismissPreflightBtn = document.getElementById('dismiss-preflight-btn');
 if (preflightBanner) {
@@ -310,6 +310,21 @@ if (preflightBanner) {
       try { localStorage.setItem('cockpit-preflight-dismissed', 'true'); } catch {}
     });
   }
+}
+
+const skipPreflightCheckbox = document.getElementById('skip-preflight-checkbox');
+if (skipPreflightCheckbox) {
+  try {
+    const isDismissed = localStorage.getItem('cockpit-preflight-dismissed') === 'true';
+    skipPreflightCheckbox.checked = isDismissed || localStorage.getItem('cockpit-preflight-dismissed') === null;
+    skipPreflightCheckbox.addEventListener('change', () => {
+      if (skipPreflightCheckbox.checked) {
+        localStorage.setItem('cockpit-preflight-dismissed', 'true');
+      } else {
+        localStorage.removeItem('cockpit-preflight-dismissed');
+      }
+    });
+  } catch {}
 }
 
 // Quick Copy Affordance for Tool Commands, Paths, Checksums and CLI Snippets

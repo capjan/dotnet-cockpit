@@ -12,7 +12,9 @@ internal static class PreflightPage
     {
         var hostOk = installation.Status != "notFound" && !string.IsNullOrWhiteSpace(installation.ExecutablePath);
         var hostTitle = hostOk ? "dotnet host found" : "No dotnet host found";
-        var hostDetail = hostOk ? $"{installation.ExecutablePath} · active dotnet host on PATH" : "The dotnet executable was not found on PATH. Install an SDK or configure PATH.";
+        var hostDetail = hostOk
+            ? $"{installation.ExecutablePath} · first dotnet on PATH"
+            : "The dotnet executable was not found on PATH. Install an SDK or configure PATH.";
         var hostBadge = hostOk
             ? "<span class=\"badge ok\">Ready</span>"
             : "<span class=\"badge bad\">Missing</span>";
@@ -38,7 +40,7 @@ internal static class PreflightPage
         var catalogOk = sdkDownloads.Status == "ready";
         var catalogTitle = catalogOk ? "Official release catalog loaded" : "Release catalog offline";
         var catalogDetail = catalogOk
-            ? $"{sdkDownloads.Downloads.Length} official packages available · lifecycle dates, patches & security CVEs"
+            ? "Microsoft release metadata · support dates, patches, security fixes"
             : Encode(sdkDownloads.Error ?? "Could not reach Microsoft release servers. Offline mode active.");
         var catalogBadge = catalogOk
             ? "<span class=\"badge ok\">Ready</span>"
@@ -47,15 +49,16 @@ internal static class PreflightPage
         var wsInitialized = tools.LocalManifestInitialized;
         var wsOwned = tools.LocalManifestOwned;
         var wsTitle = "Workspace detected";
+        var shortenedWsPath = ShortenPath(tools.WorkingDirectory);
         var wsDetail = wsInitialized
-            ? $"{tools.WorkingDirectory} · {(wsOwned ? "Local manifest" : "Inherited manifest")} ({tools.Local.Tools.Length} local tool{(tools.Local.Tools.Length == 1 ? "" : "s")} declared)"
-            : $"{tools.WorkingDirectory} · No local tool manifest";
+            ? $"<code>{Encode(shortenedWsPath)}</code> · {(wsOwned ? $"{tools.Local.Tools.Length} local tool declared" : $"{tools.Local.Tools.Length} local tool from an inherited manifest")}"
+            : $"<code>{Encode(shortenedWsPath)}</code> · No local tool manifest";
 
         var uninstallInstalled = setup.UninstallTool.Installed;
-        var uninstallTitle = uninstallInstalled ? "Uninstall tool is installed" : "Removal support is optional";
+        var uninstallTitle = uninstallInstalled ? "Uninstall tool is installed" : "Removal support is not installed";
         var uninstallDetail = uninstallInstalled
-            ? $"Version {Encode(setup.UninstallTool.Version ?? "detected")} at <code>{Encode(setup.UninstallTool.Path ?? "")}</code>"
-            : "Optional. Cockpit uses Microsoft’s official dotnet-core-uninstall to safely remove installations.";
+            ? $"Ready to list and remove installations · version {Encode(setup.UninstallTool.Version ?? "detected")}"
+            : "Optional. Cockpit needs Microsoft’s dotnet-core-uninstall to remove old versions for you.";
         var uninstallAction = uninstallInstalled
             ? "<span class=\"badge ok\">Ready</span>"
             : "<a class=\"button sm\" href=\"/setup\">Set up now</a>";
@@ -64,107 +67,134 @@ internal static class PreflightPage
         var eolRuntimes = runtimes.Where(r => r.Version.StartsWith("7.") || r.Version.StartsWith("6.") || r.Version.StartsWith("5.") || r.Version.StartsWith("3.") || r.Version.StartsWith("2.") || r.Version.StartsWith("1.")).ToArray();
         var eolCount = eolSdks.Length + eolRuntimes.Length;
 
-        string attentionBanner;
+        string attentionTitle;
+        string attentionSubtitle;
+        string attentionBadgeClass;
         if (eolCount > 0)
         {
-            attentionBanner = $"""
-                <div class="card pf-attention" role="status">
-                  <span class="pf-attention-icon warn">{Icon("warn", "sm")}</span>
-                  <div>
-                    <strong>Attention: {eolCount} installation{(eolCount == 1 ? " is" : "s are")} out of support (EOL)</strong>
-                    <p class="muted">Outdated .NET versions no longer receive security updates. You can safely remove them via Installations or Setup.</p>
-                  </div>
-                  <a class="button sm danger" href="/#inventory">Review items</a>
-                </div>
-                """;
+            attentionBadgeClass = "warn";
+            attentionTitle = $"First result: {eolCount} {(eolCount == 1 ? "thing needs" : "things need")} your attention";
+            attentionSubtitle = ".NET 7 is out of support, and older versions no longer receive security fixes.";
         }
         else if (!hostOk)
         {
-            attentionBanner = $"""
-                <div class="card pf-attention" role="alert">
-                  <span class="pf-attention-icon bad">{Icon("warn", "sm")}</span>
-                  <div>
-                    <strong>No .NET host on PATH</strong>
-                    <p class="muted">A .NET SDK or runtime installation is required to execute .NET applications and tools.</p>
-                  </div>
-                  <a class="button sm primary" href="/setup#sdk-downloads-title">Install SDK</a>
-                </div>
-                """;
+            attentionBadgeClass = "bad";
+            attentionTitle = "First result: No .NET host on PATH";
+            attentionSubtitle = "A .NET SDK or runtime installation is required to execute .NET applications.";
         }
         else
         {
-            attentionBanner = $"""
-                <div class="card pf-attention" role="status">
-                  <span class="pf-attention-icon ok">{Icon("check", "sm")}</span>
-                  <div>
-                    <strong>All systems are ready</strong>
-                    <p class="muted">Your active .NET host, installations, and workspace are detected and healthy.</p>
-                  </div>
-                </div>
-                """;
+            attentionBadgeClass = "ok";
+            attentionTitle = "First result: All systems look healthy";
+            attentionSubtitle = "Your active .NET host and workspace are ready for development.";
         }
 
-        return PageLayout.Render($$"""
-            <div class="preflight-container">
-              <div class="pf">
-                <div class="pf-brand">
-                  <img src="/assets/logo.png" alt=".NET Cockpit">
-                  <div>
-                    <div class="muted" style="font-weight:600;font-size:13px">.NET Cockpit · First launch &amp; Diagnostics</div>
-                    <h1 class="pf-title">Pre-flight <span class="grad-text">check</span></h1>
+        return $$"""
+            <!doctype html>
+            <html lang="en" data-theme="dark">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>Pre-flight Check | .NET Cockpit</title>
+              <link rel="icon" type="image/png" sizes="32x32" href="/assets/logo-32.png">
+              <link rel="stylesheet" href="/assets/app.css">
+              <script type="module" src="/assets/app.js"></script>
+            </head>
+            <body class="app-body preflight-body">
+              <button id="theme-toggle" class="button icon ghost pf-theme-btn" type="button" aria-label="Switch theme" title="Switch theme" hidden>
+                <span aria-hidden="true">◐</span>
+              </button>
+
+              <div class="preflight">
+                <div class="pf">
+                  <div class="pf-brand">
+                    <img src="/assets/logo.png" alt=".NET Cockpit logo">
+                    <div>
+                      <div class="muted pf-kicker">.NET Cockpit · first launch</div>
+                      <h1 class="pf-title">Pre-flight <span class="grad-text">check</span></h1>
+                    </div>
                   </div>
-                </div>
-                <p class="sub" style="font-size:15px;max-width:680px;margin:-8px 0 24px">Cockpit inspects the .NET environment on this machine. It only reads — nothing is installed or removed without your explicit confirmation.</p>
+                  <p class="sub pf-desc">Cockpit looks at the .NET installation on this machine. It only reads — nothing is installed or removed without your explicit confirmation.</p>
 
-                <div class="card steps">
-                  <div class="step">
-                    <span class="st {{(hostOk ? "ok" : "warn")}}">{{Icon(hostOk ? "check" : "warn", "sm")}}</span>
-                    <div><b>{{hostTitle}}</b><p><code>{{Encode(hostDetail)}}</code></p></div>
-                    {{hostBadge}}
+                  <div class="card steps">
+                    <div class="step">
+                      <span class="st {{(hostOk ? "ok" : "warn")}}">{{Icon(hostOk ? "check" : "warn", "sm")}}</span>
+                      <div><b>{{hostTitle}}</b><p><code>{{Encode(hostDetail)}}</code></p></div>
+                      {{hostBadge}}
+                    </div>
+
+                    <div class="step">
+                      <span class="st {{(instOk ? "ok" : "warn")}}">{{Icon(instOk ? "check" : "warn", "sm")}}</span>
+                      <div><b>{{instTitle}}</b><p>{{Encode(instDetail)}}</p></div>
+                      {{instBadge}}
+                    </div>
+
+                    <div class="step">
+                      <span class="st {{(catalogOk ? "ok" : "warn")}}">{{Icon(catalogOk ? "check" : "warn", "sm")}}</span>
+                      <div><b>{{catalogTitle}}</b><p>{{catalogDetail}}</p></div>
+                      {{catalogBadge}}
+                    </div>
+
+                    <div class="step">
+                      <span class="st ok">{{Icon("check", "sm")}}</span>
+                      <div><b>{{wsTitle}}</b><p>{{wsDetail}}</p></div>
+                      <span class="badge ok">Ready</span>
+                    </div>
+
+                    <div class="step">
+                      <span class="st {{(uninstallInstalled ? "ok" : "warn")}}">{{Icon(uninstallInstalled ? "check" : "warn", "sm")}}</span>
+                      <div><b>{{uninstallTitle}}</b><p>{{uninstallDetail}}</p></div>
+                      {{uninstallAction}}
+                    </div>
                   </div>
 
-                  <div class="step">
-                    <span class="st {{(instOk ? "ok" : "warn")}}">{{Icon(instOk ? "check" : "warn", "sm")}}</span>
-                    <div><b>{{instTitle}}</b><p>{{Encode(instDetail)}}</p></div>
-                    {{instBadge}}
+                  <div class="card pf-attention">
+                    <span class="pf-attention-icon {{attentionBadgeClass}}">{{Icon("sparkle", "sm")}}</span>
+                    <div class="pf-attention-text">
+                      <b>{{attentionTitle}}</b>
+                      <p class="muted">{{attentionSubtitle}}</p>
+                    </div>
                   </div>
 
-                  <div class="step">
-                    <span class="st {{(catalogOk ? "ok" : "warn")}}">{{Icon(catalogOk ? "check" : "warn", "sm")}}</span>
-                    <div><b>{{catalogTitle}}</b><p>{{catalogDetail}}</p></div>
-                    {{catalogBadge}}
+                  <div class="pf-foot">
+                    <a class="button primary lg pf-open-btn" href="/">Open cockpit {{Icon("chevron-right", "sm")}}</a>
+                    <a class="button lg ghost" href="/setup">Take a 60-second tour</a>
+                    <span class="spacer"></span>
+                    <label class="pf-skip-label">
+                      <input type="checkbox" id="skip-preflight-checkbox" checked>
+                      <span>Don’t show on next launch</span>
+                    </label>
                   </div>
 
-                  <div class="step">
-                    <span class="st ok">{{Icon("check", "sm")}}</span>
-                    <div><b>{{wsTitle}}</b><p><code>{{Encode(wsDetail)}}</code></p></div>
-                    <span class="badge ok">Ready</span>
+                  <div class="trust">
+                    <span>{{Icon("lock", "xs")}} Runs only on 127.0.0.1</span>
+                    <span>{{Icon("shield", "xs")}} No telemetry, no accounts</span>
+                    <span>{{Icon("code", "xs")}} Single native binary — no .NET or Node required</span>
+                    <span>{{Icon("cloud", "xs")}} Talks only to Microsoft, NuGet and GitHub</span>
                   </div>
-
-                  <div class="step">
-                    <span class="st {{(uninstallInstalled ? "ok" : "warn")}}">{{Icon(uninstallInstalled ? "check" : "warn", "sm")}}</span>
-                    <div><b>{{uninstallTitle}}</b><p>{{uninstallDetail}}</p></div>
-                    {{uninstallAction}}
-                  </div>
-                </div>
-
-                {{attentionBanner}}
-
-                <div class="pf-foot">
-                  <a class="button primary lg" href="/">Open Cockpit {{Icon("chevron-right", "sm")}}</a>
-                  <a class="button lg" href="/tools">View .NET Tools</a>
-                  <span class="spacer"></span>
-                  <a class="button ghost" href="/setup">Setup &amp; Downloads</a>
-                </div>
-
-                <div class="trust">
-                  <span>{{Icon("lock", "xs")}} Runs only on 127.0.0.1</span>
-                  <span>{{Icon("shield", "xs")}} Zero telemetry, zero accounts</span>
-                  <span>{{Icon("code", "xs")}} Single native binary — no .NET runtime needed</span>
-                  <span>{{Icon("cloud", "xs")}} Talks only to Microsoft, NuGet and GitHub</span>
                 </div>
               </div>
-            </div>
-            """, "/preflight", "Pre-flight Check | .NET Cockpit");
+            </body>
+            </html>
+            """;
+    }
+
+    private static string ShortenPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrEmpty(home) && path.StartsWith(home, StringComparison.OrdinalIgnoreCase))
+        {
+            path = "~" + path[home.Length..];
+        }
+        else if (path.StartsWith("/Volumes/", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 4)
+            {
+                path = "~/" + string.Join('/', parts.Skip(2));
+            }
+        }
+        return path;
     }
 }
