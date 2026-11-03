@@ -295,6 +295,23 @@ if (cmdkTrigger && cmdkDialog && cmdkScrim && cmdkInput) {
   });
 }
 
+// Preflight Welcome Banner
+const preflightBanner = document.getElementById('preflight-banner');
+const dismissPreflightBtn = document.getElementById('dismiss-preflight-btn');
+if (preflightBanner) {
+  try {
+    if (localStorage.getItem('cockpit-preflight-dismissed') !== 'true') {
+      preflightBanner.hidden = false;
+    }
+  } catch {}
+  if (dismissPreflightBtn) {
+    dismissPreflightBtn.addEventListener('click', () => {
+      preflightBanner.hidden = true;
+      try { localStorage.setItem('cockpit-preflight-dismissed', 'true'); } catch {}
+    });
+  }
+}
+
 // Quick Copy Affordance for Tool Commands, Paths, Checksums and CLI Snippets
 document.addEventListener('click', (e) => {
   const target = e.target.closest('.tool-command-pill, code.installation-path, .tool-cli-preview code, .sdk-checksum code');

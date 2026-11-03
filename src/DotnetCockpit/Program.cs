@@ -74,6 +74,16 @@ app.MapPost("/installation/remove", async (HttpContext context, DotnetUninstallT
     var result = await service.RemoveInstallationAsync(form["version"].ToString(), form["kind"].ToString(), context.RequestAborted);
     return Results.Redirect(InstallationRedirect(form, result.Success ? "removed" : "remove-failed"));
 });
+app.MapGet("/preflight", async (DotnetInstallationService installationService, DotnetToolsService toolsService, DotnetUninstallToolService setupService, SdkDownloadCatalog sdkCatalog, HttpContext context, ILogger<Program> logger) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var installationTask = ReadInstallation(installationService, context, logger);
+    var toolsTask = ReadTools(toolsService, context, logger);
+    var setupTask = setupService.ReadAsync(context.RequestAborted);
+    var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
+    await Task.WhenAll(installationTask, toolsTask, setupTask, sdkTask);
+    return Results.Content(PreflightPage.Render(installationTask.Result, toolsTask.Result, setupTask.Result, sdkTask.Result), "text/html; charset=utf-8");
+});
 app.MapGet("/setup", async (DotnetUninstallToolService service, SdkDownloadCatalog sdkCatalog, DotnetInstallationService installationService, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";

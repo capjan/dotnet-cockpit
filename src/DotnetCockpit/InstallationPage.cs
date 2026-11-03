@@ -43,7 +43,23 @@ internal static class InstallationPage
             _ => RenderTable(rows, options)
         };
 
+        var preflightBanner = options.Query.Length == 0
+            ? $"""
+              <div id="preflight-banner" class="preflight-banner" hidden>
+                <div class="pf-banner-content">
+                  <span class="pf-banner-icon">{Icon("sparkle", "sm")}</span>
+                  <div><strong>First launch? Run the Pre-flight Check</strong><p class="muted">10-second diagnostics to verify your .NET host, installed SDKs, and workspace.</p></div>
+                </div>
+                <div class="pf-banner-actions">
+                  <a class="button sm primary" href="/preflight">Run Pre-flight</a>
+                  <button id="dismiss-preflight-btn" class="button sm ghost" type="button">Dismiss</button>
+                </div>
+              </div>
+              """
+            : "";
+
         return PageLayout.Render($$"""
+                  {{preflightBanner}}
                   <div class="page-heading">
                     <div><h1>Your .NET environment</h1><p class="muted intro">Installed SDKs and runtimes, in one place.</p></div>
                     <a class="button primary" href="{{RefreshLink(options, snapshot.CheckedAt)}}">{{Icon("refresh")}} Refresh</a>

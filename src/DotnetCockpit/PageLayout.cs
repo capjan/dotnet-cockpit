@@ -32,6 +32,7 @@ internal static class PageLayout
               <a href="/" class="nav-link"{{(currentPath == "/" ? " aria-current=\"page\"" : "")}}>{{Icon("versions")}} Installations</a>
               <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}}>{{Icon("tools")}} .NET Tools</a>
               <a href="/setup" class="nav-link"{{(currentPath == "/setup" ? " aria-current=\"page\"" : "")}}>{{Icon("settings")}} Setup</a>
+              <a href="/preflight" class="nav-link"{{(currentPath == "/preflight" ? " aria-current=\"page\"" : "")}}>{{Icon("pulse")}} Pre-flight</a>
 
               <div class="rail-foot">
                 <div class="ws-card">
@@ -97,9 +98,19 @@ internal static class PageLayout
                 <div><b>Setup &amp; Downloads</b> <small>· SDK download catalog &amp; uninstaller</small></div>
                 <kbd>3</kbd>
               </a>
+              <a class="opt" href="/preflight">
+                {{Icon("pulse", "sm")}}
+                <div><b>Pre-flight Check</b> <small>· First launch &amp; system diagnostics</small></div>
+                <kbd>4</kbd>
+              </a>
             </div>
             <div class="grp">
               <div class="grp-k">Quick Actions</div>
+              <a class="opt" href="/preflight">
+                {{Icon("sparkle", "sm")}}
+                <div><b>Run Pre-flight Diagnostics</b> <small>· Verify .NET host, SDKs and workspace</small></div>
+                <span class="badge brand">Check</span>
+              </a>
               <a class="opt" href="/setup#sdk-downloads-title">
                 {{Icon("download", "sm")}}
                 <div><b>Install new SDK</b> <small>· macOS .pkg installer catalog</small></div>
@@ -125,6 +136,7 @@ internal static class PageLayout
     {
         "/tools" => ".NET Tools",
         "/setup" => "Setup",
+        "/preflight" => "Pre-flight Check",
         _ => "Installations"
     };
 
@@ -146,8 +158,16 @@ internal static class PageLayout
             "clock" => "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/>",
             "moon" => "<path d=\"M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z\"/>",
             "desktop" => "<rect x=\"2\" y=\"3\" width=\"16\" height=\"11\" rx=\"1\"/><path d=\"M7 18h6M10 14v4\"/>",
+            "pulse" => "<polyline points=\"22 12 18 12 15 21 9 3 6 12 2 12\"/>",
+            "check" => "<polyline points=\"20 6 9 17 4 12\"/>",
+            "warn" => "<path d=\"m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z\"/><path d=\"M12 9v4M12 17h.01\"/>",
+            "sparkle" => "<path d=\"m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z\"/>",
+            "lock" => "<rect x=\"3\" y=\"11\" width=\"18\" height=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>",
+            "shield" => "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/>",
+            "chevron-right" => "<polyline points=\"9 18 15 12 9 6\"/>",
+            "cloud" => "<path d=\"M17.5 19H9a7 7 0 1 1 6.7-9h.8a5.5 5.5 0 0 1 1 11Z\"/>",
             _ => "<circle cx=\"12\" cy=\"12\" r=\"9\"/>"
         };
-        return $"<svg class=\"i{extraCls}\" viewBox=\"0 0 24 24\" aria-hidden=\"true\">{path}</svg>";
+        return $"<svg class=\"i{extraCls}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">{path}</svg>";
     }
 }

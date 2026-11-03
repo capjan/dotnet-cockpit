@@ -103,3 +103,15 @@ test('opens command palette with keyboard shortcut and triggers navigation', asy
   await page.keyboard.press('Escape');
   await expect(page.locator('#cmdk-dialog')).toBeHidden();
 });
+
+test('renders pre-flight check with live diagnostic steps and trust policies', async ({ page }) => {
+  await page.goto('/preflight');
+  await expect(page.getByRole('heading', { name: 'Pre-flight check' })).toBeVisible();
+  await expect(page.locator('.step')).toHaveCount(5);
+  await expect(page.locator('.step').first()).toContainText('dotnet host');
+  await expect(page.locator('.trust')).toContainText('127.0.0.1');
+  await expect(page.locator('.trust')).toContainText('Zero telemetry');
+  await page.getByRole('link', { name: 'Open Cockpit' }).click();
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('heading', { name: 'Your .NET environment' })).toBeVisible();
+});
