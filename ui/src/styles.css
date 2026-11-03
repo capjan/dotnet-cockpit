@@ -2329,7 +2329,7 @@ dialog::backdrop {
 .tl-today-marker {
   position: absolute;
   top: -4px;
-  bottom: -210px;
+  height: 195px;
   width: 1px;
   background: var(--text);
   z-index: 5;
@@ -2428,6 +2428,11 @@ dialog::backdrop {
   flex-direction: column;
   gap: 4px;
   align-items: flex-start;
+}
+.tool-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .tool-scope-pill {
   display: inline-flex;

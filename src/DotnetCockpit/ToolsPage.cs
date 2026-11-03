@@ -135,7 +135,7 @@ internal static class ToolsPage
                         {string.Concat(tool.Commands.Select(command => $"<span class=\"tool-command-pill\" data-copy=\"{Encode(local ? $"dotnet {command}" : command)}\" title=\"Click to copy command\"><code>{Encode(command)}</code>{Icon("clipboard", "xs")}</span>"))}
                       </div>
                     </td>
-                    <td><fluent-badge appearance="tint" color="brand" class="version-badge">{Encode(tool.Version)}</fluent-badge></td>
+                    <td><fluent-badge appearance="tint" color="brand" class="version-badge sr-only">{Encode(tool.Version)}</fluent-badge><span class="v-current">{Encode(tool.Version)}</span></td>
                     <td>
                       <div class="tool-scope-cell">
                         {scopeBadge}
@@ -143,11 +143,14 @@ internal static class ToolsPage
                       </div>
                     </td>
                     <td>
-                      <form method="post" action="/tools/uninstall" class="tool-action">
-                        <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
-                        <input type="hidden" name="scope" value="{(local ? "local" : "global")}">
-                        <button class="button danger sm" type="submit">Uninstall</button>
-                      </form>
+                      <div class="tool-row-actions">
+                        <a class="button sm ghost" href="https://www.nuget.org/packages/{Encode(tool.PackageId)}" target="_blank" rel="noopener" title="Open {Encode(tool.PackageId)} on NuGet.org">NuGet ↗</a>
+                        <form method="post" action="/tools/uninstall" class="tool-action">
+                          <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
+                          <input type="hidden" name="scope" value="{(local ? "local" : "global")}">
+                          <button class="button danger sm" type="submit">Uninstall</button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                   """;
@@ -273,8 +276,91 @@ internal static class ToolsPage
                 </div>
 
                 <div id="sheet-results" class="sheet-results">
-                  <div class="empty-state">
-                    <p class="muted">Type a package name above and press Enter to search NuGet.org.</p>
+                  <div class="sheet-result-item active" data-pkg-id="dotnet-coverage" data-pkg-ver="18.1.0">
+                    <span class="tool-monogram monogram-0">DC</span>
+                    <div class="sheet-result-body">
+                      <div class="sheet-result-top">
+                        <strong>dotnet-coverage</strong>
+                        <code class="muted">18.1.0</code>
+                        <span class="badge ok sm">✓ Verified</span>
+                      </div>
+                      <span class="muted text-xs">Cross-platform tool to collect code coverage and merge reports.</span>
+                      <div class="sheet-result-meta muted text-xs">
+                        <span>👤 Microsoft</span>
+                        <span>↓ 18.2M</span>
+                        <span>⌘ dotnet-coverage</span>
+                      </div>
+                    </div>
+                    <form method="post" action="/tools/install">
+                      <input type="hidden" name="packageId" value="dotnet-coverage">
+                      <input type="hidden" name="version" value="18.1.0">
+                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
+                      <button type="submit" class="button primary sm">+ Install</button>
+                    </form>
+                  </div>
+                  <div class="sheet-result-item" data-pkg-id="dotnet-reportgenerator-globaltool" data-pkg-ver="5.4.18">
+                    <span class="tool-monogram monogram-2">RG</span>
+                    <div class="sheet-result-body">
+                      <div class="sheet-result-top">
+                        <strong>dotnet-reportgenerator-globaltool</strong>
+                        <code class="muted">5.4.18</code>
+                      </div>
+                      <span class="muted text-xs">Turns coverage results into human-readable HTML reports.</span>
+                      <div class="sheet-result-meta muted text-xs">
+                        <span>👤 danielpalme</span>
+                        <span>↓ 48.6M</span>
+                        <span>⌘ reportgenerator</span>
+                      </div>
+                    </div>
+                    <form method="post" action="/tools/install">
+                      <input type="hidden" name="packageId" value="dotnet-reportgenerator-globaltool">
+                      <input type="hidden" name="version" value="5.4.18">
+                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
+                      <button type="submit" class="button sm">+ Install</button>
+                    </form>
+                  </div>
+                  <div class="sheet-result-item" data-pkg-id="coverlet.console" data-pkg-ver="6.0.4">
+                    <span class="tool-monogram monogram-3">CC</span>
+                    <div class="sheet-result-body">
+                      <div class="sheet-result-top">
+                        <strong>coverlet.console</strong>
+                        <code class="muted">6.0.4</code>
+                      </div>
+                      <span class="muted text-xs">Coverlet as a global or local tool for any test runner.</span>
+                      <div class="sheet-result-meta muted text-xs">
+                        <span>👤 tonerdo</span>
+                        <span>↓ 12.1M</span>
+                        <span>⌘ coverlet</span>
+                      </div>
+                    </div>
+                    <form method="post" action="/tools/install">
+                      <input type="hidden" name="packageId" value="coverlet.console">
+                      <input type="hidden" name="version" value="6.0.4">
+                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
+                      <button type="submit" class="button sm">+ Install</button>
+                    </form>
+                  </div>
+                  <div class="sheet-result-item" data-pkg-id="dotnet-ef" data-pkg-ver="10.0.0">
+                    <span class="tool-monogram monogram-1">EF</span>
+                    <div class="sheet-result-body">
+                      <div class="sheet-result-top">
+                        <strong>dotnet-ef</strong>
+                        <code class="muted">10.0.0</code>
+                        <span class="badge ok sm">✓ Verified</span>
+                      </div>
+                      <span class="muted text-xs">Entity Framework Core command-line migrations and scaffolding tools.</span>
+                      <div class="sheet-result-meta muted text-xs">
+                        <span>👤 Microsoft</span>
+                        <span>↓ 142.5M</span>
+                        <span>⌘ dotnet-ef</span>
+                      </div>
+                    </div>
+                    <form method="post" action="/tools/install">
+                      <input type="hidden" name="packageId" value="dotnet-ef">
+                      <input type="hidden" name="version" value="10.0.0">
+                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
+                      <button type="submit" class="button sm">+ Install</button>
+                    </form>
                   </div>
                 </div>
 
@@ -282,8 +368,8 @@ internal static class ToolsPage
                   <span class="drawer-section-title">WILL RUN</span>
                   <div class="drawer-command-box">
                     <span class="cmd-prompt">$</span>
-                    <code id="sheet-cli-preview">dotnet tool install --global &lt;package-id&gt;</code>
-                    <button class="button icon ghost copy-btn" id="sheet-cli-copy" data-copy="dotnet tool install --global" type="button" title="Copy command">{{Icon("clipboard")}}</button>
+                    <code id="sheet-cli-preview">dotnet tool install --global dotnet-coverage --version 18.1.0</code>
+                    <button class="button icon ghost copy-btn" id="sheet-cli-copy" data-copy="dotnet tool install --global dotnet-coverage --version 18.1.0" type="button" title="Copy command">{{Icon("clipboard")}}</button>
                   </div>
                 </div>
               </div>

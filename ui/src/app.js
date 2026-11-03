@@ -705,7 +705,7 @@ const closeAddToolBtn = document.getElementById('close-add-tool-btn');
 
 if (addToolDialog) {
   let sheetScope = 'global';
-  let lastFocusedPkg = null;
+  let lastFocusedPkg = { packageId: 'dotnet-coverage', version: '18.1.0' };
   let searchTimer = null;
   const searchInput = document.getElementById('sheet-search-input');
   const resultsBox = document.getElementById('sheet-results');
@@ -835,6 +835,11 @@ if (addToolDialog) {
   if (closeAddToolBtn) {
     closeAddToolBtn.addEventListener('click', () => addToolDialog.close());
   }
+
+  if (new URLSearchParams(window.location.search).get('add') === '1') {
+    addToolDialog.showModal();
+    searchInput?.focus();
+  }
 }
 
 // Settings Page Controls (Appearance segmented control & Pre-flight launch toggle)
@@ -878,3 +883,67 @@ for (const navLink of document.querySelectorAll('.settings-nav-item')) {
     document.querySelectorAll('.settings-nav-item').forEach(el => el.classList.toggle('active', el === navLink));
   });
 }
+
+// Command Palette direct page actions & Global Keyboard Shortcuts (G+O/V/T/S/P, T, P)
+if (cmdkDialog) {
+  cmdkDialog.addEventListener('click', (e) => {
+    const inspectOpt = e.target.closest('[data-cmdk-inspect]');
+    if (inspectOpt && typeof openVersionDrawer === 'function' && drawer) {
+      e.preventDefault();
+      cmdkDialog.hidden = true;
+      if (cmdkScrim) cmdkScrim.hidden = true;
+      openVersionDrawer(inspectOpt.dataset.cmdkInspect);
+      return;
+    }
+    const removeOpt = e.target.closest('[data-cmdk-remove]');
+    if (removeOpt) {
+      const ver = removeOpt.dataset.cmdkRemove;
+      const form = [...document.querySelectorAll('form[action="/installation/remove"]')]
+        .find(f => f.querySelector('input[name="version"]')?.value === ver);
+      if (form) {
+        e.preventDefault();
+        cmdkDialog.hidden = true;
+        if (cmdkScrim) cmdkScrim.hidden = true;
+        form.requestSubmit();
+      }
+    }
+  });
+}
+
+let gChordActive = false;
+let gChordTimer = null;
+window.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+  if (document.querySelector('dialog[open]') || (cmdkDialog && !cmdkDialog.hidden)) return;
+
+  const key = e.key.toLowerCase();
+  if (gChordActive) {
+    gChordActive = false;
+    clearTimeout(gChordTimer);
+    if (key === 'o') { e.preventDefault(); window.location.href = '/overview'; }
+    else if (key === 'v') { e.preventDefault(); window.location.href = '/'; }
+    else if (key === 't') { e.preventDefault(); window.location.href = '/tools'; }
+    else if (key === 's') { e.preventDefault(); window.location.href = '/setup'; }
+    else if (key === 'p') { e.preventDefault(); window.location.href = '/preflight'; }
+    return;
+  }
+
+  if (key === 'g') {
+    gChordActive = true;
+    clearTimeout(gChordTimer);
+    gChordTimer = setTimeout(() => { gChordActive = false; }, 900);
+  } else if (key === 't') {
+    e.preventDefault();
+    if (addToolDialog) {
+      addToolDialog.showModal();
+      document.getElementById('sheet-search-input')?.focus();
+    } else {
+      window.location.href = '/tools?add=1';
+    }
+  } else if (key === 'p') {
+    e.preventDefault();
+    window.location.href = '/preflight';
+  }
+});
