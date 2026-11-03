@@ -14,4 +14,7 @@ await build({
   target: 'es2022',
   logLevel: 'info',
 });
-await copyFile('src/assets/logo.png', `${outdir}/assets/logo.png`);
+await Promise.all([
+  copyFile('src/assets/logo.png', `${outdir}/assets/logo.png`),
+  copyFile('src/assets/logo-32.png', `${outdir}/assets/logo-32.png`),
+]);

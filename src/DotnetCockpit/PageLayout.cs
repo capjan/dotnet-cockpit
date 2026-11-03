@@ -12,7 +12,7 @@ internal static class PageLayout
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <meta name="description" content="Your local .NET environment, in one place.">
           <title>{{Encode(title)}}</title>
-          <link rel="icon" type="image/png" href="/assets/logo.png">
+          <link rel="icon" type="image/png" sizes="32x32" href="/assets/logo-32.png">
           <link rel="stylesheet" href="/assets/app.css">
           <script type="module" src="/assets/app.js"></script>
         </head>
