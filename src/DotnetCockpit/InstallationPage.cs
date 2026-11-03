@@ -58,9 +58,7 @@ internal static class InstallationPage
               """
             : "";
 
-        var issues = (snapshot.Status is "notFound" or "error" ? 1 : 0) +
-                     snapshot.Sdks.Count(s => IsEol(s.Version)) +
-                     snapshot.Runtimes.Count(r => IsEol(r.Version));
+        var issues = snapshot.IssueCount;
 
         return PageLayout.Render($$"""
                   {{preflightBanner}}

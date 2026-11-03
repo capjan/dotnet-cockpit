@@ -29,6 +29,27 @@ internal sealed record InstallationSnapshot(
     RuntimeInstallation[] Runtimes,
     string? Error = null)
 {
+    [JsonIgnore]
+    public int IssueCount
+    {
+        get
+        {
+            var issues = 0;
+            if (Status is "notFound" or "error") issues++;
+            if (Sdks.Length == 0) issues++;
+            if (Runtimes.Length == 0) issues++;
+            issues += Sdks.Count(s => IsEol(s.Version));
+            issues += Runtimes.Count(r => IsEol(r.Version));
+            return issues;
+        }
+    }
+
+    public static bool IsEol(string version)
+    {
+        var major = version.Split('.')[0];
+        return major is "7" or "6" or "5" or "3" or "2" or "1";
+    }
+
     public static InstallationSnapshot Create(
         string status, string? executablePath,
         SdkInstallation[]? sdks = null, RuntimeInstallation[]? runtimes = null, string? error = null) =>

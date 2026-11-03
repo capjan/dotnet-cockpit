@@ -54,9 +54,7 @@ internal static class SetupPage
             _ => RenderToolCard(snapshot)
         };
         var sdkSection = SdkDownloadsSection.Render(sdkDownloads, installation, SdkDownloadsViewOptions.From(options));
-        var issues = (installation.Status is "notFound" or "error" ? 1 : 0) +
-                     installation.Sdks.Count(s => IsEol(s.Version)) +
-                     installation.Runtimes.Count(r => IsEol(r.Version));
+        var issues = installation.IssueCount;
 
         return PageLayout.Render($"""
             <div class="page-heading">

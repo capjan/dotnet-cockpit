@@ -107,7 +107,7 @@ test('opens command palette with keyboard shortcut and triggers navigation', asy
 test('renders pre-flight check with live diagnostic steps and trust policies', async ({ page }) => {
   await page.goto('/preflight');
   await expect(page.getByRole('heading', { name: 'Pre-flight check' })).toBeVisible();
-  await expect(page.locator('.step')).toHaveCount(5);
+  await expect(page.locator('.step')).toHaveCount(6);
   await expect(page.locator('.step').first()).toContainText('dotnet host');
   await expect(page.locator('.trust')).toContainText('127.0.0.1');
   await expect(page.locator('.trust')).toContainText('No telemetry');

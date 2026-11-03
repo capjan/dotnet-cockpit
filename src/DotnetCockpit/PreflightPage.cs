@@ -15,27 +15,35 @@ internal static class PreflightPage
         var hostDetail = hostOk
             ? $"{installation.ExecutablePath} · first dotnet on PATH"
             : "The dotnet executable was not found on PATH. Install an SDK or configure PATH.";
-        var hostBadge = hostOk
+        var hostAction = hostOk
             ? "<span class=\"badge ok\">Ready</span>"
-            : "<span class=\"badge bad\">Missing</span>";
+            : "<a class=\"button sm\" href=\"/setup#sdk-downloads-title\">Set up now</a>";
 
         var sdks = installation.Sdks;
-        var runtimes = installation.Runtimes;
-        var channels = sdks.Select(s => s.Version.Split('.')[0])
-            .Concat(runtimes.Select(r => r.Version.Split('.')[0]))
-            .Distinct()
-            .OrderByDescending(c => int.TryParse(c, out var v) ? v : 0)
-            .ToArray();
-        var instOk = sdks.Length > 0 || runtimes.Length > 0;
-        var instTitle = instOk
-            ? $"{sdks.Length} SDK{(sdks.Length == 1 ? "" : "s")} and {runtimes.Length} runtime{(runtimes.Length == 1 ? "" : "s")} detected"
-            : "No .NET installations detected";
-        var instDetail = instOk
-            ? $"Grouped into {channels.Length} release channel{(channels.Length == 1 ? "" : "s")}: {string.Join(", ", channels.Select(c => $".NET {c}"))}"
-            : "No installed SDKs or runtimes found. Official installers are available in Setup.";
-        var instBadge = instOk
+        var sdkChannels = sdks.Select(s => s.Version.Split('.')[0]).Distinct().OrderByDescending(c => int.TryParse(c, out var v) ? v : 0).ToArray();
+        var sdkOk = sdks.Length > 0;
+        var sdkTitle = sdkOk
+            ? $"{sdks.Length} SDK{(sdks.Length == 1 ? "" : "s")} detected"
+            : "No .NET SDK installed";
+        var sdkDetail = sdkOk
+            ? $"Installed: {string.Join(", ", sdks.Select(s => s.Version))} ({string.Join(", ", sdkChannels.Select(c => $".NET {c}"))})"
+            : "Required to build projects and use dotnet CLI tools.";
+        var sdkAction = sdkOk
             ? "<span class=\"badge ok\">Ready</span>"
-            : "<span class=\"badge warn\">Empty</span>";
+            : "<a class=\"button sm\" href=\"/setup#sdk-downloads-title\">Set up now</a>";
+
+        var runtimes = installation.Runtimes;
+        var runtimeChannels = runtimes.Select(r => r.Version.Split('.')[0]).Distinct().OrderByDescending(c => int.TryParse(c, out var v) ? v : 0).ToArray();
+        var runtimeOk = runtimes.Length > 0;
+        var runtimeTitle = runtimeOk
+            ? $"{runtimes.Length} runtime{(runtimes.Length == 1 ? "" : "s")} detected"
+            : "No .NET runtime installed";
+        var runtimeDetail = runtimeOk
+            ? $"Installed: {string.Join(", ", runtimes.Select(r => $"{r.Name} {r.Version}").Distinct())}"
+            : "Required to execute compiled .NET applications.";
+        var runtimeAction = runtimeOk
+            ? "<span class=\"badge ok\">Ready</span>"
+            : "<a class=\"button sm\" href=\"/setup?product=runtime#sdk-downloads-title\">Set up now</a>";
 
         var catalogOk = sdkDownloads.Status == "ready";
         var catalogTitle = catalogOk ? "Official release catalog loaded" : "Release catalog offline";
@@ -63,30 +71,36 @@ internal static class PreflightPage
             ? "<span class=\"badge ok\">Ready</span>"
             : "<a class=\"button sm\" href=\"/setup\">Set up now</a>";
 
-        var eolSdks = sdks.Where(s => s.Version.StartsWith("7.") || s.Version.StartsWith("6.") || s.Version.StartsWith("5.") || s.Version.StartsWith("3.") || s.Version.StartsWith("2.") || s.Version.StartsWith("1.")).ToArray();
-        var eolRuntimes = runtimes.Where(r => r.Version.StartsWith("7.") || r.Version.StartsWith("6.") || r.Version.StartsWith("5.") || r.Version.StartsWith("3.") || r.Version.StartsWith("2.") || r.Version.StartsWith("1.")).ToArray();
+        var issues = installation.IssueCount;
+        var eolSdks = sdks.Where(s => InstallationSnapshot.IsEol(s.Version)).ToArray();
+        var eolRuntimes = runtimes.Where(r => InstallationSnapshot.IsEol(r.Version)).ToArray();
         var eolCount = eolSdks.Length + eolRuntimes.Length;
 
         string attentionTitle;
         string attentionSubtitle;
         string attentionBadgeClass;
-        if (eolCount > 0)
+        if (issues > 0)
         {
             attentionBadgeClass = "warn";
-            attentionTitle = $"First result: {eolCount} {(eolCount == 1 ? "thing needs" : "things need")} your attention";
-            attentionSubtitle = ".NET 7 is out of support, and older versions no longer receive security fixes.";
-        }
-        else if (!hostOk)
-        {
-            attentionBadgeClass = "bad";
-            attentionTitle = "First result: No .NET host on PATH";
-            attentionSubtitle = "A .NET SDK or runtime installation is required to execute .NET applications.";
+            attentionTitle = $"First result: {issues} {(issues == 1 ? "thing needs" : "things need")} your attention";
+            if (eolCount > 0)
+            {
+                attentionSubtitle = $"{eolCount} outdated version{(eolCount == 1 ? " is" : "s are")} out of support (EOL) and no longer receive security fixes.";
+            }
+            else if (!hostOk || !sdkOk || !runtimeOk)
+            {
+                attentionSubtitle = "A .NET SDK or runtime installation is required to execute .NET applications.";
+            }
+            else
+            {
+                attentionSubtitle = "Review the highlighted items above to complete your .NET setup.";
+            }
         }
         else
         {
             attentionBadgeClass = "ok";
             attentionTitle = "First result: All systems look healthy";
-            attentionSubtitle = "Your active .NET host and workspace are ready for development.";
+            attentionSubtitle = "Your active .NET host, SDKs, runtimes, and workspace are ready.";
         }
 
         return $$"""
@@ -120,13 +134,19 @@ internal static class PreflightPage
                     <div class="step">
                       <span class="st {{(hostOk ? "ok" : "warn")}}">{{Icon(hostOk ? "check" : "warn", "sm")}}</span>
                       <div><b>{{hostTitle}}</b><p><code>{{Encode(hostDetail)}}</code></p></div>
-                      {{hostBadge}}
+                      {{hostAction}}
                     </div>
 
                     <div class="step">
-                      <span class="st {{(instOk ? "ok" : "warn")}}">{{Icon(instOk ? "check" : "warn", "sm")}}</span>
-                      <div><b>{{instTitle}}</b><p>{{Encode(instDetail)}}</p></div>
-                      {{instBadge}}
+                      <span class="st {{(sdkOk ? "ok" : "warn")}}">{{Icon(sdkOk ? "check" : "warn", "sm")}}</span>
+                      <div><b>{{sdkTitle}}</b><p>{{Encode(sdkDetail)}}</p></div>
+                      {{sdkAction}}
+                    </div>
+
+                    <div class="step">
+                      <span class="st {{(runtimeOk ? "ok" : "warn")}}">{{Icon(runtimeOk ? "check" : "warn", "sm")}}</span>
+                      <div><b>{{runtimeTitle}}</b><p>{{Encode(runtimeDetail)}}</p></div>
+                      {{runtimeAction}}
                     </div>
 
                     <div class="step">
@@ -158,7 +178,6 @@ internal static class PreflightPage
 
                   <div class="pf-foot">
                     <a class="button primary lg pf-open-btn" href="/">Open cockpit {{Icon("chevron-right", "sm")}}</a>
-                    <a class="button lg ghost" href="/setup">Take a 60-second tour</a>
                     <span class="spacer"></span>
                     <label class="pf-skip-label">
                       <input type="checkbox" id="skip-preflight-checkbox" checked>
