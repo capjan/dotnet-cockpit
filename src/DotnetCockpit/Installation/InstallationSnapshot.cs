@@ -39,7 +39,7 @@ internal sealed record InstallationSnapshot(
             if (Sdks.Length == 0) issues++;
             if (Runtimes.Length == 0) issues++;
             issues += Sdks.Count(s => IsEol(s.Version));
-            issues += Runtimes.Count(r => IsEol(r.Version));
+            issues += Runtimes.Where(r => IsEol(r.Version)).Select(r => r.Version).Distinct().Count();
             return issues;
         }
     }

@@ -243,6 +243,32 @@ h3 { font-size: 14.5px; font-weight: 650; margin: 0; }
   color: #fff;
 }
 .button svg, .btn svg { width: 15px; height: 15px; }
+.button.ghost, .btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.button.ghost:hover, .btn.ghost:hover {
+  background: var(--surface-3);
+  border-color: transparent;
+  color: var(--text);
+}
+.button.sm, .btn.sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.button.icon, .btn.icon {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+.button.icon.sm, .btn.icon.sm {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
 
 /* Badges */
 fluent-badge, .badge {
@@ -952,10 +978,6 @@ td:last-child { padding-right: 22px; }
   margin: 3px 0 0;
   color: var(--muted);
   font-size: 12.5px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
 }
 .step code {
   background: var(--surface-2);
@@ -1337,12 +1359,32 @@ td:last-child { padding-right: 22px; }
   min-width: 0;
 }
 @media (min-width: 1101px) {
-  .content:has(#version-drawer:not([hidden])) {
-    padding-right: 456px;
+  .main:has(#version-drawer:not([hidden])) {
+    padding-right: 440px;
+  }
+  .main:has(#version-drawer:not([hidden])) .inventory-scope-bar {
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  .main:has(#version-drawer:not([hidden])) .version-scope-pills .pill-badge,
+  .main:has(#version-drawer:not([hidden])) .filter-pill {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+  .main:has(#version-drawer:not([hidden])) .version-filter-controls,
+  .main:has(#version-drawer:not([hidden])) .version-filter-controls .tool-tabs {
+    gap: 6px;
+  }
+  .main:has(#version-drawer:not([hidden])) .filter-input-compact {
+    padding: 4px 10px;
+  }
+  .main:has(#version-drawer:not([hidden])) .filter-input-compact input {
+    width: 112px;
+    font-size: 12px;
   }
   .versions-hub:has(#version-drawer:not([hidden])) .versions-thead tr,
   .versions-hub:has(#version-drawer:not([hidden])) tr[data-kind] {
-    grid-template-columns: 195px 150px minmax(100px, 1fr) auto;
+    grid-template-columns: 195px 150px minmax(0, 1fr) auto;
     column-gap: 10px;
   }
 }
@@ -1374,7 +1416,8 @@ td:last-child { padding-right: 22px; }
 }
 .versions-thead tr {
   display: grid;
-  grid-template-columns: 220px 180px 1fr auto;
+  grid-template-columns: 220px 180px minmax(0, 1fr) auto;
+  column-gap: 14px;
   align-items: center;
 }
 .versions-thead th {
@@ -1533,7 +1576,8 @@ tr.channel-header-row td {
 /* Channel Card Rows */
 tr[data-kind] {
   display: grid;
-  grid-template-columns: 220px 180px 1fr auto;
+  grid-template-columns: 220px 180px minmax(0, 1fr) auto;
+  column-gap: 14px;
   align-items: center;
   padding: 12px 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.04);
@@ -1554,6 +1598,8 @@ tr[data-kind] td {
   padding: 0;
   border: none;
   background: transparent;
+  min-width: 0;
+  overflow: hidden;
 }
 .cell-name .installation-name {
   display: flex;
@@ -1561,6 +1607,10 @@ tr[data-kind] td {
   gap: 12px;
 }
 .cell-name .installation-icon {
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border-radius: 0;
   color: var(--muted);
   display: grid;
   place-items: center;
@@ -1587,7 +1637,9 @@ tr[data-kind] td {
   color: var(--text);
 }
 fluent-badge.version-badge,
-fluent-badge.version-badge::part(control) {
+fluent-badge.version-badge::part(control),
+.sdk-downloads fluent-badge,
+.sdk-downloads fluent-badge::part(control) {
   background: transparent !important;
   color: var(--text) !important;
   border: none !important;
@@ -1769,6 +1821,21 @@ tr.channel-row:focus-within .cell-actions .inspect-btn {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
+}
+.drawer-code-box .copy-btn,
+.drawer-command-box .copy-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.drawer-code-box .copy-btn:hover,
+.drawer-command-box .copy-btn:hover {
+  color: var(--text);
+  background: var(--surface-3);
 }
 .drawer-path {
   font-size: 11px;
@@ -1998,7 +2065,8 @@ tr.channel-row:focus-within .cell-actions .inspect-btn {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 140px;
+  width: auto;
+  min-width: 0;
   flex-shrink: 0;
 }
 .channel-avatar.sm {
@@ -2481,10 +2549,11 @@ dialog::backdrop {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 8px;
 }
 .tl-today-marker {
   position: absolute;
-  top: -6px;
+  top: -8px;
   bottom: -4px;
   width: 0;
   border-left: 1.5px dashed var(--accent-cyan);
@@ -2493,7 +2562,7 @@ dialog::backdrop {
 }
 .tl-today-pill {
   position: absolute;
-  top: -18px;
+  top: -19px;
   left: -20px;
   background: var(--accent-cyan);
   color: #04121a;
@@ -2514,13 +2583,14 @@ dialog::backdrop {
   background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
   background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px calc(100% / 6));
 }
 .tl-track .tl-bar {
   position: absolute;
   top: 2px;
   bottom: 2px;
+  height: auto;
   border-radius: 4px;
   padding: 0 8px;
   display: flex;
@@ -2579,6 +2649,17 @@ dialog::backdrop {
 }
 .tool-panel {
   margin-top: 0;
+  overflow: visible;
+}
+.tool-panel .table-scroll {
+  overflow: visible;
+}
+.tool-manifest {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
 }
 .sdk-catalog-section {
   margin-top: 0;

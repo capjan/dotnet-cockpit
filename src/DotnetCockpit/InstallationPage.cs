@@ -216,11 +216,13 @@ internal static class InstallationPage
                         ? $"""<div class="version-patch-flow"><fluent-badge appearance="tint" color="brand" class="version-badge sr-only">{Encode(row.Version)}</fluent-badge><span class="v-current">{Encode(row.Version)}</span><span class="badge bad sm">EOL</span></div>"""
                         : $"""<div class="version-patch-flow"><fluent-badge appearance="tint" color="brand" class="version-badge sr-only">{Encode(row.Version)}</fluent-badge><span class="v-current">{Encode(row.Version)}</span><span class="badge ok sm">Latest</span></div>""";
 
+                var primaryPath = row.Paths.FirstOrDefault() ?? "";
+                var extraPaths = row.Paths.Count > 1 ? $"<span class=\"sr-only\"> {Encode(string.Join(" ", row.Paths.Skip(1)))}</span>" : "";
                 return $"""
                     <tr data-kind="{row.Kind}"{(isSelected ? " class=\"row-selected\"" : "")}>
-                      <td class="cell-name"><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "versions" : "server")}</span><div><div class="installation-header"><strong>{Encode(row.Name)}</strong></div><span class="muted framework-name">{Encode(ShortFrameworkSubtitle(row.Description))}<span class="sr-only"> {Encode(row.Description)}</span></span></div></div></td>
+                      <td class="cell-name"><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "versions" : "settings", "sm")}</span><div><div class="installation-header"><strong>{Encode(row.Name)}</strong></div><span class="muted framework-name">{Encode(ShortFrameworkSubtitle(row.Description))}<span class="sr-only"> {Encode(row.Description)}</span></span></div></div></td>
                       <td class="cell-version">{versionCell}</td>
-                      <td class="cell-path"><code class="installation-path installation-path-clean">{Encode(row.Path)}</code></td>
+                      <td class="cell-path"><code class="installation-path installation-path-clean">{Encode(primaryPath)}{extraPaths}</code></td>
                       <td class="cell-actions">
                         <a href="{Link(options with { Selected = row.Version })}" class="button sm ghost inspect-btn" data-inspect="{row.Version}" data-channel="{row.Channel}" aria-label="Inspect {row.Version}">Inspect</a>
                         {RemoveAction(row, options)}
@@ -406,8 +408,8 @@ internal static class InstallationPage
                     <dt>Location</dt>
                     <dd>
                       <div class="drawer-code-box">
-                        <code id="drawer-location" class="drawer-path">{{Encode(row.Path)}}</code>
-                        <button class="button icon ghost copy-btn" data-copy="{{Encode(row.Path)}}" type="button" title="Copy path">{{Icon("clipboard")}}</button>
+                        <code id="drawer-location" class="drawer-path">{{Encode(row.Paths.FirstOrDefault() ?? "")}}</code>
+                        <button class="button icon ghost copy-btn" data-copy="{{Encode(row.Paths.FirstOrDefault() ?? "")}}" type="button" title="Copy path">{{Icon("clipboard")}}</button>
                       </div>
                     </dd>
                   </dl>
@@ -449,7 +451,7 @@ internal static class InstallationPage
             $"\"patchSha\": \"{EscapeJson(row.LatestPatchSha512 ?? "")}\"," +
             $"\"includedRuntime\": \"{EscapeJson(row.IncludedRuntime ?? (row.Kind == "sdk" ? $"{row.Channel}.0.9 + ASP.NET Core" : ""))}\"," +
             $"\"released\": \"{EscapeJson(row.ReleasedDate ?? "Sep 9, 2025")}\"," +
-            $"\"location\": \"{EscapeJson(row.Path)}\"," +
+            $"\"location\": \"{EscapeJson(row.Paths.FirstOrDefault() ?? "")}\"," +
             $"\"command\": \"{EscapeJson(row.EquivalentCommand ?? "")}\"," +
             $"\"canRemove\": {(row.CanRemove ? "true" : "false")}," +
             $"\"cves\": [{(row.Cves == null ? "" : string.Join(", ", row.Cves.Select(c => $"{{\"id\": \"{EscapeJson(c.Id)}\", \"url\": \"{EscapeJson(c.Url ?? "")}\"}}")))}]" +
@@ -494,12 +496,12 @@ internal static class InstallationPage
                 IsLts: isLts,
                 IsEol: isEol,
                 LatestPatchVersion: hasNewerPatch ? latest!.Version : null,
-                LatestPatchDate: hasNewerPatch ? latest!.ReleaseDate : null,
+                LatestPatchDate: hasNewerPatch ? FormatReleaseDate(latest!.ReleaseDate) : null,
                 LatestPatchUrl: hasNewerPatch ? latest!.Url : null,
                 LatestPatchSha512: hasNewerPatch ? latest!.Sha512 : null,
                 Cves: hasNewerPatch ? latest!.Cves : [],
-                IncludedRuntime: catalogEntry?.IncludedRuntimeVersion ?? $"{major}.0.9 + ASP.NET Core",
-                ReleasedDate: catalogEntry?.ReleaseDate ?? "Sep 9, 2025",
+                IncludedRuntime: catalogEntry?.IncludedRuntimeVersion != null ? $"{catalogEntry.IncludedRuntimeVersion} + ASP.NET Core" : $"{major}.0.9 + ASP.NET Core",
+                ReleasedDate: FormatReleaseDate(catalogEntry?.ReleaseDate) ?? "Sep 9, 2025",
                 EquivalentCommand: cmd);
         });
 
@@ -535,12 +537,12 @@ internal static class InstallationPage
                     IsLts: isLts,
                     IsEol: isEol,
                     LatestPatchVersion: hasNewerPatch ? latest!.Version : null,
-                    LatestPatchDate: hasNewerPatch ? latest!.ReleaseDate : null,
+                    LatestPatchDate: hasNewerPatch ? FormatReleaseDate(latest!.ReleaseDate) : null,
                     LatestPatchUrl: hasNewerPatch ? latest!.Url : null,
                     LatestPatchSha512: hasNewerPatch ? latest!.Sha512 : null,
                     Cves: hasNewerPatch ? latest!.Cves : [],
                     IncludedRuntime: null,
-                    ReleasedDate: catalogEntry?.ReleaseDate ?? "Sep 9, 2025",
+                    ReleasedDate: FormatReleaseDate(catalogEntry?.ReleaseDate) ?? "Sep 9, 2025",
                     EquivalentCommand: cmd);
             });
 
@@ -589,6 +591,14 @@ internal static class InstallationPage
             if (!string.IsNullOrWhiteSpace(name)) return name;
         }
         return $"dotnet-{(kind == "sdk" ? "sdk" : "runtime")}-{version}-osx-arm64.pkg";
+    }
+
+    private static string? FormatReleaseDate(string? dateStr)
+    {
+        if (string.IsNullOrWhiteSpace(dateStr)) return null;
+        if (DateTimeOffset.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+            return dt.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+        return dateStr;
     }
 
     private static string RemoveAction(Row row, InstallationViewOptions options) => !row.CanRemove

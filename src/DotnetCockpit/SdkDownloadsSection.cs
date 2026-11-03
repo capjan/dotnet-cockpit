@@ -177,7 +177,7 @@ internal static class SdkDownloadsSection
                 : "";
             return $$"""
             <tr data-sdk-row data-search="{{Encode($"{download.Version} {download.Channel}")}}" data-channel="{{Encode(download.Channel)}}" data-preview="{{preview}}" data-rc="{{rc}}" data-supported="{{supported}}" data-lifecycle="{{Encode(download.ReleaseType)}}"{{hidden}}>
-              <td><fluent-badge appearance="tint" color="brand" class="version-badge">{{Encode(download.Version)}}</fluent-badge>{{RenderCves(download.Cves)}}</td>
+              <td><fluent-badge appearance="tint" color="brand" class="version-badge sr-only">{{Encode(download.Version)}}</fluent-badge><span class="v-current">{{Encode(download.Version)}}</span>{{RenderCves(download.Cves)}}</td>
               {{runtimeCell}}
               <td>{{Encode(download.Channel)}}</td>
               <td>{{Encode(download.ReleaseDate)}}</td>

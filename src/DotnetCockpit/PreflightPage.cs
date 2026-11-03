@@ -13,37 +13,45 @@ internal static class PreflightPage
         var hostOk = installation.Status != "notFound" && !string.IsNullOrWhiteSpace(installation.ExecutablePath);
         var hostTitle = hostOk ? "dotnet host found" : "No dotnet host found";
         var hostDetail = hostOk
-            ? $"{installation.ExecutablePath} · first dotnet on PATH"
-            : "The dotnet executable was not found on PATH. Install an SDK or configure PATH.";
+            ? $"<code>{Encode(installation.ExecutablePath!)}</code> · first dotnet on PATH"
+            : Encode("The dotnet executable was not found on PATH. Install an SDK or configure PATH.");
         var hostAction = hostOk
             ? "<span class=\"badge ok\">Ready</span>"
             : "<a class=\"button sm\" href=\"/setup#sdk-downloads-title\">Set up now</a>";
 
         var sdks = installation.Sdks;
+        var eolSdks = sdks.Where(s => InstallationSnapshot.IsEol(s.Version)).ToArray();
         var sdkChannels = sdks.Select(s => s.Version.Split('.')[0]).Distinct().OrderByDescending(c => int.TryParse(c, out var v) ? v : 0).ToArray();
         var sdkOk = sdks.Length > 0;
+        var sdkStepState = !sdkOk || eolSdks.Length > 0 ? "warn" : "ok";
         var sdkTitle = sdkOk
             ? $"{sdks.Length} SDK{(sdks.Length == 1 ? "" : "s")} detected"
             : "No .NET SDK installed";
         var sdkDetail = sdkOk
             ? $"Installed: {string.Join(", ", sdks.Select(s => s.Version))} ({string.Join(", ", sdkChannels.Select(c => $".NET {c}"))})"
             : "Required to build projects and use dotnet CLI tools.";
-        var sdkAction = sdkOk
-            ? "<span class=\"badge ok\">Ready</span>"
-            : "<a class=\"button sm\" href=\"/setup#sdk-downloads-title\">Set up now</a>";
+        var sdkAction = !sdkOk
+            ? "<a class=\"button sm\" href=\"/setup#sdk-downloads-title\">Set up now</a>"
+            : eolSdks.Length > 0
+                ? $"<span class=\"badge warn\">{eolSdks.Length} EOL</span>"
+                : "<span class=\"badge ok\">Ready</span>";
 
         var runtimes = installation.Runtimes;
+        var eolRuntimes = runtimes.Where(r => InstallationSnapshot.IsEol(r.Version)).Select(r => r.Version).Distinct().ToArray();
         var runtimeChannels = runtimes.Select(r => r.Version.Split('.')[0]).Distinct().OrderByDescending(c => int.TryParse(c, out var v) ? v : 0).ToArray();
         var runtimeOk = runtimes.Length > 0;
+        var runtimeStepState = !runtimeOk || eolRuntimes.Length > 0 ? "warn" : "ok";
         var runtimeTitle = runtimeOk
             ? $"{runtimes.Length} runtime{(runtimes.Length == 1 ? "" : "s")} detected"
             : "No .NET runtime installed";
         var runtimeDetail = runtimeOk
             ? $"Installed: {string.Join(", ", runtimes.Select(r => $"{r.Name} {r.Version}").Distinct())}"
             : "Required to execute compiled .NET applications.";
-        var runtimeAction = runtimeOk
-            ? "<span class=\"badge ok\">Ready</span>"
-            : "<a class=\"button sm\" href=\"/setup?product=runtime#sdk-downloads-title\">Set up now</a>";
+        var runtimeAction = !runtimeOk
+            ? "<a class=\"button sm\" href=\"/setup?product=runtime#sdk-downloads-title\">Set up now</a>"
+            : eolRuntimes.Length > 0
+                ? $"<span class=\"badge warn\">{eolRuntimes.Length} EOL</span>"
+                : "<span class=\"badge ok\">Ready</span>";
 
         var catalogOk = sdkDownloads.Status == "ready";
         var catalogTitle = catalogOk ? "Official release catalog loaded" : "Release catalog offline";
@@ -72,8 +80,6 @@ internal static class PreflightPage
             : "<a class=\"button sm\" href=\"/setup\">Set up now</a>";
 
         var issues = installation.IssueCount;
-        var eolSdks = sdks.Where(s => InstallationSnapshot.IsEol(s.Version)).ToArray();
-        var eolRuntimes = runtimes.Where(r => InstallationSnapshot.IsEol(r.Version)).ToArray();
         var eolCount = eolSdks.Length + eolRuntimes.Length;
 
         string attentionTitle;
@@ -133,18 +139,18 @@ internal static class PreflightPage
                   <div class="card steps">
                     <div class="step">
                       <span class="st {{(hostOk ? "ok" : "warn")}}">{{Icon(hostOk ? "check" : "warn", "sm")}}</span>
-                      <div><b>{{hostTitle}}</b><p><code>{{Encode(hostDetail)}}</code></p></div>
+                      <div><b>{{hostTitle}}</b><p>{{hostDetail}}</p></div>
                       {{hostAction}}
                     </div>
 
                     <div class="step">
-                      <span class="st {{(sdkOk ? "ok" : "warn")}}">{{Icon(sdkOk ? "check" : "warn", "sm")}}</span>
+                      <span class="st {{sdkStepState}}">{{Icon(sdkStepState == "ok" ? "check" : "warn", "sm")}}</span>
                       <div><b>{{sdkTitle}}</b><p>{{Encode(sdkDetail)}}</p></div>
                       {{sdkAction}}
                     </div>
 
                     <div class="step">
-                      <span class="st {{(runtimeOk ? "ok" : "warn")}}">{{Icon(runtimeOk ? "check" : "warn", "sm")}}</span>
+                      <span class="st {{runtimeStepState}}">{{Icon(runtimeStepState == "ok" ? "check" : "warn", "sm")}}</span>
                       <div><b>{{runtimeTitle}}</b><p>{{Encode(runtimeDetail)}}</p></div>
                       {{runtimeAction}}
                     </div>
