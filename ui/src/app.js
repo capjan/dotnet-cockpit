@@ -172,7 +172,7 @@ if (installationFilter) {
 const toolsFilterInput = document.querySelector('[data-tools-table-filter]');
 if (toolsFilterInput) {
   const toolRows = [...document.querySelectorAll('[data-tool-row]')];
-  const toolCount = document.querySelector('[data-tool-count]');
+  const activeTabCount = document.querySelector('.tool-tabs [role="tab"][aria-selected="true"] .tool-tab-count');
   let toolsEmptyState = document.querySelector('.tool-panel .empty-state.client-tools-empty');
 
   if (!toolsEmptyState) {
@@ -196,7 +196,7 @@ if (toolsFilterInput) {
       r.hidden = !match;
       if (match) count++;
     }
-    if (toolCount) toolCount.textContent = count;
+    if (activeTabCount) activeTabCount.textContent = count;
     if (toolsEmptyState) toolsEmptyState.hidden = count > 0;
   }
 

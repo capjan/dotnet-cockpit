@@ -65,7 +65,7 @@ internal static class InstallationPage
                         <input type="hidden" name="sort" value="{{Encode(options.Sort)}}">
                         <input type="hidden" name="direction" value="{{(options.Ascending ? "asc" : "desc")}}">
                         <label class="filter-input">{{Icon("search")}}<input id="installation-filter-input" type="search" name="q" value="{{Encode(options.Query)}}" placeholder="Filter versions, names, or paths" aria-label="Filter installed versions"></label>
-                        <button class="button" type="submit">Filter</button>
+                        <noscript><button class="button" type="submit">Filter</button></noscript>
                       </form>
                     </div>
                     {{content}}

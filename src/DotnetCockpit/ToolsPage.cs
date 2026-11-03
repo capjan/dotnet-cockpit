@@ -73,7 +73,7 @@ internal static class ToolsPage
         var localAction = local ? RenderLocalManifestAction(localInitialized, localOwned, options) : "";
         return $$"""
             <section class="inventory tool-panel" role="tabpanel" aria-labelledby="{{id}}" id="{{id}}-panel">
-              <div class="inventory-heading"><div><h2 id="{{id}}">{{title}}</h2><p class="muted">{{(local ? "Tools declared in the manifests for this workspace." : "Tools installed for the current user account.")}}</p></div><div class="inventory-heading-actions">{{filterInput}}{{(list.Error is null ? $"<fluent-badge appearance=\"outline\" color=\"brand\" class=\"inventory-count\"><span data-tool-count>{list.Tools.Length}</span> tools</fluent-badge>" : "")}}{{localAction}}</div></div>
+              <div class="inventory-heading"><div><h2 id="{{id}}">{{title}}</h2><p class="muted">{{(local ? "Tools declared in the manifests for this workspace." : "Tools installed for the current user account.")}}</p></div><div class="inventory-heading-actions">{{filterInput}}{{localAction}}</div></div>
               {{content}}
             </section>
             """;
