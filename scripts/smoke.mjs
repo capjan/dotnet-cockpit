@@ -122,7 +122,7 @@ await runWithoutRepositoryFiles(process.env, async (data, html, get, url) => {
   const toolsPage = await get('tools');
   assert.equal(toolsPage.status, 200);
   const toolsHtml = await toolsPage.text();
-  assert.ok(toolsHtml.includes('data-tool-scope="global"'));
+  assert.ok(toolsHtml.includes('id="global-tools-panel"'));
   assert.ok(toolsHtml.includes('href="/tools?scope=local"'));
   assert.ok(!toolsHtml.includes('cockpit.fixture.tool'));
   const localToolsPage = await get('tools?scope=local');

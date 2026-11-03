@@ -46,8 +46,8 @@ public sealed class InstallationPageTests
         Assert.Single(Regex.Matches(html, "<tr data-kind=\"runtime\">"));
         Assert.Contains("Microsoft.NETCore.App", html);
         Assert.Contains("Microsoft.AspNetCore.App", html);
-        Assert.Contains("/opt/dotnet/shared/Microsoft.NETCore.App/10.0.7", html);
-        Assert.Contains("/opt/dotnet/shared/Microsoft.AspNetCore.App/10.0.7", html);
+        Assert.Contains(Path.Combine("/opt/dotnet/shared/Microsoft.NETCore.App", "10.0.7"), html);
+        Assert.Contains(Path.Combine("/opt/dotnet/shared/Microsoft.AspNetCore.App", "10.0.7"), html);
         Assert.Contains("Installed runtimes", html);
         Assert.Contains("<strong class=\"summary-number\">1</strong>", html);
     }
