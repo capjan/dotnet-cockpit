@@ -29,9 +29,9 @@ internal static class PageLayout
               </div>
 
               <div class="rail-label">Environment</div>
-              <a href="/overview" class="nav-link"{{(currentPath == "/overview" ? " aria-current=\"page\"" : "")}}>{{Icon("dashboard")}} Overview <span class="badge warn sm">3</span></a>
-              <a href="/" class="nav-link"{{(currentPath is "/" or "/versions" ? " aria-current=\"page\"" : "")}} aria-label="Installations">{{Icon("versions")}} Versions <span class="badge info sm">8</span></a>
-              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}} aria-label=".NET Tools">{{Icon("tools")}} Tools <span class="badge info sm">7</span></a>
+              <a href="/overview" class="nav-link"{{(currentPath == "/overview" ? " aria-current=\"page\"" : "")}}>{{Icon("dashboard")}} Overview {{(issueCount > 0 ? $"<span class=\"badge warn sm\" style=\"margin-left:auto\">{issueCount}</span>" : "")}}</a>
+              <a href="/" class="nav-link"{{(currentPath is "/" or "/versions" ? " aria-current=\"page\"" : "")}} aria-label="Installations">{{Icon("versions")}} Versions</a>
+              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}} aria-label=".NET Tools">{{Icon("tools")}} Tools</a>
 
               <div class="rail-label">Cockpit</div>
               <a href="/setup" class="nav-link"{{(currentPath == "/setup" ? " aria-current=\"page\"" : "")}}>{{Icon("settings")}} Setup</a>
@@ -79,48 +79,62 @@ internal static class PageLayout
           <div id="cmdk-dialog" class="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
             <div class="q">
               {{Icon("search", "sm")}}
-              <input id="cmdk-input" type="text" placeholder="Type a command or search..." autocomplete="off">
+              <input id="cmdk-input" type="text" placeholder="Type a command, version, or tool..." autocomplete="off">
               <kbd>ESC</kbd>
             </div>
-            <div class="grp">
-              <div class="grp-k">Navigation</div>
-              <a class="opt" href="/">
-                {{Icon("versions", "sm")}}
-                <div><b>Installations</b> <small>· Installed SDKs and Runtimes</small></div>
-                <kbd>1</kbd>
-              </a>
-              <a class="opt" href="/tools">
-                {{Icon("tools", "sm")}}
-                <div><b>.NET Tools</b> <small>· Global &amp; local tools</small></div>
-                <kbd>2</kbd>
-              </a>
-              <a class="opt" href="/setup">
-                {{Icon("settings", "sm")}}
-                <div><b>Setup &amp; Downloads</b> <small>· SDK download catalog &amp; uninstaller</small></div>
-                <kbd>3</kbd>
-              </a>
-              <a class="opt" href="/preflight">
-                {{Icon("pulse", "sm")}}
-                <div><b>Pre-flight Check</b> <small>· First launch &amp; system diagnostics</small></div>
-                <kbd>4</kbd>
-              </a>
+            <div id="cmdk-dynamic-grp" class="grp" hidden>
+              <div class="grp-k">On this page</div>
+              <div id="cmdk-dynamic-list"></div>
             </div>
             <div class="grp">
-              <div class="grp-k">Quick Actions</div>
+              <div class="grp-k">Actions</div>
+              <a class="opt" href="/tools#tool-search-title">
+                {{Icon("plus", "sm")}}
+                <div><b>Add a .NET tool</b> <small>· Search and install from NuGet.org</small></div>
+                <span class="badge">NuGet</span>
+              </a>
+              <a class="opt" href="/?tab=all-releases">
+                {{Icon("download", "sm")}}
+                <div><b>Install new .NET SDK or Runtime</b> <small>· Official macOS .pkg catalog</small></div>
+                <span class="badge brand">Download</span>
+              </a>
               <a class="opt" href="/preflight">
                 {{Icon("sparkle", "sm")}}
                 <div><b>Run Pre-flight Diagnostics</b> <small>· Verify .NET host, SDKs and workspace</small></div>
                 <span class="badge brand">Check</span>
               </a>
-              <a class="opt" href="/setup#sdk-downloads-title">
-                {{Icon("download", "sm")}}
-                <div><b>Install new SDK</b> <small>· macOS .pkg installer catalog</small></div>
-                <span class="badge brand">Download</span>
+              <a class="opt" href="/setup#uninstall-tool-title">
+                {{Icon("trash", "sm")}}
+                <div><b>Settings → Removal support</b> <small>· Manage dotnet-core-uninstall</small></div>
+                <kbd>G S</kbd>
               </a>
-              <a class="opt" href="/tools#tool-search-title">
-                {{Icon("search", "sm")}}
-                <div><b>Search NuGet tools</b> <small>· Search package registry</small></div>
-                <span class="badge">NuGet</span>
+            </div>
+            <div class="grp">
+              <div class="grp-k">Navigation</div>
+              <a class="opt" href="/overview">
+                {{Icon("dashboard", "sm")}}
+                <div><b>Go to Overview</b> <small>· Environment status, workspace &amp; lifecycle timeline</small></div>
+                <kbd>G O</kbd>
+              </a>
+              <a class="opt" href="/">
+                {{Icon("versions", "sm")}}
+                <div><b>Go to Versions</b> <small>· Installed SDKs and Runtimes</small></div>
+                <kbd>G V</kbd>
+              </a>
+              <a class="opt" href="/tools">
+                {{Icon("tools", "sm")}}
+                <div><b>Go to .NET Tools</b> <small>· Global &amp; workspace local tools</small></div>
+                <kbd>G T</kbd>
+              </a>
+              <a class="opt" href="/setup">
+                {{Icon("settings", "sm")}}
+                <div><b>Go to Settings</b> <small>· Appearance, removal support &amp; privacy policy</small></div>
+                <kbd>G S</kbd>
+              </a>
+              <a class="opt" href="/preflight">
+                {{Icon("pulse", "sm")}}
+                <div><b>Go to Pre-flight Check</b> <small>· First launch &amp; system diagnostics</small></div>
+                <kbd>G P</kbd>
               </a>
             </div>
             <div class="foot">
@@ -171,6 +185,7 @@ internal static class PageLayout
             "shield" => "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/>",
             "chevron-right" => "<polyline points=\"9 18 15 12 9 6\"/>",
             "cloud" => "<path d=\"M17.5 19H9a7 7 0 1 1 6.7-9h.8a5.5 5.5 0 0 1 1 11Z\"/>",
+            "plus" => "<path d=\"M12 5v14M5 12h14\"/>",
             _ => "<circle cx=\"12\" cy=\"12\" r=\"9\"/>"
         };
         return $"<svg class=\"i{extraCls}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">{path}</svg>";

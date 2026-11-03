@@ -140,5 +140,7 @@ test('renders the overview page with system summary and health cards', async ({ 
   await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
   await expect(page.getByText('Installed SDKs', { exact: true })).toBeVisible();
   await expect(page.getByText('System Health')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'This workspace' })).toBeVisible();
   await expect(page.getByText('Support Lifecycle Timeline')).toBeVisible();
+  await expect(page.locator('.tl-today-pill')).toHaveText('Today');
 });

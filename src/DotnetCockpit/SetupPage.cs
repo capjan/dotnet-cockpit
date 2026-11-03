@@ -53,18 +53,128 @@ internal static class SetupPage
                 """,
             _ => RenderToolCard(snapshot)
         };
-        var sdkSection = SdkDownloadsSection.Render(sdkDownloads, installation, SdkDownloadsViewOptions.From(options));
         var issues = installation.IssueCount;
 
         return PageLayout.Render($"""
             <div class="page-heading">
-              <div><h1>Setup</h1><p class="muted intro">Install .NET SDKs and runtimes or manage the global uninstall tool.</p></div>
-              <div class="inventory-heading-actions"><a class="button" href="/setup">Refresh</a><a class="button primary" href="#sdk-downloads-title">{Icon("download")} Install SDK or runtime</a></div>
+              <div>
+                <h1>Setup</h1>
+                <p class="muted intro">How Cockpit behaves on this machine. Nothing here leaves your computer.</p>
+              </div>
+              <div class="inventory-heading-actions">
+                <a class="button sm ghost refresh-btn" href="/setup">{Icon("refresh", "xs")} Refresh</a>
+                <a class="button primary" href="/?tab=all-releases">{Icon("download", "xs")} Install SDK or runtime</a>
+              </div>
             </div>
             {RenderNotice(options.Notice)}
-            {content}
-            {sdkSection}
-            <p class="scope-note muted">Choose a package to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package. The .NET Uninstall Tool uses official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
+            <div class="settings-layout">
+              <nav class="settings-rail" aria-label="Settings sections">
+                <a class="settings-nav-item" href="#settings-general">General</a>
+                <a class="settings-nav-item active" href="#uninstall-tool-title">Removal support</a>
+                <a class="settings-nav-item" href="#settings-environment">Environment</a>
+                <a class="settings-nav-item" href="#settings-privacy">Privacy &amp; network</a>
+                <a class="settings-nav-item" href="#settings-about">About</a>
+              </nav>
+
+              <div class="settings-main">
+                <section class="setup-card settings-card" id="settings-general" aria-labelledby="settings-general-title">
+                  <div class="settings-card-head">
+                    <h2 id="settings-general-title">General</h2>
+                  </div>
+                  <div class="settings-row">
+                    <div>
+                      <strong>Appearance</strong>
+                      <p class="muted">Follows your operating system by default.</p>
+                    </div>
+                    <div class="theme-segmented" role="group" aria-label="Theme preference">
+                      <button type="button" class="seg-btn active" data-theme-pref="system">System</button>
+                      <button type="button" class="seg-btn" data-theme-pref="light">Light</button>
+                      <button type="button" class="seg-btn" data-theme-pref="dark">Dark</button>
+                    </div>
+                  </div>
+                  <div class="settings-row">
+                    <div>
+                      <strong>Show pre-flight check on launch</strong>
+                      <p class="muted">A short health summary before the dashboard opens.</p>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="settings-preflight-toggle" aria-label="Show pre-flight check on launch">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div class="settings-row">
+                    <div>
+                      <strong>Include previews and release candidates</strong>
+                      <p class="muted">Show upcoming .NET releases in the catalog and timeline.</p>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="settings-previews-toggle" checked aria-label="Include previews and release candidates">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </section>
+
+                {content}
+
+                <section class="setup-card settings-card" id="settings-environment" aria-labelledby="settings-env-title">
+                  <div class="settings-card-head">
+                    <h2 id="settings-env-title">Environment</h2>
+                  </div>
+                  <dl class="settings-dl">
+                    <dt>Active dotnet host</dt>
+                    <dd><code>{Encode(installation.ExecutablePath ?? "Not detected on PATH")}</code></dd>
+                    <dt>Platform</dt>
+                    <dd><strong>{Encode(snapshot.OperatingSystem)} · {Encode(snapshot.Architecture)}</strong></dd>
+                    <dt>Startup workspace</dt>
+                    <dd><code>{Encode(Environment.CurrentDirectory)}</code></dd>
+                    <dt>Official installers</dt>
+                    <dd><a href="/?tab=all-releases">Browse .NET SDK &amp; Runtime catalog →</a></dd>
+                  </dl>
+                </section>
+
+                <section class="setup-card settings-card" id="settings-privacy" aria-labelledby="settings-privacy-title">
+                  <div class="settings-card-head">
+                    <h2 id="settings-privacy-title">Privacy &amp; network</h2>
+                    <p class="muted">Cockpit listens on <code>127.0.0.1</code> only. These are the only outbound requests it ever makes:</p>
+                  </div>
+                  <div class="endpoint-list">
+                    <div class="endpoint-row">
+                      <div class="endpoint-host">
+                        <span class="badge ok sm">GET</span>
+                        <code>builds.dotnet.microsoft.com</code>
+                      </div>
+                      <span class="muted text-xs">Official Microsoft release index, lifecycle dates, CVEs, SHA-512 checksums, and .pkg installers.</span>
+                    </div>
+                    <div class="endpoint-row">
+                      <div class="endpoint-host">
+                        <span class="badge ok sm">GET</span>
+                        <code>api.nuget.org</code>
+                      </div>
+                      <span class="muted text-xs">NuGet package search when searching for .NET CLI tools.</span>
+                    </div>
+                    <div class="endpoint-row">
+                      <div class="endpoint-host">
+                        <span class="badge ok sm">GET</span>
+                        <code>api.github.com</code>
+                      </div>
+                      <span class="muted text-xs">Official <code>dotnet/cli-lab</code> releases for Microsoft's <code>dotnet-core-uninstall</code> tool.</span>
+                    </div>
+                  </div>
+                  <div class="trust settings-trust">
+                    <span>{Icon("lock", "xs")} Loopback 127.0.0.1 only</span>
+                    <span>{Icon("shield", "xs")} Zero telemetry, zero accounts</span>
+                    <span>{Icon("cpu", "xs")} Native AOT single binary</span>
+                  </div>
+                </section>
+
+                <section class="setup-card settings-card" id="settings-about" aria-labelledby="settings-about-title">
+                  <div class="settings-card-head">
+                    <h2 id="settings-about-title">About .NET Cockpit</h2>
+                  </div>
+                  <p class="scope-note muted" style="margin: 0;">Choose a package in Versions → All releases to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package. The .NET Uninstall Tool uses official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
+                </section>
+              </div>
+            </div>
             """, "/setup", "Setup | .NET Cockpit", issues);
     }
 
@@ -77,12 +187,28 @@ internal static class SetupPage
             : RenderInstallDetails(snapshot);
 
         return $"""
-            <section class="setup-card" aria-labelledby="uninstall-tool-title">
+            <section class="setup-card settings-card" aria-labelledby="uninstall-tool-title">
               <div class="setup-card-heading">
-                <div class="setup-title"><span class="setup-icon">{Icon("settings")}</span><div><h2 id="uninstall-tool-title">.NET Uninstall Tool</h2><p class="muted">Remove SDKs and runtimes that were installed by supported installers.</p></div></div>
+                <div class="setup-title">
+                  <span class="setup-icon">{Icon("trash")}</span>
+                  <div>
+                    <div class="removal-support-title-row">
+                      <h2 id="uninstall-tool-title">Removal support · .NET Uninstall Tool</h2>
+                      {(installed ? "<span class=\"badge ok sm\">✓ Installed · up to date</span>" : "")}
+                    </div>
+                    <p class="muted">Microsoft's <code>dotnet-core-uninstall</code> lets Cockpit remove SDKs and runtimes that were installed by supported installers.</p>
+                  </div>
+                </div>
                 {headerActions}
               </div>
               {details}
+              <div class="remove-modal-notice setup-admin-box">
+                <span class="notice-lock">{Icon("lock", "sm")}</span>
+                <div>
+                  <strong>Administrator approval</strong>
+                  <p class="muted">Installing, updating and removing this tool — and removing .NET versions with it — asks for your {Encode(snapshot.OperatingSystem)} administrator password.</p>
+                </div>
+              </div>
               {RenderReleaseList(snapshot)}
               <div class="setup-note"><strong>{Encode(snapshot.OperatingSystem)} · {Encode(snapshot.Architecture)}</strong><span class="muted">The tool requires administrator privileges when it removes .NET installations.</span></div>
             </section>
@@ -138,9 +264,14 @@ internal static class SetupPage
 
         return $"""
                 <div class="setup-installed" role="status">
-                  <label class="setup-ready"><input type="checkbox" checked disabled><span>Ready to list and remove .NET Installations</span></label>
-                  <span class="muted">Detected at <code>{Encode(installation.Path ?? "")}</code> ({Encode(installation.Scope ?? "path")} installation).</span>
-                  <span class="muted">{version} {latest}</span>
+                  <dl class="settings-dl">
+                    <dt>Installed version</dt>
+                    <dd><strong>{Encode(installation.Version ?? "Unknown")}</strong> · <span class="muted">{version} {latest}</span></dd>
+                    <dt>Location</dt>
+                    <dd><code>{Encode(installation.Path ?? "")}</code> <span class="badge sm">{Encode(installation.Scope ?? "path")}</span> <span class="sr-only">Detected at <code>{Encode(installation.Path ?? "")}</code> ({Encode(installation.Scope ?? "path")} installation).</span></dd>
+                    <dt>Status</dt>
+                    <dd><label class="setup-ready"><input type="checkbox" checked disabled><span>Ready to list and remove .NET Installations</span></label></dd>
+                  </dl>
                   {actions}
                 </div>
                 """;
@@ -155,8 +286,6 @@ internal static class SetupPage
             $"<li><a href=\"{Encode(release.Url)}\">{Encode(release.Version)}</a>{(string.IsNullOrWhiteSpace(release.PublishedAt) ? "" : $"<span class=\"muted\">{Encode(release.PublishedAt!)}</span>")}</li>"));
         return $"<div class=\"setup-release-list\"><strong>Available releases</strong><ul>{releases}</ul></div>";
     }
-
-    private static bool IsEol(string version) => version.Split('.')[0] is "7" or "6" or "5" or "3" or "2" or "1";
 
     private static bool IsUpdateAvailable(string? installedVersion, string? latestVersion) =>
         Version.TryParse(installedVersion, out var installed) && Version.TryParse(latestVersion, out var latest) && latest > installed;

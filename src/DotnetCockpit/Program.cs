@@ -108,6 +108,7 @@ app.MapGet("/setup", async (DotnetUninstallToolService service, SdkDownloadCatal
     await Task.WhenAll(setupTask, sdkTask, installationTask);
     return Results.Content(SetupPage.Render(setupTask.Result, sdkTask.Result, installationTask.Result, SetupViewOptions.From(context.Request.Query)), "text/html; charset=utf-8");
 });
+app.MapGet("/settings", () => Results.Redirect("/setup"));
 app.MapPost("/setup/install", async (HttpContext context, DotnetUninstallToolService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
@@ -165,6 +166,15 @@ app.MapGet("/api/tools", async (DotnetToolsService service, HttpContext context,
     context.Response.Headers.CacheControl = "no-store";
     var snapshot = await ReadTools(service, context, logger);
     return Results.Json(snapshot, AppJsonContext.Default.ToolsSnapshot, statusCode: snapshot.Status == "error" ? 503 : 200);
+});
+app.MapGet("/api/tools/search", async (DotnetToolsService service, HttpContext context) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var query = context.Request.Query["q"].ToString().Trim();
+    if (query.Length is 0 or > 100)
+        return Results.Json(new ToolSearch("", []), AppJsonContext.Default.ToolSearch);
+    var search = await service.SearchAsync(query, context.RequestAborted);
+    return Results.Json(search, AppJsonContext.Default.ToolSearch);
 });
 app.MapGet("/{**path}", (HttpContext context, WebAssets assets, string? path) => assets.Get(context, path));
 

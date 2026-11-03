@@ -202,7 +202,7 @@ internal static class InstallationPage
                     <tr data-kind="{row.Kind}"{(isSelected ? " class=\"row-selected\"" : "")}>
                       <td class="cell-name"><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "versions" : "server")}</span><div><div class="installation-header"><strong>{Encode(row.Name)}</strong></div><span class="muted framework-name">{Encode(row.Description)}</span></div></div></td>
                       <td class="cell-version">{versionCell}</td>
-                      <td class="cell-path"><span class="installation-path-clean">{Encode(row.Path)}</span></td>
+                      <td class="cell-path"><code class="installation-path installation-path-clean">{Encode(row.Path)}</code></td>
                       <td class="cell-actions">
                         <a href="{Link(options with { Selected = row.Version })}" class="button sm ghost inspect-btn" data-inspect="{row.Version}" data-channel="{row.Channel}" aria-label="Inspect {row.Version}">Inspect</a>
                         {RemoveAction(row, options)}
@@ -239,6 +239,34 @@ internal static class InstallationPage
               </div>
               {{drawerHtml}}
             </div>
+            <dialog id="remove-dialog" class="remove-modal" closedby="any" aria-labelledby="remove-dialog-title">
+              <div class="remove-modal-inner">
+                <div class="remove-modal-head">
+                  <div class="remove-modal-icon">{{Icon("trash", "sm")}}</div>
+                  <div>
+                    <h2 id="remove-dialog-title">Remove .NET version from this machine?</h2>
+                    <p id="remove-dialog-subtitle" class="muted">1 item selected for removal.</p>
+                  </div>
+                </div>
+                <div id="remove-dialog-items" class="remove-modal-items"></div>
+                <div class="remove-modal-notice">
+                  <span class="notice-lock">{{Icon("lock", "sm")}}</span>
+                  <div>
+                    <strong>{{(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "Windows will ask for administrator approval" : "macOS will ask for your administrator password")}}</strong>
+                    <p id="remove-dialog-warn" class="muted">Removal runs through Microsoft's dotnet-core-uninstall. Projects pinned to this version will no longer build on this machine.</p>
+                  </div>
+                </div>
+                <div class="drawer-command-box">
+                  <span class="cmd-prompt">$</span>
+                  <code id="remove-dialog-cmd">sudo dotnet-core-uninstall remove</code>
+                  <button class="button icon ghost copy-btn" id="remove-dialog-copy" type="button" title="Copy command">{{Icon("clipboard")}}</button>
+                </div>
+                <div class="remove-modal-foot">
+                  <button type="button" class="button" id="remove-dialog-cancel" autofocus>Cancel</button>
+                  <button type="button" class="button danger" id="remove-dialog-confirm">{{Icon("trash", "xs")}} <span id="remove-dialog-confirm-text">Remove 1 item</span></button>
+                </div>
+              </div>
+            </dialog>
             <script id="versions-data" type="application/json">
             {{jsonDictionary}}
             </script>

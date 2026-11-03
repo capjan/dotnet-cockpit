@@ -77,3 +77,18 @@ test('filters installed local tools instantly with client-side JavaScript', asyn
   await expect(page.locator('tr[data-tool-scope="local"]:not([hidden])')).toHaveCount(1);
   await expect(page.locator('.client-tools-empty')).toBeHidden();
 });
+
+test('opens the NuGet Add Tool sheet and updates CLI preview', async ({ page }) => {
+  await page.goto('http://127.0.0.1:5234/tools');
+  const openBtn = page.locator('#open-add-tool-btn');
+  await expect(openBtn).toBeVisible();
+  await openBtn.click();
+  const dialog = page.locator('#add-tool-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Add a .NET tool' })).toBeVisible();
+  await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --global');
+  await page.locator('[data-sheet-scope="local"]').click();
+  await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --local');
+  await page.locator('#close-add-tool-btn').click();
+  await expect(dialog).toBeHidden();
+});

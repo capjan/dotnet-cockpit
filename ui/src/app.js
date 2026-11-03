@@ -227,7 +227,45 @@ if (cmdkTrigger && cmdkDialog && cmdkScrim && cmdkInput) {
     }
   }
 
+  function populateCmdkDynamicItems() {
+    const dynGrp = document.getElementById('cmdk-dynamic-grp');
+    const dynList = document.getElementById('cmdk-dynamic-list');
+    if (!dynGrp || !dynList) return;
+    const items = [];
+
+    const vDataEl = document.getElementById('versions-data');
+    if (vDataEl) {
+      try {
+        const vMap = JSON.parse(vDataEl.textContent || '{}');
+        for (const v of Object.values(vMap)) {
+          const badge = v.isEol ? '<span class="badge bad sm">EOL</span>' : (v.hasPatch ? '<span class="badge warn sm">Patch</span>' : '<span class="badge ok sm">Installed</span>');
+          items.push(`<a class="opt" href="/?selected=${encodeURIComponent(v.version)}#inventory" data-cmdk-inspect="${v.version}"><div><b>Inspect ${v.name} ${v.version}</b> <small>· .NET ${v.channel}</small></div>${badge}</a>`);
+          if (v.canRemove) {
+            items.push(`<a class="opt" href="/?selected=${encodeURIComponent(v.version)}#inventory" data-cmdk-remove="${v.version}"><div><b>Remove ${v.name} ${v.version}</b> <small>· ${v.command}</small></div><span class="badge bad sm">Remove</span></a>`);
+          }
+        }
+      } catch {}
+    }
+
+    for (const row of document.querySelectorAll('tr[data-tool-row]')) {
+      const name = row.querySelector('.tool-name strong')?.textContent?.trim();
+      const cmd = row.querySelector('.tool-command-pill code')?.textContent?.trim();
+      if (name) {
+        items.push(`<a class="opt" href="#${row.closest('section')?.id || 'main'}" data-cmdk-tool="${name}"><div><b>Tool: ${name}</b> <small>· command: ${cmd || name}</small></div><span class="badge sm">Tool</span></a>`);
+      }
+    }
+
+    if (items.length > 0) {
+      dynList.innerHTML = items.join('');
+      dynGrp.hidden = false;
+    } else {
+      dynList.innerHTML = '';
+      dynGrp.hidden = true;
+    }
+  }
+
   function openCmdk() {
+    populateCmdkDynamicItems();
     cmdkDialog.hidden = false;
     cmdkScrim.hidden = false;
     cmdkInput.value = '';
@@ -576,5 +614,267 @@ if (versionFilterInput) {
 
     const emptyRow = document.querySelector('tr.empty-row');
     if (emptyRow) emptyRow.hidden = visibleCount > 0;
+  });
+}
+
+// Safe Removal Confirmation Dialog (<dialog id="remove-dialog" closedby="any">)
+const removeDialog = document.getElementById('remove-dialog');
+if (removeDialog) {
+  let pendingRemoveForm = null;
+  const cancelBtn = document.getElementById('remove-dialog-cancel');
+  const confirmBtn = document.getElementById('remove-dialog-confirm');
+
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    removeDialog.addEventListener('click', (e) => {
+      if (e.target === removeDialog) removeDialog.close();
+    });
+  }
+
+  document.addEventListener('submit', (e) => {
+    const form = e.target.closest('form[action="/installation/remove"]');
+    if (!form || form.dataset.confirmed === 'true') return;
+    e.preventDefault();
+    pendingRemoveForm = form;
+
+    const version = form.querySelector('input[name="version"]')?.value || '';
+    const kind = form.querySelector('input[name="kind"]')?.value || 'sdk';
+    const data = versionsData[version] || {
+      version,
+      kind,
+      name: kind === 'sdk' ? '.NET SDK' : '.NET Runtime',
+      channel: version.split('.')[0] || '',
+      location: '',
+      isEol: false,
+      command: `sudo dotnet-core-uninstall remove ${version} --${kind === 'sdk' ? 'sdk' : 'runtime'}`
+    };
+
+    const titleEl = document.getElementById('remove-dialog-title');
+    const subEl = document.getElementById('remove-dialog-subtitle');
+    const itemsEl = document.getElementById('remove-dialog-items');
+    const warnEl = document.getElementById('remove-dialog-warn');
+    const cmdEl = document.getElementById('remove-dialog-cmd');
+    const copyEl = document.getElementById('remove-dialog-copy');
+    const confirmTextEl = document.getElementById('remove-dialog-confirm-text');
+
+    if (titleEl) titleEl.textContent = `Remove ${data.name} ${data.version} from this machine?`;
+    if (subEl) subEl.textContent = data.isEol ? `1 item · out of support (.NET ${data.channel})` : `1 item · .NET ${data.channel} (${data.kind.toUpperCase()})`;
+    if (itemsEl) {
+      const badge = data.isEol ? '<span class="badge bad sm">EOL</span>' : `<span class="badge sm">${data.kind.toUpperCase()}</span>`;
+      itemsEl.innerHTML = `
+        <div class="remove-item-row">
+          <input type="checkbox" checked disabled aria-label="Selected for removal">
+          <div class="remove-item-copy">
+            <strong>${data.name} <code>${data.version}</code></strong>
+            <code>${data.location || 'Managed global installation'}</code>
+          </div>
+          ${badge}
+        </div>`;
+    }
+    if (warnEl) {
+      warnEl.textContent = `Removal runs through Microsoft's dotnet-core-uninstall. Projects targeting net${data.channel}.0 may no longer build or run unless another compatible version is installed.`;
+    }
+    if (cmdEl) cmdEl.textContent = data.command;
+    if (copyEl) copyEl.dataset.copy = data.command;
+    if (confirmTextEl) confirmTextEl.textContent = `Remove ${data.version}`;
+
+    removeDialog.showModal();
+  });
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      pendingRemoveForm = null;
+      removeDialog.close();
+    });
+  }
+
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', () => {
+      if (pendingRemoveForm) {
+        pendingRemoveForm.dataset.confirmed = 'true';
+        removeDialog.close();
+        pendingRemoveForm.submit();
+      }
+    });
+  }
+}
+
+// NuGet Tool Installation Sheet (<dialog id="add-tool-dialog" closedby="any">)
+const addToolDialog = document.getElementById('add-tool-dialog');
+const openAddToolBtn = document.getElementById('open-add-tool-btn');
+const closeAddToolBtn = document.getElementById('close-add-tool-btn');
+
+if (addToolDialog) {
+  let sheetScope = 'global';
+  let lastFocusedPkg = null;
+  let searchTimer = null;
+  const searchInput = document.getElementById('sheet-search-input');
+  const resultsBox = document.getElementById('sheet-results');
+  const cliPreview = document.getElementById('sheet-cli-preview');
+  const cliCopy = document.getElementById('sheet-cli-copy');
+  const scopeBtns = [...addToolDialog.querySelectorAll('[data-sheet-scope]')];
+
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    addToolDialog.addEventListener('click', (e) => {
+      if (e.target === addToolDialog) addToolDialog.close();
+    });
+  }
+
+  function updateCliPreview(pkgId, version) {
+    const p = pkgId || lastFocusedPkg?.packageId || '<package-id>';
+    const v = version || lastFocusedPkg?.version || '';
+    const flag = sheetScope === 'local' ? '--local' : '--global';
+    const cmd = v ? `dotnet tool install ${flag} ${p} --version ${v}` : `dotnet tool install ${flag} ${p}`;
+    if (cliPreview) cliPreview.textContent = cmd;
+    if (cliCopy) cliCopy.dataset.copy = cmd;
+  }
+
+  function getMonogram(id) {
+    if (!id) return 'TL';
+    const parts = id.split(/[.\-_]/).filter(p => p && p.toLowerCase() !== 'dotnet' && p.toLowerCase() !== 'tool');
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    if (parts.length === 1 && parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
+    return id.slice(0, 2).toUpperCase();
+  }
+
+  function getColorIdx(id) {
+    let h = 0;
+    for (const c of (id || '')) h = (h * 31) + c.toLowerCase().charCodeAt(0);
+    return Math.abs(h) % 5;
+  }
+
+  async function runSheetSearch(q) {
+    const query = q.trim();
+    if (!query) {
+      resultsBox.innerHTML = '<div class="empty-state"><p class="muted">Type a package name above and press Enter to search NuGet.org.</p></div>';
+      return;
+    }
+    resultsBox.innerHTML = '<div class="empty-state"><p class="muted">Searching NuGet.org...</p></div>';
+    try {
+      const res = await fetch(`/api/tools/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (data.error) {
+        resultsBox.innerHTML = `<div class="empty-state error-state"><h3>Search failed</h3><p>${data.error}</p></div>`;
+        return;
+      }
+      const items = data.results || [];
+      if (!items.length) {
+        resultsBox.innerHTML = `<div class="empty-state"><h3>No tools found</h3><p class="muted">No NuGet tools matched "${query}".</p></div>`;
+        return;
+      }
+      lastFocusedPkg = items[0];
+      updateCliPreview(items[0].packageId, items[0].version);
+      resultsBox.innerHTML = items.map((item, idx) => `
+        <div class="sheet-result-item ${idx === 0 ? 'active' : ''}" data-pkg-id="${item.packageId}" data-pkg-ver="${item.version}">
+          <span class="tool-monogram monogram-${getColorIdx(item.packageId)}">${getMonogram(item.packageId)}</span>
+          <div class="sheet-result-body">
+            <div class="sheet-result-top">
+              <strong>${item.packageId}</strong>
+              <code class="muted">${item.version}</code>
+              ${item.verified ? '<span class="badge ok sm">✓ Verified</span>' : ''}
+            </div>
+            <div class="sheet-result-meta muted text-xs">
+              <span>👤 ${item.authors}</span>
+              <span>↓ ${item.downloads}</span>
+            </div>
+          </div>
+          <form method="post" action="/tools/install">
+            <input type="hidden" name="packageId" value="${item.packageId}">
+            <input type="hidden" name="version" value="${item.version}">
+            <input type="hidden" name="q" value="${query}">
+            <input type="hidden" name="scope" value="${sheetScope}" data-sheet-form-scope>
+            <button type="submit" class="button ${idx === 0 ? 'primary' : ''} sm">+ Install</button>
+          </form>
+        </div>`).join('');
+    } catch {
+      resultsBox.innerHTML = '<div class="empty-state error-state"><p>Could not reach local search endpoint.</p></div>';
+    }
+  }
+
+  for (const btn of scopeBtns) {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      sheetScope = btn.dataset.sheetScope || 'global';
+      scopeBtns.forEach(b => b.classList.toggle('active', b === btn));
+      for (const hiddenInput of addToolDialog.querySelectorAll('[data-sheet-form-scope]')) {
+        hiddenInput.value = sheetScope;
+      }
+      updateCliPreview();
+    });
+  }
+
+  if (resultsBox) {
+    resultsBox.addEventListener('mouseover', (e) => {
+      const row = e.target.closest('.sheet-result-item');
+      if (!row) return;
+      resultsBox.querySelectorAll('.sheet-result-item').forEach(r => r.classList.toggle('active', r === row));
+      updateCliPreview(row.dataset.pkgId, row.dataset.pkgVer);
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => runSheetSearch(searchInput.value), 260);
+    });
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(searchTimer);
+        runSheetSearch(searchInput.value);
+      }
+    });
+  }
+
+  if (openAddToolBtn) {
+    openAddToolBtn.addEventListener('click', () => {
+      addToolDialog.showModal();
+      searchInput?.focus();
+    });
+  }
+
+  if (closeAddToolBtn) {
+    closeAddToolBtn.addEventListener('click', () => addToolDialog.close());
+  }
+}
+
+// Settings Page Controls (Appearance segmented control & Pre-flight launch toggle)
+const themeSegBtns = [...document.querySelectorAll('[data-theme-pref]')];
+if (themeSegBtns.length) {
+  function syncThemeSegButtons() {
+    const current = preference || 'system';
+    for (const btn of themeSegBtns) {
+      btn.classList.toggle('active', btn.dataset.themePref === current);
+    }
+  }
+  syncThemeSegButtons();
+  for (const btn of themeSegBtns) {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.themePref;
+      if (val === 'system') {
+        preference = null;
+        try { localStorage.removeItem('cockpit-theme'); } catch {}
+      } else {
+        preference = val;
+        try { localStorage.setItem('cockpit-theme', val); } catch {}
+      }
+      updateTheme();
+      syncThemeSegButtons();
+    });
+  }
+}
+
+const settingsPreflightToggle = document.getElementById('settings-preflight-toggle');
+if (settingsPreflightToggle) {
+  try {
+    settingsPreflightToggle.checked = localStorage.getItem('cockpit-preflight-dismissed') === 'false';
+    settingsPreflightToggle.addEventListener('change', () => {
+      localStorage.setItem('cockpit-preflight-dismissed', settingsPreflightToggle.checked ? 'false' : 'true');
+    });
+  } catch {}
+}
+
+for (const navLink of document.querySelectorAll('.settings-nav-item')) {
+  navLink.addEventListener('click', () => {
+    document.querySelectorAll('.settings-nav-item').forEach(el => el.classList.toggle('active', el === navLink));
   });
 }
