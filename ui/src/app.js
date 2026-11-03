@@ -295,9 +295,9 @@ if (cmdkTrigger && cmdkDialog && cmdkScrim && cmdkInput) {
   });
 }
 
-// Quick Copy Affordance for Tool Commands, Paths and CLI Snippets
+// Quick Copy Affordance for Tool Commands, Paths, Checksums and CLI Snippets
 document.addEventListener('click', (e) => {
-  const target = e.target.closest('.tool-command-pill, code.installation-path, .tool-cli-preview code');
+  const target = e.target.closest('.tool-command-pill, code.installation-path, .tool-cli-preview code, .sdk-checksum code');
   if (!target) return;
   const text = (target.dataset.copy || target.textContent || '').trim();
   if (!text) return;

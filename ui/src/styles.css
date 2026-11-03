@@ -803,11 +803,11 @@ td:last-child { padding-right: 22px; }
 }
 
 /* Copy affordance */
-.tool-command-pill, code.installation-path, .tool-cli-preview code {
+.tool-command-pill, code.installation-path, .tool-cli-preview code, .sdk-checksum code {
   cursor: copy;
   transition: all var(--speed);
 }
-.tool-command-pill.copied, code.installation-path.copied, .tool-cli-preview code.copied {
+.tool-command-pill.copied, code.installation-path.copied, .tool-cli-preview code.copied, .sdk-checksum code.copied {
   background: var(--brand-soft) !important;
   border-color: var(--brand) !important;
   color: var(--brand) !important;
