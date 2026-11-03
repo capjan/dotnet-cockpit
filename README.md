@@ -1,61 +1,53 @@
 # .NET Cockpit
 
-<img src="docs/assets/logo.png" alt=".NET Cockpit logo" width="128">
+<p align="center">
+  <img src="docs/assets/logo.png" alt=".NET Cockpit logo" width="128">
+</p>
 
-A local browser workspace for your .NET environment, built with **server-rendered HTML**, **Fluent UI Web Components**, and an **ASP.NET Core Minimal API** backend. React is not required.
+<p align="center">A local cockpit for your .NET installation.</p>
 
-The prototype lists installed .NET SDKs and runtimes and supports filtering, sorting, and refreshing. A separate **.NET Tools** page at the same navigation level as **Installations** lists global and local tools in server-rendered tabs with their package IDs, versions, commands, and local manifest paths. The **Setup** page detects, installs, updates, and removes the official global .NET Uninstall Tool for supported Windows and macOS systems, and lists macOS `.pkg` installers for every SDK and standalone .NET Runtime in Microsoft's release metadata. Separate SDK and runtime tabs show only packages matching the host architecture, sorted by descending version and grouped into initially collapsed major versions with their LTS or STS tags and support status. The channel's support-end date comes from Microsoft's release index. Release CVEs are read from the per-channel release metadata and shown with each affected SDK or runtime version. A featured latest stable package respects the LTS/STS and Supported filters and is marked installed when detected in the local inventory. SDK rows show their included .NET Runtime version. Stable releases are shown by default; Preview, RC, Supported, Latest 3 per channel, LTS, and STS filters update immediately in the browser, with LTS and STS enabled by default. All entries remain loaded, and a no-JavaScript submit fallback is provided. Packages include release dates and SHA-512 checksums. Users download a package and open it in the macOS Installer to complete installation. C# renders the complete pages and handles searches, sorting, tab selection, and setup actions through normal GET forms and links. Inventory display and controls work with JavaScript disabled. A small local script adds Fluent components and a persistent light/dark theme switch.
+<p align="center">
+  <a href="https://capjan.github.io/dotnet-cockpit/">Documentation</a>
+  ·
+  <a href="LICENSE">MIT License</a>
+</p>
 
-## Run without installing .NET
+`.NET Cockpit` opens a local browser workspace for the .NET installation on your machine. It lists SDKs, runtimes, global and local tools, and helps you keep track of what is available — all on `127.0.0.1`.
 
-Download the native archive for your machine from a GitHub release or the **Build and test** workflow artifacts. Extract it and launch:
+## Install
 
-```sh
-./dotnet-cockpit
-```
-
-On Windows, run `dotnet-cockpit.exe`. The program selects an available port on `127.0.0.1` and opens your browser. For manual browser startup or a fixed port:
-
-```sh
-./dotnet-cockpit --no-browser --port 5230
-```
-
-Native AOT builds include everything needed from .NET and embed all browser assets. No .NET installation, Node.js, CDN, or internet connection is needed to start the application. Separate binaries are provided for Windows x64, Linux x64, macOS Intel, and macOS Apple Silicon. Prototype macOS downloads are not Developer ID signed or notarized.
-
-## Install as a .NET tool
-
-If a .NET 10 SDK is already installed, install the package from NuGet.org:
+Requires the .NET 10 SDK:
 
 ```sh
 dotnet tool install --global dotnet-cockpit
 dotnet cockpit
 ```
 
-The tool command is also directly available as `dotnet-cockpit`. Update an existing installation with `dotnet tool update --global dotnet-cockpit`.
+To update later:
 
-The tool package is a standard managed .NET tool requiring the SDK. The native downloads are the bootstrap option for machines without .NET.
+```sh
+dotnet tool update --global dotnet-cockpit
+```
 
-## Inventory scope
+The app opens in your browser automatically. To keep it in the terminal or choose a port:
 
-Cockpit resolves the first `dotnet` executable in an absolute directory on its own `PATH`, then runs `dotnet --list-sdks` and `dotnet --list-runtimes`. It reports the installation and architecture visible to that host, not an exhaustive scan of every .NET installation on disk. Each page request repeats discovery. Restart Cockpit after changing its inherited environment.
+```sh
+dotnet cockpit --no-browser --port 5230
+```
 
-The bracketed paths in the CLI output are base directories shared by multiple versions. The UI displays the actual version directory, for example `/usr/share/dotnet/shared/Microsoft.NETCore.App/10.0.5`. In the JSON API, `path` retains the CLI's base directory and `installationPath` includes the version subfolder.
+## What it does
 
-If `dotnet` is absent, the application still starts and explains that no installation was found. A command failure is displayed as an error rather than an empty inventory.
+- Shows the SDKs and runtimes visible to the active `dotnet` host.
+- Lists global tools and local tool manifests for the directory you start it from.
+- Provides server-rendered filtering, sorting, setup help, and safe local tool actions.
 
-### Global and local tools
+The core interface works without JavaScript. Browser assets are bundled locally; no CDN requests are made.
 
-Open **.NET Tools** in the navigation or visit `/tools`. Cockpit reads `dotnet tool list --global` for the current user and `dotnet tool list --local` from the directory where Cockpit was launched. The page displays this working directory. To inspect another project's local tools, start Cockpit from that project's directory.
+## No .NET installed?
 
-Local tools are declared in the manifests visible from that directory, including applicable parent manifests. Listing a declaration does not verify that its package has been restored. The view does not scan unrelated projects. A .NET SDK is required for tool queries; missing SDKs, empty lists, and failed queries have distinct messages. A failing local manifest does not hide the global list. The page can search NuGet tool packages, install a search result globally or locally, uninstall installed tools, initialize a local manifest, and remove a manifest owned by the current workspace. Removing a manifest leaves cached packages untouched; inherited parent manifests are shown but cannot be removed here. Until a local manifest exists, search results offer global installation and an initialization button.
-
-### Setup
-
-Open **Setup** in the navigation or visit `/setup` to check for `dotnet-core-uninstall`. Cockpit installs the tool globally under `/usr/local/bin` on macOS or `C:\Program Files\dotnet-core-uninstall` on Windows, with administrator approval. The page displays the installed version by invoking the tool with `--version`, checks all pages of the official stable releases API, and offers an update when one is available. When the tool is not installed, a version picker contains `Latest` and every compatible release asset; the page also links each release to its official release page. A detected installation in one of Cockpit's managed locations can also be removed from the same page; installations found elsewhere on `PATH` are reported for manual removal. The page downloads only official assets from the [dotnet/cli-lab releases](https://github.com/dotnet/cli-lab/releases) and links to the [Microsoft documentation](https://learn.microsoft.com/en-us/dotnet/core/additional-tools/uninstall-tool-overview?pivots=os-macos) for limitations and commands. Linux is not supported by the official tool.
+Download the self-contained native executable for Windows, Linux, or macOS from the [GitHub releases](https://github.com/capjan/dotnet-cockpit/releases). It includes the .NET runtime and opens the same local application.
 
 ## Development
-
-Requirements: .NET 10 SDK, Node.js 24 LTS, and the Native AOT build prerequisites for your OS (Xcode Command Line Tools on macOS; the C++ build tools on Windows; `clang` and `zlib1g-dev` on Ubuntu).
 
 ```sh
 npm --prefix ui ci
@@ -64,49 +56,4 @@ dotnet test DotnetCockpit.sln
 dotnet run --project src/DotnetCockpit -- --no-browser --port 5230
 ```
 
-The backend renders the page in `InstallationPage.cs` and embeds the locally bundled CSS and Fluent enhancement script at build time. Rebuild browser assets and restart the backend after changing those assets. There is no frontend application framework or separate development server.
-
-Publish and test a native executable (replace the runtime identifier for your platform):
-
-```sh
-dotnet publish src/DotnetCockpit -c Release -r osx-arm64 --self-contained true -p:PublishAot=true -warnaserror:IL2026,IL2104,IL3050,IL3053 -o artifacts/native
-node scripts/smoke.mjs artifacts/native/dotnet-cockpit
-```
-
-Test the UI against the published native executable on Linux or macOS:
-
-```sh
-cd ui
-npx playwright install chromium
-npm run test:browser
-```
-
-Build the tool package:
-
-```sh
-dotnet pack src/DotnetCockpit -c Release -o artifacts/packages
-```
-
-## Build and release workflows
-
-Every push and pull request runs unit tests, builds Native AOT executables, and smoke-tests each published binary on the same runner matrix used by MDU's native releases:
-
-| Runner | Runtime identifier |
-| --- | --- |
-| Ubuntu 22.04 | `linux-x64` |
-| Windows latest | `win-x64` |
-| macOS 15 Intel | `osx-x64` |
-| macOS latest | `osx-arm64` |
-
-The native smoke tests launch from a temporary directory, verify that the initial HTML already contains the inventory, check embedded assets and the API, compare the returned inventory against the real .NET CLI, and test server-side filtering. They repeat with an empty `PATH` and a broken dotnet host. The empty-PATH check verifies that the native application starts without finding an installed .NET host. It does not simulate an otherwise clean OS; ordinary native OS dependencies still apply. Linux additionally runs browser tests for real paths, filtering and sorting with JavaScript disabled, refresh, theme switching, and a narrow viewport. A separate job packages, installs, invokes, and smoke-tests the .NET tool.
-
-Run the **Release** workflow manually from `main` and supply a version to repeat these checks, publish the tool to NuGet.org through OIDC Trusted Publishing, and create a GitHub release with native archives, the tool package, and SHA-256 checksums. Configure the NuGet.org trusted-publishing policy and `NUGET_USER` secret described in [the release guide](docs/Release.md) before the first release.
-
-## Structure
-
-- `src/DotnetCockpit`: loopback-only Minimal API host, shared HTML layout, C# installation, tools, and setup pages, installation/tool discovery, embedded browser assets, and tool packaging.
-- `ui`: CSS, Fluent UI Web Components, a small theme script, an asset bundler, and browser tests.
-- `tests`: installation and tool parsing, HTML rendering, executable discovery, and command-line tests.
-- `scripts/smoke.mjs`: cross-platform tests against the actual published application.
-
-The host accepts `127.0.0.1` requests and exposes `GET /api/health`, `GET /api/installation`, and `GET /api/tools`; tool changes use explicit HTML form POSTs. JSON serialization uses source-generated metadata for Native AOT.
+See the [documentation](https://capjan.github.io/dotnet-cockpit/) for features, development details, and the release process.
