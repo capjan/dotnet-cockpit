@@ -111,6 +111,16 @@ internal static class InstallationPage
             .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
+    private static string ChannelTag(string version)
+    {
+        var major = version.Split('.')[0];
+        var isLts = major is "8" or "10";
+        var isEol = major is "7" or "6";
+        var badgeCls = isEol ? "bad" : isLts ? "ok" : "warn";
+        var label = isEol ? "EOL" : (isLts ? "LTS" : "STS");
+        return $"<span class=\"channel-tag {badgeCls}\">{label}</span>";
+    }
+
     private static string RenderTable(Row[] rows, InstallationViewOptions options)
     {
         var showActions = rows.Any(row => row.CanRemove);
@@ -120,7 +130,7 @@ internal static class InstallationPage
                 <thead><tr>{{SortHeader("Installation", "name", options)}}{{SortHeader("Version", "version", options)}}{{SortHeader("Location", "path", options)}}{{(showActions ? "<th scope=\"col\">Actions</th>" : "")}}</tr></thead>
                 <tbody>{{string.Concat(rows.Select(row => $"""
                   <tr data-kind="{row.Kind}">
-                    <td><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "code" : "server")}</span><div><strong>{Encode(row.Name)}</strong><span class="muted framework-name">{Encode(row.Description)}</span></div></div></td>
+                    <td><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "code" : "server")}</span><div><div class="installation-header"><strong>{Encode(row.Name)}</strong>{ChannelTag(row.Version)}</div><span class="muted framework-name">{Encode(row.Description)}</span></div></div></td>
                     <td><fluent-badge appearance="tint" color="{(row.Kind == "sdk" ? "brand" : "informative")}" class="version-badge">{Encode(row.Version)}</fluent-badge></td>
                     <td><div class="installation-paths">{string.Concat(row.Paths.Select(path => $"<code class=\"installation-path\">{Encode(path)}</code>"))}</div></td>
                     {(showActions ? $"<td class=\"installation-actions\">{RemoveAction(row, options)}</td>" : "")}

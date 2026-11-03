@@ -84,7 +84,7 @@ internal static class ToolsPage
               <tr data-tool-scope="{(local ? "local" : "global")}">
                 <td><div class="tool-name"><span class="tool-icon">{Icon("code")}</span><strong>{Encode(tool.PackageId)}</strong></div></td>
                 <td><fluent-badge appearance="tint" color="brand" class="version-badge">{Encode(tool.Version)}</fluent-badge></td>
-                <td>{string.Join(", ", tool.Commands.Select(command => $"<code>{Encode(command)}</code>"))}</td>
+                <td><div class="row" style="gap:6px;flex-wrap:wrap">{string.Concat(tool.Commands.Select(command => $"<span class=\"tool-command-pill\">{Icon("tools", "xs")}<code>{Encode(command)}</code></span>"))}</div></td>
                 {(local ? $"<td><code class=\"tool-manifest\">{Encode(tool.Manifest ?? "")}</code></td>" : "")}
                 <td><form method="post" action="/tools/uninstall" class="tool-action"><input type="hidden" name="packageId" value="{Encode(tool.PackageId)}"><input type="hidden" name="scope" value="{(local ? "local" : "global")}"><button class="button danger" type="submit">Uninstall</button></form></td>
               </tr>
