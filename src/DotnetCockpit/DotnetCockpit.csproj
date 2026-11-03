@@ -15,6 +15,8 @@
     <Authors>Jan Ruhlaender</Authors>
     <Description>A local browser cockpit for your .NET installations.</Description>
     <RepositoryUrl>https://github.com/capjan/dotnet-cockpit</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>

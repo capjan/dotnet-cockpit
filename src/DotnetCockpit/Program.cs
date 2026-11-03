@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using DotnetCockpit;
 using DotnetCockpit.Installation;
+using DotnetCockpit.SdkDownloads;
 using DotnetCockpit.Setup;
 using DotnetCockpit.Tools;
 
@@ -30,6 +31,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));
 builder.Services.AddSingleton<DotnetInstallationService>();
 builder.Services.AddSingleton<DotnetToolsService>();
+builder.Services.AddSingleton<SdkDownloadCatalog>();
 builder.Services.AddSingleton<HttpClient>(_ =>
 {
     var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
@@ -72,11 +74,14 @@ app.MapPost("/installation/remove", async (HttpContext context, DotnetUninstallT
     var result = await service.RemoveInstallationAsync(form["version"].ToString(), form["kind"].ToString(), context.RequestAborted);
     return Results.Redirect(InstallationRedirect(form, result.Success ? "removed" : "remove-failed"));
 });
-app.MapGet("/setup", async (DotnetUninstallToolService service, HttpContext context) =>
+app.MapGet("/setup", async (DotnetUninstallToolService service, SdkDownloadCatalog sdkCatalog, DotnetInstallationService installationService, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
-    var snapshot = await service.ReadAsync(context.RequestAborted);
-    return Results.Content(SetupPage.Render(snapshot, SetupViewOptions.From(context.Request.Query)), "text/html; charset=utf-8");
+    var setupTask = service.ReadAsync(context.RequestAborted);
+    var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
+    var installationTask = ReadInstallation(installationService, context, logger);
+    await Task.WhenAll(setupTask, sdkTask, installationTask);
+    return Results.Content(SetupPage.Render(setupTask.Result, sdkTask.Result, installationTask.Result, SetupViewOptions.From(context.Request.Query)), "text/html; charset=utf-8");
 });
 app.MapPost("/setup/install", async (HttpContext context, DotnetUninstallToolService service) =>
 {

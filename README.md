@@ -2,7 +2,7 @@
 
 A local browser workspace for your .NET environment, built with **server-rendered HTML**, **Fluent UI Web Components**, and an **ASP.NET Core Minimal API** backend. React is not required.
 
-The prototype lists installed .NET SDKs and runtimes and supports filtering, sorting, and refreshing. A separate **.NET Tools** page at the same navigation level as **Installations** lists global and local tools in server-rendered tabs with their package IDs, versions, commands, and local manifest paths. The **Setup** page detects, installs, updates, and removes the official global .NET Uninstall Tool for supported Windows and macOS systems. C# renders the complete pages and handles searches, sorting, tab selection, and setup actions through normal GET forms and links. Inventory display and controls work with JavaScript disabled. A small local script adds Fluent components and a persistent light/dark theme switch.
+The prototype lists installed .NET SDKs and runtimes and supports filtering, sorting, and refreshing. A separate **.NET Tools** page at the same navigation level as **Installations** lists global and local tools in server-rendered tabs with their package IDs, versions, commands, and local manifest paths. The **Setup** page detects, installs, updates, and removes the official global .NET Uninstall Tool for supported Windows and macOS systems, and lists macOS `.pkg` installers for every SDK and standalone .NET Runtime in Microsoft's release metadata. Separate SDK and runtime tabs show only packages matching the host architecture, sorted by descending version and grouped into initially collapsed major versions with their LTS or STS tags and support status. The channel's support-end date comes from Microsoft's release index. Release CVEs are read from the per-channel release metadata and shown with each affected SDK or runtime version. A featured latest stable package respects the LTS/STS and Supported filters and is marked installed when detected in the local inventory. SDK rows show their included .NET Runtime version. Stable releases are shown by default; Preview, RC, Supported, Latest 3 per channel, LTS, and STS filters update immediately in the browser, with LTS and STS enabled by default. All entries remain loaded, and a no-JavaScript submit fallback is provided. Packages include release dates and SHA-512 checksums. Users download a package and open it in the macOS Installer to complete installation. C# renders the complete pages and handles searches, sorting, tab selection, and setup actions through normal GET forms and links. Inventory display and controls work with JavaScript disabled. A small local script adds Fluent components and a persistent light/dark theme switch.
 
 ## Run without installing .NET
 
@@ -22,16 +22,16 @@ Native AOT builds include everything needed from .NET and embed all browser asse
 
 ## Install as a .NET tool
 
-If a .NET 10 SDK is already installed, download the `.nupkg` from a release or the **dotnet-tool** workflow artifact into a local folder, then install:
+If a .NET 10 SDK is already installed, install the package from NuGet.org:
 
 ```sh
-dotnet tool install --global dotnet-cockpit --add-source /absolute/path/to/packages --version 0.1.0
+dotnet tool install --global dotnet-cockpit
 dotnet cockpit
 ```
 
-The tool command is also directly available as `dotnet-cockpit`. Replace the version with the downloaded package version. Update an existing installation with `dotnet tool update` using the same source and version options.
+The tool command is also directly available as `dotnet-cockpit`. Update an existing installation with `dotnet tool update --global dotnet-cockpit`.
 
-The repository and GitHub releases are private. Packages are distributed as downloadable `.nupkg` files; nothing is published to NuGet.org. The tool package is a standard managed .NET tool requiring the SDK. The native downloads are the bootstrap option for machines without .NET.
+The tool package is a standard managed .NET tool requiring the SDK. The native downloads are the bootstrap option for machines without .NET.
 
 ## Inventory scope
 
@@ -98,7 +98,7 @@ Every push and pull request runs unit tests, builds Native AOT executables, and 
 
 The native smoke tests launch from a temporary directory, verify that the initial HTML already contains the inventory, check embedded assets and the API, compare the returned inventory against the real .NET CLI, and test server-side filtering. They repeat with an empty `PATH` and a broken dotnet host. The empty-PATH check verifies that the native application starts without finding an installed .NET host. It does not simulate an otherwise clean OS; ordinary native OS dependencies still apply. Linux additionally runs browser tests for real paths, filtering and sorting with JavaScript disabled, refresh, theme switching, and a narrow viewport. A separate job packages, installs, invokes, and smoke-tests the .NET tool.
 
-Run the **Release** workflow manually from `main` and supply a version to repeat these checks and create a private GitHub release with native archives, the tool package, and SHA-256 checksums. No publishing credentials are needed beyond the workflow's repository token.
+Run the **Release** workflow manually from `main` and supply a version to repeat these checks, publish the tool to NuGet.org through OIDC Trusted Publishing, and create a GitHub release with native archives, the tool package, and SHA-256 checksums. Configure the NuGet.org trusted-publishing policy and `NUGET_USER` secret described in [the release guide](docs/Release.md) before the first release.
 
 ## Structure
 

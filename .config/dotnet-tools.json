@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "markdownutil": {
+      "version": "4.8.0",
+      "commands": [
+        "mdu"
+      ],
+      "rollForward": false
+    }
+  }
+}

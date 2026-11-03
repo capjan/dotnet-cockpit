@@ -1,0 +1,63 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/**
+      - .config/dotnet-tools.json
+      - .github/workflows/docs.yml
+  pull_request:
+    paths:
+      - docs/**
+      - .config/dotnet-tools.json
+      - .github/workflows/docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint MDU documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.402
+      - name: Restore MDU
+        run: dotnet tool restore
+      - name: Lint documentation
+        run: dotnet mdu lint docs
+
+  deploy:
+    name: Deploy GitHub Pages
+    needs: lint
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.402
+      - name: Restore MDU
+        run: dotnet tool restore
+      - uses: actions/configure-pages@v6
+      - name: Render documentation
+        run: dotnet mdu render docs site
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -3,6 +3,7 @@
 **/node_modules/
 src/DotnetCockpit/wwwroot/*
 artifacts/
+site/
 ui/playwright-report/
 ui/test-results/
 .DS_Store

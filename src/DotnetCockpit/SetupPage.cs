@@ -1,11 +1,30 @@
 using DotnetCockpit.Setup;
+using DotnetCockpit.SdkDownloads;
+using DotnetCockpit.Installation;
 using static DotnetCockpit.PageLayout;
 
 namespace DotnetCockpit;
 
-internal sealed record SetupViewOptions(string Notice = "")
+internal sealed record SetupViewOptions(string Notice = "", string Query = "", string Product = "sdk", bool IncludePreview = false, bool IncludeRc = false, bool SupportedOnly = false, bool LatestThree = false, bool IncludeLts = true, bool IncludeSts = true)
 {
-    public static SetupViewOptions From(IQueryCollection query) => new(query["notice"].ToString());
+    public static SetupViewOptions From(IQueryCollection query)
+    {
+        var lifecycle = query["lifecycle"];
+        var hasLifecycleFilter = query["lifecycle-filter"].ToString() == "true";
+        var includePreviews = IsEnabled(query["previews"]);
+        return new(
+            query["notice"].ToString(),
+            query["q"].ToString().Trim() is { Length: <= 100 } search ? search : "",
+            query["product"].ToString() is "runtime" ? "runtime" : "sdk",
+            includePreviews || IsEnabled(query["preview"]),
+            includePreviews || IsEnabled(query["rc"]),
+            IsEnabled(query["supported"]),
+            IsEnabled(query["latest3"]),
+            !hasLifecycleFilter || lifecycle.Any(value => string.Equals(value, "LTS", StringComparison.OrdinalIgnoreCase)),
+            !hasLifecycleFilter || lifecycle.Any(value => string.Equals(value, "STS", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static bool IsEnabled(string? value) => value is "true" or "1" or "on";
 }
 
 internal static class SetupPage
@@ -13,6 +32,9 @@ internal static class SetupPage
     private const string DocumentationUrl = "https://learn.microsoft.com/en-us/dotnet/core/additional-tools/uninstall-tool-overview?pivots=os-macos";
 
     public static string Render(SetupSnapshot snapshot, SetupViewOptions options)
+        => Render(snapshot, new SdkDownloadSnapshot("ready", []), InstallationSnapshot.Create("notFound", null), options);
+
+    public static string Render(SetupSnapshot snapshot, SdkDownloadSnapshot sdkDownloads, InstallationSnapshot installation, SetupViewOptions options)
     {
         var content = snapshot.Status switch
         {
@@ -31,16 +53,18 @@ internal static class SetupPage
                 """,
             _ => RenderToolCard(snapshot)
         };
+        var sdkSection = SdkDownloadsSection.Render(sdkDownloads, installation, SdkDownloadsViewOptions.From(options));
 
         return PageLayout.Render($"""
             <div class="breadcrumb">Environment <span>/</span> Setup</div>
             <div class="page-heading">
-              <div><h1>Setup</h1><p class="muted intro">Prepare the global tools used to manage your local .NET installation.</p></div>
-              <a class="button primary" href="/setup">Refresh</a>
+              <div><h1>Setup</h1><p class="muted intro">Install .NET SDKs and runtimes or manage the global uninstall tool.</p></div>
+              <div class="inventory-heading-actions"><a class="button" href="/setup">Refresh</a><a class="button primary" href="#sdk-downloads-title">{Icon("download")} Install SDK or runtime</a></div>
             </div>
             {RenderNotice(options.Notice)}
             {content}
-            <p class="scope-note muted">Downloads use the official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
+            {sdkSection}
+            <p class="scope-note muted">Choose a package to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package. The .NET Uninstall Tool uses official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
             """, "/setup", "Setup | .NET Cockpit");
     }
 

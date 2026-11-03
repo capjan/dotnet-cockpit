@@ -50,6 +50,12 @@ jobs:
           npm --prefix ui run build
       - name: Unit tests
         run: dotnet test DotnetCockpit.sln --configuration Release
+      - name: Restore MDU
+        if: runner.os == 'Linux'
+        run: dotnet tool restore
+      - name: Lint documentation
+        if: runner.os == 'Linux'
+        run: dotnet mdu lint docs
       - name: Install Native AOT prerequisites
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install --yes clang zlib1g-dev
