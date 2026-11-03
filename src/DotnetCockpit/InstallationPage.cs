@@ -60,11 +60,11 @@ internal static class InstallationPage
                       <nav class="type-filter" aria-label="Installation type">
                         {{TypeLink("All versions", "all", options)}}{{TypeLink("SDKs", "sdks", options)}}{{TypeLink("Runtimes", "runtimes", options)}}
                       </nav>
-                      <form class="filter-form" method="get" action="/#inventory" role="search">
+                      <form class="filter-form" method="get" action="/#inventory" role="search" data-installation-filter>
                         <input type="hidden" name="kind" value="{{Encode(options.Kind)}}">
                         <input type="hidden" name="sort" value="{{Encode(options.Sort)}}">
                         <input type="hidden" name="direction" value="{{(options.Ascending ? "asc" : "desc")}}">
-                        <label class="filter-input">{{Icon("search")}}<input type="search" name="q" value="{{Encode(options.Query)}}" placeholder="Filter versions, names, or paths" aria-label="Filter installed versions"></label>
+                        <label class="filter-input">{{Icon("search")}}<input id="installation-filter-input" type="search" name="q" value="{{Encode(options.Query)}}" placeholder="Filter versions, names, or paths" aria-label="Filter installed versions"></label>
                         <button class="button" type="submit">Filter</button>
                       </form>
                     </div>

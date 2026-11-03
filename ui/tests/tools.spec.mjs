@@ -59,3 +59,21 @@ test('explains why tools cannot be listed without a dotnet host', async ({ page 
   await expect(page.getByRole('heading', { name: 'No .NET installation found' })).toBeVisible();
   await expect(page.getByText('A .NET SDK is required to list tools.', { exact: false })).toBeVisible();
 });
+
+test('filters installed local tools instantly with client-side JavaScript', async ({ page }) => {
+  await page.goto('http://127.0.0.1:5234/tools?scope=local');
+  await expect(page.locator('tr[data-tool-scope="local"]')).toHaveCount(1);
+  const filterInput = page.locator('input[data-tools-table-filter]');
+  await expect(filterInput).toBeVisible();
+
+  await filterInput.fill('fixture');
+  await expect(page.locator('tr[data-tool-scope="local"]:not([hidden])')).toHaveCount(1);
+
+  await filterInput.fill('no-matching-tool');
+  await expect(page.locator('tr[data-tool-scope="local"]:not([hidden])')).toHaveCount(0);
+  await expect(page.locator('.client-tools-empty')).toBeVisible();
+
+  await filterInput.fill('');
+  await expect(page.locator('tr[data-tool-scope="local"]:not([hidden])')).toHaveCount(1);
+  await expect(page.locator('.client-tools-empty')).toBeHidden();
+});

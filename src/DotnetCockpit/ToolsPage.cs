@@ -67,10 +67,13 @@ internal static class ToolsPage
             : list.Tools.Length == 0
                 ? $"<div class=\"empty-state\"><h3>{(local ? (localInitialized ? "No local tools found" : "No local tools initialized") : "No global tools installed")}</h3><p class=\"muted\">{(local ? (localInitialized ? "No tools are declared in the tool manifests for this working directory." : "Initialize local tools to add a manifest in this working directory.") : "No global tools were reported for this user account.")}</p></div>"
                 : RenderTable(list.Tools, local, title);
+        var filterInput = list.Tools.Length > 0
+            ? $"<label class=\"filter-input\" style=\"margin-left:auto\">{Icon("search")}<input type=\"search\" data-tools-table-filter placeholder=\"Filter {title.ToLowerInvariant()}\" aria-label=\"Filter {title.ToLowerInvariant()}\"></label>"
+            : "";
         var localAction = local ? RenderLocalManifestAction(localInitialized, localOwned, options) : "";
         return $$"""
             <section class="inventory tool-panel" role="tabpanel" aria-labelledby="{{id}}" id="{{id}}-panel">
-              <div class="inventory-heading"><div><h2 id="{{id}}">{{title}}</h2><p class="muted">{{(local ? "Tools declared in the manifests for this workspace." : "Tools installed for the current user account.")}}</p></div><div class="inventory-heading-actions">{{(list.Error is null ? $"<fluent-badge appearance=\"outline\" color=\"brand\" class=\"inventory-count\">{list.Tools.Length} tools</fluent-badge>" : "")}}{{localAction}}</div></div>
+              <div class="inventory-heading"><div><h2 id="{{id}}">{{title}}</h2><p class="muted">{{(local ? "Tools declared in the manifests for this workspace." : "Tools installed for the current user account.")}}</p></div><div class="inventory-heading-actions">{{filterInput}}{{(list.Error is null ? $"<fluent-badge appearance=\"outline\" color=\"brand\" class=\"inventory-count\"><span data-tool-count>{list.Tools.Length}</span> tools</fluent-badge>" : "")}}{{localAction}}</div></div>
               {{content}}
             </section>
             """;
@@ -81,7 +84,7 @@ internal static class ToolsPage
           <table class="tools-table" aria-label="{{title}}">
             <thead><tr><th scope="col">Package ID</th><th scope="col">Version</th><th scope="col">Commands</th>{{(local ? "<th scope=\"col\">Manifest</th>" : "")}}<th scope="col">Actions</th></tr></thead>
             <tbody>{{string.Concat(tools.OrderBy(tool => tool.PackageId, StringComparer.OrdinalIgnoreCase).Select(tool => $"""
-              <tr data-tool-scope="{(local ? "local" : "global")}">
+              <tr data-tool-scope="{(local ? "local" : "global")}" data-tool-row data-search="{Encode($"{tool.PackageId} {tool.Version} {string.Join(' ', tool.Commands)} {tool.Manifest}")}">
                 <td><div class="tool-name"><span class="tool-icon">{Icon("code")}</span><strong>{Encode(tool.PackageId)}</strong></div></td>
                 <td><fluent-badge appearance="tint" color="brand" class="version-badge">{Encode(tool.Version)}</fluent-badge></td>
                 <td><div class="row" style="gap:6px;flex-wrap:wrap">{string.Concat(tool.Commands.Select(command => $"<span class=\"tool-command-pill\">{Icon("tools", "xs")}<code>{Encode(command)}</code></span>"))}</div></td>
@@ -138,6 +141,7 @@ internal static class ToolsPage
         <article class="search-result">
           <div><strong>{{Encode(result.PackageId)}}</strong><span class="muted">{{Encode(result.Version)}} · {{Encode(result.Authors)}}</span></div>
           <div class="search-result-meta"><span>{{Encode(result.Downloads)}} downloads</span>{{(result.Verified ? "<span class=\"verified\">Verified</span>" : "")}}</div>
+          <div class="tool-cli-preview"><span class="cli-label">CLI</span><code>dotnet tool install -g {{Encode(result.PackageId)}}</code></div>
           <form method="post" action="/tools/install" class="tool-install-actions"><input type="hidden" name="packageId" value="{{Encode(result.PackageId)}}"><input type="hidden" name="version" value="{{Encode(result.Version)}}"><input type="hidden" name="q" value="{{Encode(query)}}"><button class="button" type="submit" name="scope" value="global">Install globally</button>{{localChoice}}</form>
         </article>
         """;

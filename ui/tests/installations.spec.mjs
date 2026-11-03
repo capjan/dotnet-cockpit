@@ -73,3 +73,33 @@ test('renders the no-host installation view on a narrow screen without JavaScrip
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   } finally { await context.close(); }
 });
+
+test('filters instantly with client-side JavaScript without page reload', async ({ page, request }) => {
+  const snapshot = await (await request.get('/api/installation')).json();
+  const runtimeCards = new Set(snapshot.runtimes.map(runtime => runtime.version)).size;
+  const totalRows = snapshot.sdks.length + runtimeCards;
+  await page.goto('/');
+
+  const searchBox = page.getByRole('searchbox', { name: 'Filter installed versions' });
+  await expect(page.locator('tbody tr:not([hidden])')).toHaveCount(totalRows);
+
+  await searchBox.fill(snapshot.sdks[0].version);
+  await expect(page.locator('tbody tr:not([hidden])').first()).toContainText(snapshot.sdks[0].version);
+
+  await searchBox.fill('xyz-nonexistent-query');
+  await expect(page.locator('tbody tr:not([hidden])')).toHaveCount(0);
+  await expect(page.locator('.client-empty-state')).toBeVisible();
+
+  await searchBox.fill('');
+  await expect(page.locator('tbody tr:not([hidden])')).toHaveCount(totalRows);
+  await expect(page.locator('.client-empty-state')).toBeHidden();
+});
+
+test('opens command palette with keyboard shortcut and triggers navigation', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#cmdk-dialog')).toBeHidden();
+  await page.keyboard.press('Meta+k');
+  await expect(page.locator('#cmdk-dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#cmdk-dialog')).toBeHidden();
+});

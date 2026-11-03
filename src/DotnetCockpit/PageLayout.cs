@@ -6,7 +6,7 @@ internal static class PageLayout
 {
     public static string Render(string content, string currentPath, string title = ".NET Cockpit") => $$"""
         <!doctype html>
-        <html lang="en" data-theme="dark">
+        <html lang="en" data-theme="auto">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -53,7 +53,7 @@ internal static class PageLayout
                   <span>/</span>
                   <b>{{GetPageName(currentPath)}}</b>
                 </div>
-                <div class="cmdk">
+                <div id="cmdk-trigger" class="cmdk" role="button" tabindex="0" aria-label="Open command palette">
                   {{Icon("search", "sm")}}
                   <span>Search versions, tools and actions</span>
                   <kbd>⌘K</kbd>
@@ -62,7 +62,7 @@ internal static class PageLayout
                   {{Icon("clock", "xs")}}
                   <span>Checked {{DateTime.Now.ToString("HH:mm:ss")}}</span>
                 </div>
-                <fluent-button id="theme-toggle" role="button" type="button" appearance="subtle" aria-label="Switch to light mode" title="Switch to light mode">
+                <fluent-button id="theme-toggle" role="button" type="button" appearance="subtle" aria-label="Switch to dark mode" title="Switch to dark mode" hidden>
                   <span aria-hidden="true">◐</span>
                 </fluent-button>
               </header>
@@ -70,6 +70,51 @@ internal static class PageLayout
               <main id="main" class="content" tabindex="-1">
                 {{content}}
               </main>
+            </div>
+          </div>
+
+          <div id="cmdk-scrim" class="scrim" hidden></div>
+          <div id="cmdk-dialog" class="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
+            <div class="q">
+              {{Icon("search", "sm")}}
+              <input id="cmdk-input" type="text" placeholder="Type a command or search..." autocomplete="off">
+              <kbd>ESC</kbd>
+            </div>
+            <div class="grp">
+              <div class="grp-k">Navigation</div>
+              <a class="opt" href="/">
+                {{Icon("versions", "sm")}}
+                <div><b>Installations</b> <small>· Installed SDKs and Runtimes</small></div>
+                <kbd>1</kbd>
+              </a>
+              <a class="opt" href="/tools">
+                {{Icon("tools", "sm")}}
+                <div><b>.NET Tools</b> <small>· Global &amp; local tools</small></div>
+                <kbd>2</kbd>
+              </a>
+              <a class="opt" href="/setup">
+                {{Icon("settings", "sm")}}
+                <div><b>Setup &amp; Downloads</b> <small>· SDK download catalog &amp; uninstaller</small></div>
+                <kbd>3</kbd>
+              </a>
+            </div>
+            <div class="grp">
+              <div class="grp-k">Quick Actions</div>
+              <a class="opt" href="/setup#sdk-downloads-title">
+                {{Icon("download", "sm")}}
+                <div><b>Install new SDK</b> <small>· macOS .pkg installer catalog</small></div>
+                <span class="badge brand">Download</span>
+              </a>
+              <a class="opt" href="/tools#tool-search-title">
+                {{Icon("search", "sm")}}
+                <div><b>Search NuGet tools</b> <small>· Search package registry</small></div>
+                <span class="badge">NuGet</span>
+              </a>
+            </div>
+            <div class="foot">
+              <span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span>
+              <span><kbd>↵</kbd> select</span>
+              <span><kbd>ESC</kbd> close</span>
             </div>
           </div>
         </body>

@@ -49,11 +49,13 @@ if (sdkFilter) {
 
   function filterSdkVersions() {
     const query = versionInput.value.trim().toLowerCase();
+    const terms = query.split(/\s+/).filter(Boolean);
     const lifecycle = new Set(lifecycleInputs.filter(input => input.checked).map(input => input.value));
     let visibleCount = 0;
     const latestThreeCounts = new Map();
     for (const row of rows) {
-      const matchesQuery = row.dataset.search.toLowerCase().includes(query);
+      const search = row.dataset.search.toLowerCase();
+      const matchesQuery = !terms.length || terms.every(t => search.includes(t));
       const matchesPreview = previewInput.checked || row.dataset.preview !== 'true';
       const matchesRc = rcInput.checked || row.dataset.rc !== 'true';
       const matchesSupport = !supportedInput.checked || row.dataset.supported === 'true';
@@ -120,3 +122,193 @@ if (sdkFilter) {
   });
   filterSdkVersions();
 }
+
+// Instant Client-Side Filtering for Installations
+const installationFilter = document.querySelector('[data-installation-filter]');
+if (installationFilter) {
+  const input = installationFilter.querySelector('#installation-filter-input');
+  const rows = [...document.querySelectorAll('tbody tr[data-kind]')];
+  const footerShown = document.querySelector('.table-footer strong') || document.querySelector('.inventory-footer span:first-child');
+  let emptyState = document.querySelector('.table-scroll .empty-state');
+
+  if (!emptyState) {
+    const tableScroll = document.querySelector('.table-scroll');
+    if (tableScroll) {
+      emptyState = document.createElement('div');
+      emptyState.className = 'empty-state client-empty-state';
+      emptyState.hidden = true;
+      emptyState.innerHTML = '<h3>No matching versions</h3><p class="muted">No installed versions match your filter.</p>';
+      tableScroll.appendChild(emptyState);
+    }
+  }
+
+  function filterInstallations() {
+    const query = input.value.trim().toLowerCase();
+    const terms = query.split(/\s+/).filter(Boolean);
+    let visible = 0;
+    for (const row of rows) {
+      const search = (row.dataset.search || row.textContent || '').toLowerCase();
+      const matches = !terms.length || terms.every(t => search.includes(t));
+      row.hidden = !matches;
+      if (matches) visible++;
+    }
+    if (footerShown) footerShown.textContent = `${visible} of ${rows.length} installations shown`;
+    if (emptyState) emptyState.hidden = visible > 0;
+
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set('q', input.value.trim());
+    else url.searchParams.delete('q');
+    history.replaceState(null, '', url);
+  }
+
+  input.addEventListener('input', filterInstallations);
+  installationFilter.addEventListener('submit', (e) => {
+    e.preventDefault();
+    filterInstallations();
+  });
+}
+
+// Instant Client-Side Filtering for Installed Tools Table
+const toolsFilterInput = document.querySelector('[data-tools-table-filter]');
+if (toolsFilterInput) {
+  const toolRows = [...document.querySelectorAll('[data-tool-row]')];
+  const toolCount = document.querySelector('[data-tool-count]');
+  let toolsEmptyState = document.querySelector('.tool-panel .empty-state.client-tools-empty');
+
+  if (!toolsEmptyState) {
+    const tableScroll = document.querySelector('.tool-panel .table-scroll');
+    if (tableScroll) {
+      toolsEmptyState = document.createElement('div');
+      toolsEmptyState.className = 'empty-state client-empty-state client-tools-empty';
+      toolsEmptyState.hidden = true;
+      toolsEmptyState.innerHTML = '<h3>No matching tools</h3><p class="muted">No tools match your filter.</p>';
+      tableScroll.appendChild(toolsEmptyState);
+    }
+  }
+
+  function filterTools() {
+    const q = toolsFilterInput.value.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
+    let count = 0;
+    for (const r of toolRows) {
+      const s = (r.dataset.search || r.textContent || '').toLowerCase();
+      const match = !terms.length || terms.every(t => s.includes(t));
+      r.hidden = !match;
+      if (match) count++;
+    }
+    if (toolCount) toolCount.textContent = count;
+    if (toolsEmptyState) toolsEmptyState.hidden = count > 0;
+  }
+
+  toolsFilterInput.addEventListener('input', filterTools);
+}
+
+// Command Palette (⌘K)
+const cmdkTrigger = document.getElementById('cmdk-trigger');
+const cmdkDialog = document.getElementById('cmdk-dialog');
+const cmdkScrim = document.getElementById('cmdk-scrim');
+const cmdkInput = document.getElementById('cmdk-input');
+
+if (cmdkTrigger && cmdkDialog && cmdkScrim && cmdkInput) {
+  let activeIndex = -1;
+
+  function getVisibleOptions() {
+    return [...cmdkDialog.querySelectorAll('.opt:not([hidden])')];
+  }
+
+  function updateActiveOption(options, newIndex) {
+    options.forEach(opt => opt.classList.remove('selected'));
+    if (newIndex >= 0 && newIndex < options.length) {
+      activeIndex = newIndex;
+      options[activeIndex].classList.add('selected');
+      options[activeIndex].scrollIntoView({ block: 'nearest' });
+    } else {
+      activeIndex = -1;
+    }
+  }
+
+  function openCmdk() {
+    cmdkDialog.hidden = false;
+    cmdkScrim.hidden = false;
+    cmdkInput.value = '';
+    filterCmdk('');
+    cmdkInput.focus();
+  }
+
+  function closeCmdk() {
+    cmdkDialog.hidden = true;
+    cmdkScrim.hidden = true;
+    activeIndex = -1;
+  }
+
+  function filterCmdk(query) {
+    const q = query.trim().toLowerCase();
+    const options = [...cmdkDialog.querySelectorAll('.opt')];
+    for (const opt of options) {
+      const text = opt.textContent.toLowerCase();
+      opt.hidden = Boolean(q && !text.includes(q));
+    }
+    const visible = getVisibleOptions();
+    updateActiveOption(visible, visible.length > 0 ? 0 : -1);
+  }
+
+  cmdkTrigger.addEventListener('click', openCmdk);
+  cmdkTrigger.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openCmdk();
+    }
+  });
+
+  cmdkScrim.addEventListener('click', closeCmdk);
+
+  cmdkInput.addEventListener('input', (e) => filterCmdk(e.target.value));
+
+  cmdkInput.addEventListener('keydown', (e) => {
+    const visible = getVisibleOptions();
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = activeIndex + 1 < visible.length ? activeIndex + 1 : 0;
+      updateActiveOption(visible, next);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = activeIndex - 1 >= 0 ? activeIndex - 1 : visible.length - 1;
+      updateActiveOption(visible, prev);
+    } else if (e.key === 'Enter') {
+      if (activeIndex >= 0 && visible[activeIndex]) {
+        e.preventDefault();
+        visible[activeIndex].click();
+      }
+    } else if (e.key === 'Escape') {
+      closeCmdk();
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (cmdkDialog.hidden) openCmdk();
+      else closeCmdk();
+    } else if (e.key === 'Escape' && !cmdkDialog.hidden) {
+      closeCmdk();
+    }
+  });
+}
+
+// Quick Copy Affordance for Tool Commands, Paths and CLI Snippets
+document.addEventListener('click', (e) => {
+  const target = e.target.closest('.tool-command-pill, code.installation-path, .tool-cli-preview code');
+  if (!target) return;
+  const text = (target.dataset.copy || target.textContent || '').trim();
+  if (!text) return;
+  navigator.clipboard?.writeText(text).then(() => {
+    const origTitle = target.getAttribute('title') || '';
+    target.setAttribute('title', 'Copied to clipboard!');
+    target.classList.add('copied');
+    setTimeout(() => {
+      target.classList.remove('copied');
+      if (origTitle) target.setAttribute('title', origTitle);
+      else target.removeAttribute('title');
+    }, 1200);
+  }).catch(() => {});
+});
