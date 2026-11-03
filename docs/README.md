@@ -1,5 +1,7 @@
 # .NET Cockpit
 
+![.NET Cockpit logo](assets/logo.png)
+
 .NET Cockpit is a local browser workspace for understanding and managing the .NET installation that is active on your machine. It runs only on `127.0.0.1`, opens a browser tab, and keeps the inventory, filtering, sorting, and actions on the server so the important parts still work with JavaScript disabled.
 
 ```hero

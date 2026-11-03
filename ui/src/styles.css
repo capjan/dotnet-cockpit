@@ -25,7 +25,7 @@ a { color: var(--brand); }
 .app-header { height: 68px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .brand, .header-actions { display: flex; align-items: center; gap: 14px; }
 .brand strong { font-size: 17px; letter-spacing: -.3px; }
-.brand-symbol { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 10px; background: #0f6cbd; color: white; font-size: 12px; font-weight: 700; }
+.brand-logo { width: 37px; height: 37px; object-fit: contain; }
 #theme-toggle { width: 34px; min-width: 34px; }
 .workspace { display: grid; grid-template-columns: 222px minmax(0, 1fr); min-height: calc(100vh - 68px); }
 .sidebar { background: var(--panel); border-right: 1px solid var(--line); padding: 28px 14px; display: flex; flex-direction: column; gap: 10px; }

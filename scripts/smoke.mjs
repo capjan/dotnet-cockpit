@@ -76,7 +76,8 @@ async function runWithoutRepositoryFiles(environment, verify, expectedStatus = 2
     for (const asset of new Set(assets)) {
       const response = await get(asset);
       assert.equal(response.status, 200, asset);
-      assert.match(response.headers.get('content-type'), asset.endsWith('.js') ? /javascript/ : /css/);
+      const contentType = asset.endsWith('.js') ? /javascript/ : asset.endsWith('.css') ? /css/ : /png/;
+      assert.match(response.headers.get('content-type'), contentType);
       assert.ok((await response.text()).length > 0, asset);
     }
     assert.equal((await get('does-not-exist')).status, 404);

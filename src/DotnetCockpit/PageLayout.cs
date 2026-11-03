@@ -12,13 +12,14 @@ internal static class PageLayout
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <meta name="description" content="Your local .NET environment, in one place.">
           <title>{{Encode(title)}}</title>
+          <link rel="icon" type="image/png" href="/assets/logo.png">
           <link rel="stylesheet" href="/assets/app.css">
           <script type="module" src="/assets/app.js"></script>
         </head>
         <body class="app">
           <a class="skip-link" href="#main">Skip to content</a>
           <header class="app-header">
-            <div class="brand"><span class="brand-symbol">.NET</span><strong>.NET Cockpit</strong></div>
+            <div class="brand"><img class="brand-logo" src="/assets/logo.png" alt=""><strong>.NET Cockpit</strong></div>
             <div class="header-actions">
               <fluent-badge appearance="tint" color="success">Local workspace</fluent-badge>
               <fluent-button id="theme-toggle" role="button" type="button" appearance="subtle" aria-label="Switch to dark mode" title="Switch to dark mode" hidden><span aria-hidden="true">◐</span></fluent-button>

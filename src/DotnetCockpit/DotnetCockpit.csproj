@@ -17,6 +17,7 @@
     <RepositoryUrl>https://github.com/capjan/dotnet-cockpit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>logo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
@@ -24,6 +25,7 @@
     <Content Remove="wwwroot/**/*" />
     <EmbeddedResource Include="wwwroot/**/*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../docs/assets/logo.png" Pack="true" PackagePath="/" />
     <InternalsVisibleTo Include="DotnetCockpit.Tests" />
   </ItemGroup>
   <Target Name="CheckUserInterface" BeforeTargets="PrepareForBuild">

@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { rm } from 'node:fs/promises';
+import { copyFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const outdir = fileURLToPath(new URL('../src/DotnetCockpit/wwwroot', import.meta.url));
@@ -14,3 +14,4 @@ await build({
   target: 'es2022',
   logLevel: 'info',
 });
+await copyFile('src/assets/logo.png', `${outdir}/assets/logo.png`);
