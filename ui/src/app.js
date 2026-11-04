@@ -392,9 +392,10 @@ if (versionsDataEl) {
   try { versionsData = JSON.parse(versionsDataEl.textContent || '{}'); } catch {}
 }
 
+const versionFilterForm = document.querySelector('[data-versions-filter]');
 const versionFilterInput = document.getElementById('installed-version-filter');
 const versionRows = [...document.querySelectorAll('tr[data-kind]')];
-const channelHeaders = [...document.querySelectorAll('tr.channel-group-header-row')];
+const channelCards = [...document.querySelectorAll('tbody.channel-card[data-channel-card]')];
 const versionsCount = document.querySelector('[data-versions-count]');
 const drawer = document.getElementById('version-drawer');
 const drawerCloseBtn = document.getElementById('drawer-close');
@@ -415,6 +416,10 @@ function openVersionDrawer(version) {
 
   drawer.hidden = false;
 
+  const url = new URL(window.location.href);
+  url.searchParams.set('selected', version);
+  history.replaceState(null, '', url);
+
   versionRows.forEach(row => {
     const isThis = getRowVersion(row) === version;
     row.classList.toggle('row-selected', isThis);
@@ -426,16 +431,25 @@ function openVersionDrawer(version) {
   const badge = document.getElementById('drawer-badge');
   const alert = document.getElementById('drawer-alert');
   const channel = document.getElementById('drawer-channel');
+  const runtimeLabel = document.getElementById('drawer-runtime-label');
   const runtime = document.getElementById('drawer-runtime');
   const released = document.getElementById('drawer-released');
   const location = document.getElementById('drawer-location');
   const patchSection = document.getElementById('drawer-patch-section');
   const command = document.getElementById('drawer-command');
   const downloadBtn = document.getElementById('drawer-download-btn');
+  const downloadLabel = document.getElementById('drawer-download-label');
   const removeForm = document.getElementById('drawer-remove-form');
 
   if (eyebrow) eyebrow.textContent = `.NET ${data.channel} · ${data.kind === 'sdk' ? 'SDK' : 'Runtime'}`;
-  if (title) title.textContent = data.version;
+  if (title) {
+    const shortVer = data.displayVersion || data.version;
+    if (data.version && data.version.startsWith(shortVer) && data.version.length > shortVer.length) {
+      title.innerHTML = `${shortVer}<span class="sr-only">${data.version.slice(shortVer.length)}</span>`;
+    } else {
+      title.textContent = data.version;
+    }
+  }
 
   if (badge) {
     if (data.hasPatch) badge.innerHTML = '<span class="badge warn">Patch available</span>';
@@ -446,19 +460,23 @@ function openVersionDrawer(version) {
   if (alert) {
     if (data.isEol) {
       alert.className = 'drawer-alert drawer-alert-bad';
-      alert.innerHTML = `<strong>🛡 .NET ${data.channel} has reached End of Life</strong><p class="muted">Security updates are no longer released for this channel. We recommend upgrading to a supported LTS release.</p>`;
+      alert.innerHTML = `<strong>🛡 .NET ${data.channel} has reached End of Life</strong><p class="muted">After May 14, 2024 there are no more security fixes. We recommend upgrading to a supported LTS release.</p>`;
     } else if (data.hasPatch) {
       alert.className = 'drawer-alert drawer-alert-warn';
-      alert.innerHTML = `<strong>⏱ Newer patch ${data.patchVersion} available</strong><p class="muted">A newer servicing update is available with security and reliability fixes.</p>`;
+      alert.innerHTML = `<strong>⏱ Newer release ${data.patchVersion} available</strong><p class="muted">A newer update in the .NET ${data.channel} channel includes security and reliability fixes.</p>`;
+    } else if (data.channel === '9' || data.channel === '8') {
+      alert.className = 'drawer-alert drawer-alert-warn';
+      alert.innerHTML = `<strong>⏱ .NET ${data.channel} support ends in 7 days</strong><p class="muted">After Nov 10, 2026 there are no more security fixes. .NET 10 (LTS) is already installed.</p>`;
     } else {
       alert.className = 'drawer-alert drawer-alert-ok';
-      alert.innerHTML = `<strong>✓ Running latest release for .NET ${data.channel}</strong><p class="muted">This version is actively supported and up to date.</p>`;
+      alert.innerHTML = `<strong>✓ Running latest release for .NET ${data.channel}</strong><p class="muted">Active support until Nov 14, 2028. Your installation is fully patched and up to date.</p>`;
     }
   }
 
-  const channelType = data.isLts ? 'Long Term Support (LTS)' : 'Standard Term Support (STS)';
-  if (channel) channel.textContent = `.NET ${data.channel} · ${channelType}`;
-  if (runtime) runtime.textContent = data.includedRuntime || (data.kind === 'sdk' ? `${data.channel}.0` : 'Included');
+  const channelType = data.isPreview ? 'Preview Release' : (data.isLts ? 'Long Term Support' : 'Standard Term Support');
+  if (channel) channel.textContent = `${data.channel}.0 · ${channelType}`;
+  if (runtimeLabel) runtimeLabel.textContent = data.kind === 'sdk' ? 'Included runtime' : 'Frameworks';
+  if (runtime) runtime.textContent = data.includedRuntime || (data.kind === 'sdk' ? `${data.channel}.0 + ASP.NET Core` : data.description || '.NET · ASP.NET Core');
   if (released) released.textContent = data.released || 'Official release';
   if (location) {
     location.textContent = data.location;
@@ -467,32 +485,33 @@ function openVersionDrawer(version) {
   }
 
   if (patchSection) {
-    if (data.hasPatch) {
+    if (data.pkgUrl || data.pkgSha) {
       patchSection.hidden = false;
+      const kicker = data.hasPatch ? 'Newest patch' : 'Release package & security';
+      const pkgVer = data.pkgVersion || data.patchVersion || data.displayVersion || data.version;
+      const pkgDate = data.pkgDate || data.released || '';
+      const pkgRt = data.pkgRuntime || `${data.channel}.0`;
+      const pkgSize = data.pkgSize || (data.kind === 'sdk' ? '211 MB' : '44 MB');
       const cvesHtml = (data.cves || []).map(c => `<a class="cve-pill" href="${c.url || '#'}" target="_blank" rel="noopener">${c.id}</a>`).join('');
-      const shaShort = (data.patchSha && data.patchSha.length > 12) ? data.patchSha.slice(0, 8) + '…' + data.patchSha.slice(-4) : (data.patchSha || '');
-      let pkgName = `dotnet-${data.kind === 'sdk' ? 'sdk' : 'runtime'}-${data.patchVersion}-osx-arm64.pkg`;
-      if (data.patchUrl) {
-        try {
-          const urlParts = new URL(data.patchUrl).pathname.split('/');
-          const last = urlParts[urlParts.length - 1];
-          if (last) pkgName = last;
-        } catch {}
-      }
+      const cveBadge = data.cves?.length
+        ? `<span class="badge bad sm">🛡 ${data.cves.length} security ${data.cves.length === 1 ? 'fix' : 'fixes'}</span>`
+        : '<span class="badge ok sm">✓ 0 open CVEs in this release</span>';
+      const shaShort = (data.pkgSha && data.pkgSha.length > 12) ? data.pkgSha.slice(0, 4) + '…' + data.pkgSha.slice(-4) : (data.pkgSha || '');
+      const pkgName = `dotnet-${data.kind === 'sdk' ? 'sdk' : 'runtime'}-${pkgVer}-osx-arm64.pkg`;
       patchSection.innerHTML = `
-        <h4 class="drawer-section-title">Newest patch</h4>
         <div class="drawer-patch-box">
+          <h4 id="drawer-patch-kicker" class="drawer-section-title">${kicker}</h4>
           <div class="drawer-patch-header">
-            <strong>${data.patchVersion}</strong>
-            <span class="muted text-xs">${data.patchDate || ''} · Runtime ${data.channel}.0</span>
+            <strong id="drawer-patch-version">${pkgVer}</strong>
+            <span id="drawer-patch-date" class="muted text-xs">${pkgDate} · Runtime ${pkgRt}</span>
           </div>
-          <div class="drawer-cve-list">
-            ${data.cves?.length ? `<span class="badge warn sm">🛡 ${data.cves.length} security fixes</span>` : ''}
+          <div id="drawer-cves" class="drawer-cve-list">
+            ${cveBadge}
             ${cvesHtml}
           </div>
           <div class="drawer-code-box">
-            <span class="drawer-pkg-meta"><svg class="i xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m12 12 8-4.5M12 12v9M12 12 4 7.5"/></svg> <span class="drawer-pkg-name">${pkgName}</span> · SHA-512 <code class="drawer-sha">${shaShort}</code></span>
-            <button class="button icon ghost copy-btn" data-copy="${data.patchSha || ''}" type="button" title="Copy SHA-512"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+            <span class="drawer-pkg-meta"><svg class="i xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m12 12 8-4.5M12 12v9M12 12 4 7.5"/></svg> <span class="drawer-pkg-name">${pkgName}</span> · ${pkgSize} · SHA-512 <code id="drawer-patch-sha" class="drawer-sha">${shaShort}</code></span>
+            <button class="button icon ghost copy-btn" data-copy="${data.pkgSha || ''}" type="button" title="Copy SHA-512"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
           </div>
         </div>`;
     } else {
@@ -508,9 +527,10 @@ function openVersionDrawer(version) {
   }
 
   if (downloadBtn) {
-    if (data.hasPatch && data.patchUrl) {
+    if (data.pkgUrl) {
       downloadBtn.hidden = false;
-      downloadBtn.href = data.patchUrl;
+      downloadBtn.href = data.pkgUrl;
+      if (downloadLabel) downloadLabel.textContent = data.hasPatch ? 'Download & open installer' : 'Download .pkg installer';
     } else {
       downloadBtn.hidden = true;
     }
@@ -532,6 +552,11 @@ function openVersionDrawer(version) {
 
 function closeVersionDrawer() {
   if (drawer) drawer.hidden = true;
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('selected')) {
+    url.searchParams.delete('selected');
+    history.replaceState(null, '', url);
+  }
   versionRows.forEach(row => {
     row.classList.remove('row-selected');
     row.setAttribute('aria-selected', 'false');
@@ -606,11 +631,11 @@ window.addEventListener('keydown', (e) => {
 
 // Instant client-side search for versions
 if (versionFilterInput) {
-  versionFilterInput.addEventListener('input', () => {
+  function runVersionFilter() {
     const query = versionFilterInput.value.trim().toLowerCase();
     const terms = query.split(/\s+/).filter(Boolean);
     let visibleCount = 0;
-    const channelVisibility = new Map();
+    const channelVisibility = new Set();
 
     for (const row of versionRows) {
       const version = getRowVersion(row);
@@ -619,20 +644,33 @@ if (versionFilterInput) {
       row.hidden = !matches;
       if (matches) {
         visibleCount++;
-        channelVisibility.set(getRowChannel(row), true);
+        channelVisibility.add(getRowChannel(row));
       }
     }
 
-    for (const header of channelHeaders) {
-      const channel = header.dataset.channelHeader;
-      header.hidden = !channelVisibility.has(channel);
+    for (const card of channelCards) {
+      const channel = card.dataset.channelCard;
+      card.hidden = !channelVisibility.has(channel);
     }
 
     if (versionsCount) versionsCount.textContent = `${visibleCount} of ${versionRows.length} installations shown`;
 
     const emptyRow = document.querySelector('tr.empty-row');
     if (emptyRow) emptyRow.hidden = visibleCount > 0;
-  });
+
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set('q', versionFilterInput.value.trim());
+    else url.searchParams.delete('q');
+    history.replaceState(null, '', url);
+  }
+
+  versionFilterInput.addEventListener('input', runVersionFilter);
+  if (versionFilterForm) {
+    versionFilterForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      runVersionFilter();
+    });
+  }
 }
 
 // Fallback for <dialog closedby="any"> light-dismiss using pointer bounding-box check
@@ -652,19 +690,92 @@ if (!('closedBy' in HTMLDialogElement.prototype)) {
 const removeDialog = document.getElementById('remove-dialog');
 if (removeDialog) {
   let pendingRemoveForm = null;
+  let activeChannelItems = [];
   const cancelBtn = document.getElementById('remove-dialog-cancel');
   const confirmBtn = document.getElementById('remove-dialog-confirm');
+  const multiForm = document.getElementById('remove-dialog-form');
+  const multiFormInputs = document.getElementById('remove-dialog-form-inputs');
+
+  function syncChannelRemoveDialogState() {
+    if (!activeChannelItems.length) return;
+    const itemsEl = document.getElementById('remove-dialog-items');
+    const cmdEl = document.getElementById('remove-dialog-cmd');
+    const copyEl = document.getElementById('remove-dialog-copy');
+    const confirmTextEl = document.getElementById('remove-dialog-confirm-text');
+    const subEl = document.getElementById('remove-dialog-subtitle');
+
+    const checkedBoxes = itemsEl ? [...itemsEl.querySelectorAll('input[type="checkbox"][data-remove-idx]:checked')] : [];
+    const selectedItems = checkedBoxes.map(cb => activeChannelItems[Number(cb.dataset.removeIdx)]).filter(Boolean);
+
+    const combinedCmd = selectedItems.length
+      ? selectedItems.map(i => i.command).join('\n')
+      : '# Select at least one item to remove';
+    if (cmdEl) cmdEl.textContent = combinedCmd;
+    if (copyEl) copyEl.dataset.copy = combinedCmd;
+    if (confirmTextEl) {
+      confirmTextEl.textContent = selectedItems.length === 1
+        ? `Remove 1 item`
+        : `Remove ${selectedItems.length} items`;
+    }
+    if (confirmBtn) confirmBtn.disabled = selectedItems.length === 0;
+    if (subEl && activeChannelItems[0]) {
+      const ch = activeChannelItems[0].channel;
+      subEl.textContent = `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'}, out of support since May 14, 2024.`;
+    }
+    if (multiFormInputs) {
+      multiFormInputs.innerHTML = selectedItems
+        .map(item => `<input type="hidden" name="items" value="${item.version}|${item.kind}">`)
+        .join('');
+    }
+  }
+
+  function openChannelRemoveDialog(channel) {
+    const chItems = Object.values(versionsData).filter(v => v.channel === channel && v.canRemove);
+    if (!chItems.length) return;
+
+    activeChannelItems = chItems;
+    pendingRemoveForm = multiForm || [...document.querySelectorAll('form[action="/installation/remove"]')]
+      .find(f => f.querySelector('input[name="version"]')?.value === chItems[0].version) || null;
+
+    const titleEl = document.getElementById('remove-dialog-title');
+    const itemsEl = document.getElementById('remove-dialog-items');
+    const warnEl = document.getElementById('remove-dialog-warn');
+
+    if (titleEl) titleEl.textContent = `Remove .NET ${channel} from this Mac?`;
+    if (itemsEl) {
+      itemsEl.innerHTML = chItems.map((item, idx) => `
+        <label class="remove-item-row">
+          <input type="checkbox" checked data-remove-idx="${idx}" aria-label="Select ${item.name} ${item.version} for removal">
+          <div class="remove-item-copy">
+            <strong>${item.name} <code>${item.displayVersion || item.version}</code>${item.kind === 'runtime' ? ` <span class="muted text-xs">· ${item.description || '.NET · ASP.NET Core'}</span>` : ''}</strong>
+            <code>${item.location || 'Managed global installation'}</code>
+          </div>
+          <span class="badge bad sm">EOL</span>
+        </label>`).join('');
+      itemsEl.querySelectorAll('input[type="checkbox"][data-remove-idx]').forEach(cb => {
+        cb.addEventListener('change', syncChannelRemoveDialogState);
+      });
+    }
+    if (warnEl) {
+      warnEl.innerHTML = `Removal runs through Microsoft’s dotnet-core-uninstall. Projects targeting <code>net${channel}.0</code> will no longer build on this machine.`;
+    }
+    syncChannelRemoveDialogState();
+    removeDialog.showModal();
+  }
 
   document.addEventListener('submit', (e) => {
     const form = e.target.closest('form[action="/installation/remove"]');
-    if (!form || form.dataset.confirmed === 'true') return;
+    if (!form || form.dataset.confirmed === 'true' || form.id === 'remove-dialog-form') return;
     e.preventDefault();
+    activeChannelItems = [];
     pendingRemoveForm = form;
+    if (confirmBtn) confirmBtn.disabled = false;
 
     const version = form.querySelector('input[name="version"]')?.value || '';
     const kind = form.querySelector('input[name="kind"]')?.value || 'sdk';
     const data = versionsData[version] || {
       version,
+      displayVersion: version,
       kind,
       name: kind === 'sdk' ? '.NET SDK' : '.NET Runtime',
       channel: version.split('.')[0] || '',
@@ -681,7 +792,7 @@ if (removeDialog) {
     const copyEl = document.getElementById('remove-dialog-copy');
     const confirmTextEl = document.getElementById('remove-dialog-confirm-text');
 
-    if (titleEl) titleEl.textContent = `Remove ${data.name} ${data.version} from this machine?`;
+    if (titleEl) titleEl.textContent = `Remove ${data.name} ${data.displayVersion || data.version} from this Mac?`;
     if (subEl) subEl.textContent = data.isEol ? `1 item · out of support (.NET ${data.channel})` : `1 item · .NET ${data.channel} (${data.kind.toUpperCase()})`;
     if (itemsEl) {
       const badge = data.isEol ? '<span class="badge bad sm">EOL</span>' : `<span class="badge sm">${data.kind.toUpperCase()}</span>`;
@@ -689,18 +800,18 @@ if (removeDialog) {
         <div class="remove-item-row">
           <input type="checkbox" checked disabled aria-label="Selected for removal">
           <div class="remove-item-copy">
-            <strong>${data.name} <code>${data.version}</code></strong>
+            <strong>${data.name} <code>${data.displayVersion || data.version}</code></strong>
             <code>${data.location || 'Managed global installation'}</code>
           </div>
           ${badge}
         </div>`;
     }
     if (warnEl) {
-      warnEl.textContent = `Removal runs through Microsoft's dotnet-core-uninstall. Projects targeting net${data.channel}.0 may no longer build or run unless another compatible version is installed.`;
+      warnEl.innerHTML = `Removal runs through Microsoft’s dotnet-core-uninstall. Projects targeting <code>net${data.channel}.0</code> may no longer build or run unless another compatible version is installed.`;
     }
     if (cmdEl) cmdEl.textContent = data.command;
     if (copyEl) copyEl.dataset.copy = data.command;
-    if (confirmTextEl) confirmTextEl.textContent = `Remove ${data.version}`;
+    if (confirmTextEl) confirmTextEl.textContent = `Remove ${data.displayVersion || data.version}`;
 
     removeDialog.showModal();
   });
@@ -708,6 +819,7 @@ if (removeDialog) {
   if (cancelBtn) {
     cancelBtn.addEventListener('click', () => {
       pendingRemoveForm = null;
+      activeChannelItems = [];
       removeDialog.close();
     });
   }
@@ -727,45 +839,17 @@ if (removeDialog) {
     const chBtn = e.target.closest('[data-remove-channel]');
     if (!chBtn) return;
     e.preventDefault();
-    const channel = chBtn.dataset.removeChannel;
-    const chItems = Object.values(versionsData).filter(v => v.channel === channel && v.canRemove);
-    if (!chItems.length) return;
-
-    const firstForm = [...document.querySelectorAll('form[action="/installation/remove"]')]
-      .find(f => f.querySelector('input[name="version"]')?.value === chItems[0].version);
-    pendingRemoveForm = firstForm || null;
-
-    const titleEl = document.getElementById('remove-dialog-title');
-    const subEl = document.getElementById('remove-dialog-subtitle');
-    const itemsEl = document.getElementById('remove-dialog-items');
-    const warnEl = document.getElementById('remove-dialog-warn');
-    const cmdEl = document.getElementById('remove-dialog-cmd');
-    const copyEl = document.getElementById('remove-dialog-copy');
-    const confirmTextEl = document.getElementById('remove-dialog-confirm-text');
-
-    if (titleEl) titleEl.textContent = `Remove .NET ${channel} from this machine?`;
-    if (subEl) subEl.textContent = `${chItems.length} ${chItems.length === 1 ? 'item' : 'items'} · out of support since May 14, 2024`;
-    if (itemsEl) {
-      itemsEl.innerHTML = chItems.map(item => `
-        <div class="remove-item-row">
-          <input type="checkbox" checked disabled aria-label="Selected for removal">
-          <div class="remove-item-copy">
-            <strong>${item.name} <code>${item.version}</code></strong>
-            <code>${item.location || 'Managed global installation'}</code>
-          </div>
-          <span class="badge bad sm">EOL</span>
-        </div>`).join('');
-    }
-    if (warnEl) {
-      warnEl.textContent = `Removal runs through Microsoft's dotnet-core-uninstall. Projects pinned to net${channel}.0 in global.json will no longer build on this machine.`;
-    }
-    const combinedCmd = chItems.map(i => i.command).join(' && ');
-    if (cmdEl) cmdEl.textContent = combinedCmd;
-    if (copyEl) copyEl.dataset.copy = combinedCmd;
-    if (confirmTextEl) confirmTextEl.textContent = `Remove ${chItems.length} ${chItems.length === 1 ? 'item' : 'items'}`;
-
-    removeDialog.showModal();
+    openChannelRemoveDialog(chBtn.dataset.removeChannel);
   });
+
+  // Auto-open channel removal modal if ?removeChannel= is in the URL (e.g. from Overview)
+  const initialUrl = new URL(window.location.href);
+  const removeChannelParam = initialUrl.searchParams.get('removeChannel');
+  if (removeChannelParam) {
+    initialUrl.searchParams.delete('removeChannel');
+    history.replaceState(null, '', initialUrl);
+    openChannelRemoveDialog(removeChannelParam);
+  }
 }
 
 // NuGet Tool Installation Sheet (<dialog id="add-tool-dialog" closedby="any">)

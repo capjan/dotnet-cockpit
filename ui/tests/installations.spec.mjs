@@ -87,9 +87,11 @@ test('filters instantly with client-side JavaScript without page reload', async 
 
   await searchBox.fill(snapshot.sdks[0].version);
   await expect(page.locator('tbody tr[data-kind]:not([hidden])').first()).toContainText(snapshot.sdks[0].version);
+  await expect(page.locator('tbody.channel-card:not([hidden])')).toHaveCount(1);
 
   await searchBox.fill('xyz-nonexistent-query');
   await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(0);
+  await expect(page.locator('tbody.channel-card:not([hidden])')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No matching versions' })).toBeVisible();
 
   await searchBox.fill('');
@@ -129,6 +131,8 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
   await expect(page.locator('#version-drawer')).toBeVisible();
   await expect(page.locator('#drawer-title')).toHaveText(firstSdk.version);
   await expect(page.locator('#drawer-command')).toContainText(`dotnet-core-uninstall remove ${firstSdk.version}`);
+  await expect(page.locator('#drawer-patch-section')).toBeVisible();
+  await expect(page.locator('#drawer-download-btn')).toBeVisible();
 
   // Close drawer
   await page.locator('#drawer-close').click();

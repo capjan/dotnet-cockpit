@@ -32,8 +32,10 @@ internal static class SdkDownloadsSection
             .GroupBy(download => MajorVersion(download.Version))
             .OrderByDescending(group => group.Key)
             .ToArray();
+        var firstVisibleMajor = groups
+            .FirstOrDefault(group => GetVisibleDownloads(group, options).Length > 0)?.Key;
         var groupContent = string.Concat(groups.Select(group => RenderMajorGroup(group.Key,
-            group.OrderByDescending(download => download.Version, SdkVersionComparer.Instance).ToArray(), options)));
+            group.OrderByDescending(download => download.Version, SdkVersionComparer.Instance).ToArray(), options, group.Key == firstVisibleMajor)));
 
         return $$"""
             <section class="inventory sdk-catalog-section" aria-labelledby="sdk-downloads-title">
@@ -151,7 +153,7 @@ internal static class SdkDownloadsSection
             """;
     }
 
-    private static string RenderMajorGroup(int major, SdkDownload[] downloads, SdkDownloadsViewOptions options)
+    private static string RenderMajorGroup(int major, SdkDownload[] downloads, SdkDownloadsViewOptions options, bool isOpen = false)
     {
         var visibleDownloads = GetVisibleDownloads(downloads, options).ToHashSet();
         var visibleCount = visibleDownloads.Count;
@@ -186,9 +188,10 @@ internal static class SdkDownloadsSection
             """;
         }));
         var hiddenAttribute = visibleCount == 0 ? " hidden" : "";
+        var openAttribute = isOpen && visibleCount > 0 ? " open" : "";
         var label = options.Product == "runtime" ? ".NET Runtime" : ".NET SDK";
         return $$"""
-            <details class="sdk-major-group" data-sdk-group{{hiddenAttribute}}>
+            <details class="sdk-major-group" data-sdk-group{{openAttribute}}{{hiddenAttribute}}>
               <summary><strong>{{label}} {{major}}</strong>{{lifecycleTag}}{{endOfLifeTag}}{{supportMessage}}<span class="muted"><span data-sdk-group-count>{{visibleCount}}</span> versions</span></summary>
               <div class="table-scroll" role="region" aria-label="{{label}} major version {{major}}" tabindex="0">
                 <table class="tools-table" aria-label="{{label}} major version {{major}} packages">

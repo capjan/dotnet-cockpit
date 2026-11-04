@@ -21,12 +21,15 @@ internal static class OverviewPage
         var downloads = sdkSnapshot.Downloads ?? [];
         var patchableSdks = snapshot.Sdks.Where(sdk =>
         {
+            if (InstallationSnapshot.IsEol(sdk.Version)) return false;
             var major = sdk.Version.Split('.')[0];
+            var isPre = sdk.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) || sdk.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
+            var shortVer = InstallationPage.ShortDisplayVersion(sdk.Version);
             var latest = downloads
-                .Where(d => d.Product == "SDK" && d.Channel == major && !d.Version.Contains("-preview") && !d.Version.Contains("-rc"))
+                .Where(d => d.Product == "SDK" && (d.Channel == major || d.Channel == $"{major}.0") && (isPre || (!d.Version.Contains("-preview") && !d.Version.Contains("-rc"))))
                 .OrderByDescending(d => d.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
                 .FirstOrDefault();
-            return latest != null && SdkDownloadsSection.SdkVersionComparer.Instance.Compare(latest.Version, sdk.Version) > 0;
+            return latest != null && latest.Version != sdk.Version && latest.InstallationVersion != sdk.Version && SdkDownloadsSection.SdkVersionComparer.Instance.Compare(latest.Version, shortVer) > 0;
         }).ToArray();
 
         var latestInstalledSdk = snapshot.Sdks
@@ -48,12 +51,14 @@ internal static class OverviewPage
         var actions = new List<string>();
         if (hasEol)
         {
-            var eolChannels = snapshot.Sdks.Where(s => InstallationSnapshot.IsEol(s.Version)).Select(s => s.Version.Split('.')[0])
+            var eolChannelNums = snapshot.Sdks.Where(s => InstallationSnapshot.IsEol(s.Version)).Select(s => s.Version.Split('.')[0])
                 .Concat(snapshot.Runtimes.Where(r => InstallationSnapshot.IsEol(r.Version)).Select(r => r.Version.Split('.')[0]))
                 .Distinct()
                 .OrderBy(c => c)
-                .Select(c => $".NET {c}");
-            var channelLabel = string.Join(", ", eolChannels);
+                .ToArray();
+            var channelLabel = string.Join(", ", eolChannelNums.Select(c => $".NET {c}"));
+            var firstEolVer = eolSdks.FirstOrDefault()?.Version ?? eolRuntimes.FirstOrDefault() ?? "";
+            var firstEolChannel = eolChannelNums.FirstOrDefault() ?? "7";
             actions.Add($"""
                 <div class="overview-action-item">
                   <div class="action-icon bad">{Icon("shield", "sm")}</div>
@@ -62,8 +67,8 @@ internal static class OverviewPage
                     <p class="muted">{eolCount} installed {(eolCount == 1 ? "item no longer receives" : "items no longer receive")} security fixes.</p>
                   </div>
                   <div class="action-buttons">
-                    <a class="button sm ghost" href="/">Details</a>
-                    <a class="button sm danger-outline" href="/">{Icon("trash", "xs")} Remove {eolCount} {(eolCount == 1 ? "item" : "items")}</a>
+                    <a class="button sm ghost" href="/?selected={Uri.EscapeDataString(firstEolVer)}#inventory">Details</a>
+                    <a class="button sm danger-outline" href="/?removeChannel={Uri.EscapeDataString(firstEolChannel)}#inventory">{Icon("trash", "xs")} Remove {eolCount} {(eolCount == 1 ? "item" : "items")}</a>
                   </div>
                 </div>
                 """);
@@ -73,16 +78,17 @@ internal static class OverviewPage
         {
             var firstSdk = patchableSdks[0];
             var major = firstSdk.Version.Split('.')[0];
+            var isPre = firstSdk.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) || firstSdk.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
             var latest = downloads
-                .Where(d => d.Product == "SDK" && d.Channel == major && !d.Version.Contains("-preview") && !d.Version.Contains("-rc"))
+                .Where(d => d.Product == "SDK" && (d.Channel == major || d.Channel == $"{major}.0") && (isPre || (!d.Version.Contains("-preview") && !d.Version.Contains("-rc"))))
                 .OrderByDescending(d => d.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
                 .First();
             actions.Add($"""
                 <div class="overview-action-item">
                   <div class="action-icon info">{Icon("download", "sm")}</div>
                   <div class="action-text">
-                    <strong>Patch available: SDK {Encode(firstSdk.Version)} → {Encode(latest.Version)}</strong>
-                    <p class="muted">Includes Runtime {Encode(latest.IncludedRuntimeVersion ?? $"{major}.0")} and latest security fixes.</p>
+                    <strong>Patch available: SDK {Encode(InstallationPage.ShortDisplayVersion(firstSdk.Version))} → {Encode(latest.Version)}</strong>
+                    <p class="muted">Includes Runtime {Encode(InstallationPage.ShortDisplayVersion(latest.IncludedRuntimeVersion ?? $"{major}.0"))} and latest security fixes.</p>
                   </div>
                   <div class="action-buttons">
                     <a class="button sm" href="{Encode(latest.Url)}" download>{Icon("download", "xs")} Download .pkg</a>

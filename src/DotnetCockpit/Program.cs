@@ -86,6 +86,21 @@ app.MapGet("/api/installation", async (DotnetInstallationService service, HttpCo
 app.MapPost("/installation/remove", async (HttpContext context, DotnetUninstallToolService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var items = form["items"];
+    if (items.Count > 0)
+    {
+        var allSucceeded = true;
+        foreach (var item in items)
+        {
+            var parts = (item ?? "").Split('|', 2);
+            if (parts.Length == 2 && !string.IsNullOrWhiteSpace(parts[0]))
+            {
+                var itemResult = await service.RemoveInstallationAsync(parts[0], parts[1], context.RequestAborted);
+                if (!itemResult.Success) allSucceeded = false;
+            }
+        }
+        return Results.Redirect(InstallationRedirect(form, allSucceeded ? "removed" : "remove-failed"));
+    }
     var result = await service.RemoveInstallationAsync(form["version"].ToString(), form["kind"].ToString(), context.RequestAborted);
     return Results.Redirect(InstallationRedirect(form, result.Success ? "removed" : "remove-failed"));
 });
