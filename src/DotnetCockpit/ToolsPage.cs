@@ -193,7 +193,7 @@ internal static class ToolsPage
                       </div>
                     </td>
                     <td class="tool-cell-cmd">
-                      <div class="row" style="gap:6px;flex-wrap:wrap">
+                      <div class="row">
                         {string.Concat(tool.Commands.Select(command => $"<span class=\"tool-command-pill\" data-copy=\"{Encode(isToolLocal ? $"dotnet {command}" : command)}\" title=\"Click to copy command\"><code>{Encode(command)}</code>{Icon("clipboard", "xs")}</span>"))}
                       </div>
                     </td>

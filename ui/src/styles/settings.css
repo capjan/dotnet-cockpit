@@ -57,7 +57,7 @@
 .step > div { flex: 1; min-width: 0; }
 .step b { font-weight: 600; font-size: var(--t-sm); }
 .step p { font-size: var(--t-sm); color: var(--muted); overflow-wrap: anywhere; }
-.st { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: 50%; }
+.st { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: var(--r-full); }
 .st.ok { background: var(--ok-soft); color: var(--ok); }
 .st.warn { background: var(--warn-soft); color: var(--warn); }
 .pf-attention { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }

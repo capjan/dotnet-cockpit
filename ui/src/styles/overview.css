@@ -6,7 +6,7 @@
   border-radius: var(--r-md);
 }
 .hero-health-pane { display: flex; align-items: center; gap: 20px; padding: 20px; min-width: 0; }
-.hero-ring { display: grid; place-items: center; width: 84px; height: 84px; flex: none; border-radius: 50%; border: 5px solid var(--warn); }
+.hero-ring { display: grid; place-items: center; width: 84px; height: 84px; flex: none; border-radius: var(--r-full); border: 5px solid var(--warn); }
 .hero-ring.ring-ok { border-color: var(--ok); }
 .hero-ring-inner { display: grid; justify-items: center; line-height: 1.1; }
 .hero-ring-inner strong { font-size: var(--t-2xl); font-weight: 600; }
@@ -55,7 +55,7 @@
 .ws-dl dt { color: var(--muted); }
 .ws-dl dd { min-width: 0; overflow-wrap: anywhere; }
 .ws-tools-dd { display: flex; flex-wrap: wrap; gap: 4px; }
-.ws-tool-pill { padding: 1px 6px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; }
+.ws-tool-pill { padding: 1px 6px; background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--r-sm); }
 .ws-tool-pill-link:hover { text-decoration: none; }
 .ws-tool-pill-link:hover .ws-tool-pill { border-color: var(--line-strong); }
 .shortcuts-card { display: grid; gap: 6px; }
@@ -68,7 +68,7 @@
 .inventory-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .tl-legend { display: flex; gap: 12px; font-size: var(--t-xs); color: var(--muted); }
 .tl-leg-item { display: inline-flex; align-items: center; gap: 6px; }
-.tl-dot { width: 10px; height: 10px; border-radius: 3px; }
+.tl-dot { width: 10px; height: 10px; border-radius: var(--r-sm); }
 .tl-dot.lts { background: var(--lts); }
 .tl-dot.sts { background: var(--sts); }
 .tl-dot.preview { border: 1px dashed var(--brand); }
@@ -80,13 +80,13 @@
 .tl-rows { position: relative; display: grid; gap: 6px; padding-top: 4px; min-width: 640px; }
 .tl-channel { display: flex; align-items: center; gap: 6px; font-size: var(--t-sm); }
 .tl-channel b { font-weight: 600; }
-.tl-track { position: relative; height: 22px; background: var(--surface-2); border-radius: 4px; }
+.tl-track { position: relative; height: 22px; background: var(--surface-2); border-radius: var(--r-sm); }
 .tl-bar {
   position: absolute;
   top: 2px;
   bottom: 2px;
   padding: 0 6px;
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -103,7 +103,7 @@
 .tl-status.warn { color: var(--warn); font-weight: 500; }
 .tl-status.bad { color: var(--bad); font-weight: 500; }
 .tl-today-marker { position: absolute; top: -18px; bottom: 0; z-index: 2; width: 0; border-left: 1px dashed var(--text-2); pointer-events: none; }
-.tl-today-pill { position: absolute; top: -2px; left: 0; transform: translateX(-50%); padding: 0 5px; border-radius: 4px; background: var(--text); color: var(--bg); font-size: var(--t-xs); line-height: 16px; }
+.tl-today-pill { position: absolute; top: -2px; left: 0; transform: translateX(-50%); padding: 0 5px; border-radius: var(--r-sm); background: var(--text); color: var(--bg); font-size: var(--t-xs); line-height: 16px; }
 
 @media (max-width: 1240px) {
   .overview-hero-card { grid-template-columns: minmax(0, 1fr); }

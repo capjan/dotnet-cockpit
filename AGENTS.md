@@ -17,6 +17,6 @@
 - Styles use the tokens in `ui/src/styles/tokens.css`: six type sizes, three radii, semantic colors. Add no literal colors, other sizes or `!important`.
 - `/setup` may detect, install, update, and remove only the official global `dotnet-core-uninstall` installation for Windows and macOS. Global installs use the platform paths and must surface administrator approval. Release discovery must follow every page of the official GitHub Releases API, filter stable releases to those with a compatible asset, and treat an incomplete/failed response as unavailable rather than presenting a partial list. Do not download arbitrary URLs or claim Linux support.
 - The CLI's bracketed path is a base directory. Display `InstallationPath` (base path plus version) for an individual SDK or runtime; retain `Path` in the JSON API for compatibility.
-- Run `dotnet test DotnetCockpit.sln`, publish the native binary, run `node scripts/smoke.mjs <binary>`, and run the browser tests for UI changes.
+- Run `dotnet test DotnetCockpit.sln`, publish the native binary, run `node scripts/smoke.mjs <binary>`, and run the browser tests for UI changes. For visual changes also run `npm --prefix ui run test:visual`; after an intended change, update the baselines with `npm --prefix ui run test:visual:update` and review them.
 - Use `gh` for GitHub operations. Commit messages follow Conventional Commits and contain no AI attribution.
 - Keep changes focused and avoid speculative abstractions or functionality.

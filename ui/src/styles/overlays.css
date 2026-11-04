@@ -136,7 +136,7 @@ dialog::backdrop { background: var(--scrim); }
 .palette .grp { padding: 6px; overflow-y: auto; }
 .palette .grp + .grp { border-top: 1px solid var(--line); }
 .grp-k { padding: 4px 8px; font-size: var(--t-xs); font-weight: 500; color: var(--muted); }
-.opt { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 4px 8px; border-radius: 4px; color: var(--text-2); font-size: var(--t-sm); }
+.opt { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 4px 8px; border-radius: var(--r-sm); color: var(--text-2); font-size: var(--t-sm); }
 .opt:hover { text-decoration: none; }
 .opt > div { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opt b { font-weight: 500; color: var(--text); }

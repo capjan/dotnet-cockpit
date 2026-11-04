@@ -176,7 +176,7 @@ internal static class SetupPage
                   <div class="settings-card-head">
                     <h2 id="settings-about-title">About .NET Cockpit</h2>
                   </div>
-                  <p class="scope-note muted" style="margin: 0;">Choose a package in Versions → Install .NET to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package. The .NET Uninstall Tool uses official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
+                  <p class="scope-note muted">Choose a package in Versions → Install .NET to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package. The .NET Uninstall Tool uses official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
                 </section>
               </div>
             </div>

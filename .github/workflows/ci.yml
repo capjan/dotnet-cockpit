@@ -73,6 +73,13 @@ jobs:
       - name: Test UI against native backend
         if: runner.os == 'Linux'
         run: npm --prefix ui run test:browser
+      - name: Install browser for screenshot comparison
+        if: matrix.os == 'macos-latest'
+        working-directory: ui
+        run: npx playwright install chromium
+      - name: Compare screenshots
+        if: matrix.os == 'macos-latest'
+        run: npm --prefix ui run test:visual
       - name: Archive native executable
         shell: pwsh
         env:
