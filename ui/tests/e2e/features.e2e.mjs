@@ -27,6 +27,8 @@ async function confirmAndWait(page, command, success) {
   const outcome = page.locator('.toast, .action-notice.error-state');
   await expect(outcome).toBeVisible({ timeout: ACTION_TIMEOUT });
   await expect(outcome).toContainText(success);
+  // A newly installed tool's details arrive just after the page, and the page then reloads itself once to show them.
+  await page.waitForLoadState('networkidle');
 }
 
 async function searchAndInstall(page, scope) {
