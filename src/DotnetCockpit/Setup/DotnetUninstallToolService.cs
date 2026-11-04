@@ -106,7 +106,10 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
                 await InstallWindowsAsync(downloadBase, assetName, temporaryDirectory, timeout.Token);
 
             if (!Read().UninstallTool.Installed)
+            {
+                logger.LogWarning("The dotnet-core-uninstall installer completed, but the executable is not in {Directory}.", GetGlobalDirectory());
                 return new(false, "The installer completed, but the dotnet-core-uninstall executable was not found at the expected path.");
+            }
             return new(true);
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException or UnauthorizedAccessException or InvalidDataException or Win32Exception or InvalidOperationException)
@@ -262,7 +265,7 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
             await RunElevatedAsync(executablePath, $"remove {QuoteArgument(version)} {QuoteArgument(filter)} --yes", cancellationToken);
     }
 
-    /// <summary>msiexec does not accept quoted switches and answers them with a help dialog that waits forever, so only the path is quoted. The official package installs into the directory Cockpit looks in.</summary>
+    /// <summary>msiexec does not accept quoted switches and answers them with a help dialog that waits forever, so only the path is quoted.</summary>
     internal static string MsiInstallArguments(string installer) => $"/i {QuoteArgument(installer)} /qn";
 
     /// <summary>One shell line for all removals. Every item is attempted, and the exit code reports whether any failed.</summary>
@@ -495,8 +498,9 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         }
     }
 
-    private static string GetGlobalDirectory() => OperatingSystem.IsWindows()
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet-core-uninstall")
+    /// <summary>The official Windows package is a 32-bit installer, so it installs under Program Files (x86) on every machine.</summary>
+    internal static string GetGlobalDirectory() => OperatingSystem.IsWindows()
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "dotnet-core-uninstall")
         : "/usr/local/bin";
 
     private static string ExecutableName() => OperatingSystem.IsWindows() ? "dotnet-core-uninstall.exe" : "dotnet-core-uninstall";
