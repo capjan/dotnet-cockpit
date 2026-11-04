@@ -1,0 +1,148 @@
+/*
+  Palettes change color roles only, never shape or spacing. The selector is deliberately not tied to :root:
+  a swatch in Settings sets data-palette on itself and so previews that palette inside any other one.
+*/
+[data-palette="macos"] {
+  --bg:           light-dark(#f5f5f7, #1c1c1e);
+  --surface:      light-dark(#ffffff, #2c2c2e);
+  --surface-2:    light-dark(#f2f2f7, #363638);
+  --surface-3:    light-dark(#e5e5ea, #444446);
+  --line:         light-dark(#d8d8dd, #414143);
+  --line-strong:  light-dark(#b4b4ba, #5e5e62);
+  --text:         light-dark(#1d1d1f, #f5f5f7);
+  --text-2:       light-dark(#3a3a3c, #d6d6da);
+  --muted:        light-dark(#5e5e63, #b4b4ba);
+  --brand:        light-dark(#0062cc, #6cb4ff);
+  --brand-fill:   light-dark(#0071e3, #0071e3);
+  --on-brand:     #ffffff;
+  --brand-soft:   light-dark(#dcebfd, #1f3a5c);
+  --ok:           light-dark(#1b7a35, #4cd964);
+  --ok-soft:      light-dark(#e0f4e5, #1d3a25);
+  --warn:         light-dark(#935100, #ffb340);
+  --warn-soft:    light-dark(#fdeed8, #43321a);
+  --bad:          light-dark(#c41c13, #ff7a70);
+  --bad-soft:     light-dark(#fde7e5, #4a2422);
+  --info:         light-dark(#0062cc, #6cb4ff);
+  --info-soft:    light-dark(#e1eefc, #1f3249);
+  --lts:          light-dark(#bcd9fb, #1d5ca8);
+  --sts:          light-dark(#c8e8d0, #2a6b3c);
+  --bar-text:     light-dark(#1d1d1f, #f5f5f7);
+  --code-bg:      light-dark(#f2f2f7, #1c1c1e);
+  --code-text:    light-dark(#1d1d1f, #e8e8ed);
+}
+
+[data-palette="github"] {
+  --bg:           light-dark(#f6f8fa, #0d1117);
+  --surface:      light-dark(#ffffff, #151b23);
+  --surface-2:    light-dark(#f6f8fa, #212830);
+  --surface-3:    light-dark(#e7ecf0, #2a313c);
+  --line:         light-dark(#d1d9e0, #30363d);
+  --line-strong:  light-dark(#b1bac4, #484f58);
+  --text:         light-dark(#1f2328, #f0f6fc);
+  --text-2:       light-dark(#31383f, #d1d7e0);
+  --muted:        light-dark(#59636e, #a0a8b2);
+  --brand:        light-dark(#0969da, #58a6ff);
+  --brand-fill:   light-dark(#1a7f37, #238636);
+  --on-brand:     #ffffff;
+  --brand-soft:   light-dark(#ddf4ff, #15304d);
+  --ok:           light-dark(#1a7f37, #3fb950);
+  --ok-soft:      light-dark(#dafbe1, #12301c);
+  --warn:         light-dark(#8a5a00, #d9a227);
+  --warn-soft:    light-dark(#fff8c5, #33290e);
+  --bad:          light-dark(#cf222e, #ff7b72);
+  --bad-soft:     light-dark(#ffebe9, #3c1618);
+  --info:         light-dark(#0969da, #58a6ff);
+  --info-soft:    light-dark(#ddf4ff, #15304d);
+  --lts:          light-dark(#b6e3ff, #1f5a99);
+  --sts:          light-dark(#aceebb, #1f6b34);
+  --bar-text:     light-dark(#1f2328, #f0f6fc);
+  --code-bg:      light-dark(#f6f8fa, #0d1117);
+  --code-text:    light-dark(#1f2328, #e6edf3);
+}
+
+/* macOS style follows the system accent. Fill and text differ so each stays readable; blue is the default above. */
+:root[data-accent="red"][data-palette="macos"],
+:root[data-accent="red"] [data-palette="macos"] {
+  --brand:      light-dark(#c41c13, #ff7a70);
+  --brand-fill: light-dark(#d70015, #d70015);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#fde7e5, #4a2422);
+}
+
+:root[data-accent="orange"][data-palette="macos"],
+:root[data-accent="orange"] [data-palette="macos"] {
+  --brand:      light-dark(#9c4a00, #ffb340);
+  --brand-fill: light-dark(#ff9500, #ff9f0a);
+  --on-brand:   light-dark(#1d1d1f, #1d1d1f);
+  --brand-soft: light-dark(#fdeed8, #43321a);
+}
+
+:root[data-accent="yellow"][data-palette="macos"],
+:root[data-accent="yellow"] [data-palette="macos"] {
+  --brand:      light-dark(#7f6200, #ffd60a);
+  --brand-fill: light-dark(#ffcc00, #ffd60a);
+  --on-brand:   light-dark(#1d1d1f, #1d1d1f);
+  --brand-soft: light-dark(#fbf3cf, #3f3717);
+}
+
+:root[data-accent="green"][data-palette="macos"],
+:root[data-accent="green"] [data-palette="macos"] {
+  --brand:      light-dark(#1b7a35, #4cd964);
+  --brand-fill: light-dark(#1f7a35, #1f7a35);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#e0f4e5, #1d3a25);
+}
+
+:root[data-accent="purple"][data-palette="macos"],
+:root[data-accent="purple"] [data-palette="macos"] {
+  --brand:      light-dark(#8338b0, #d18cf5);
+  --brand-fill: light-dark(#8944ab, #8944ab);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#f3e6fa, #3a2547);
+}
+
+:root[data-accent="pink"][data-palette="macos"],
+:root[data-accent="pink"] [data-palette="macos"] {
+  --brand:      light-dark(#c4104a, #ff7096);
+  --brand-fill: light-dark(#d30f45, #d30f45);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#fde4ec, #4a2030);
+}
+
+:root[data-accent="graphite"][data-palette="macos"],
+:root[data-accent="graphite"] [data-palette="macos"] {
+  --brand:      light-dark(#58585c, #c4c4ca);
+  --brand-fill: light-dark(#636366, #636366);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#e8e8ec, #3e3e40);
+}
+
+/* Neutral grays with an inverted primary button, blue only for links and selection accents. */
+[data-palette="codex"] {
+  --bg:           light-dark(#f7f7f7, #171717);
+  --surface:      light-dark(#ffffff, #1f1f1f);
+  --surface-2:    light-dark(#f1f1f1, #2a2a2a);
+  --surface-3:    light-dark(#e4e4e4, #353535);
+  --line:         light-dark(#e0e0e0, #303030);
+  --line-strong:  light-dark(#bdbdbd, #4c4c4c);
+  --text:         light-dark(#171717, #ececec);
+  --text-2:       light-dark(#3d3d3d, #d0d0d0);
+  --muted:        light-dark(#5f5f5f, #a8a8a8);
+  --brand:        light-dark(#1d5fd1, #7fabff);
+  --brand-fill:   light-dark(#171717, #f4f4f4);
+  --on-brand:     light-dark(#ffffff, #171717);
+  --brand-soft:   light-dark(#ececec, #2d2d2d);
+  --ok:           light-dark(#0f7b4b, #4ccb8a);
+  --ok-soft:      light-dark(#e0f3e9, #16322a);
+  --warn:         light-dark(#8a5300, #e8a33d);
+  --warn-soft:    light-dark(#faefd9, #38291a);
+  --bad:          light-dark(#c0261e, #f0776e);
+  --bad-soft:     light-dark(#fbe6e4, #3b1f1d);
+  --info:         light-dark(#1d5fd1, #7fabff);
+  --info-soft:    light-dark(#e4edfb, #15294f);
+  --lts:          light-dark(#a9c6f7, #2f5fc0);
+  --sts:          light-dark(#b9b9b9, #6b6b6b);
+  --bar-text:     light-dark(#171717, #f4f4f4);
+  --code-bg:      light-dark(#f4f4f4, #141414);
+  --code-text:    light-dark(#171717, #e6e6e6);
+}

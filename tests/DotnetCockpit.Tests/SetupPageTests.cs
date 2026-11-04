@@ -22,7 +22,7 @@ public sealed class SetupPageTests
         Assert.Contains("/usr/local/bin", html);
         Assert.Contains("Latest (1.7.661902)", html);
         Assert.Contains("name=\"version\"", html);
-        Assert.Contains("action=\"/setup/install\"", html);
+        Assert.Contains("data-confirm-post=\"/setup/install\"", html);
         Assert.Contains("dotnet/cli-lab/releases/tag/1.6.656206", html);
         Assert.DoesNotContain("Install for current user", html);
         Assert.Contains("https://learn.microsoft.com/en-us/dotnet/core/additional-tools/uninstall-tool-overview", html);
@@ -38,7 +38,6 @@ public sealed class SetupPageTests
             AvailableReleases: [new SetupRelease("1.7.661902", "https://github.com/dotnet/cli-lab/releases/tag/1.7.661902", null, "dotnet-core-uninstall-osx-arm64.tar.gz")]);
         var html = SetupPage.Render(snapshot, new());
 
-        Assert.DoesNotContain("<fluent-badge appearance=\"tint\" color=\"success\">Installed</fluent-badge>", html);
         Assert.Contains("/usr/local/bin/dotnet-core-uninstall", html);
         Assert.Contains("Installed version <code>1.7.661902</code>", html);
         Assert.Contains("Ready to list and remove .NET Installations", html);
@@ -47,10 +46,10 @@ public sealed class SetupPageTests
         Assert.Contains(">Remove</button>", html);
         Assert.Contains("setup-card-actions", html);
         Assert.DoesNotContain("setup-icon-button", html);
-        Assert.Contains("action=\"/setup/uninstall\"", html);
+        Assert.Contains("data-confirm-post=\"/setup/uninstall\"", html);
         Assert.DoesNotContain("Uninstall globally", html);
-        Assert.DoesNotContain("action=\"/setup/update\"", html);
-        Assert.DoesNotContain("action=\"/setup/install\"", html);
+        Assert.DoesNotContain("data-confirm-post=\"/setup/update\"", html);
+        Assert.DoesNotContain("data-confirm-post=\"/setup/install\"", html);
 
         var headerActionsIndex = html.IndexOf("setup-card-actions", StringComparison.Ordinal);
         var installedDetailsIndex = html.IndexOf("setup-installed", StringComparison.Ordinal);
@@ -68,7 +67,7 @@ public sealed class SetupPageTests
         var html = SetupPage.Render(snapshot, new());
 
         Assert.Contains("Latest official release <a href=\"https://github.com/dotnet/cli-lab/releases/tag/1.7.661902\"><code>1.7.661902</code>", html);
-        Assert.Contains("action=\"/setup/update\"", html);
+        Assert.Contains("data-confirm-post=\"/setup/update\"", html);
         Assert.Contains("Update to 1.7.661902", html);
     }
 
@@ -81,7 +80,7 @@ public sealed class SetupPageTests
             AvailableReleases: [new SetupRelease("1.7.661902", "https://github.com/dotnet/cli-lab/releases/tag/1.7.661902", null, "dotnet-core-uninstall-osx-arm64.tar.gz")]);
         var html = SetupPage.Render(snapshot, new());
 
-        Assert.DoesNotContain("action=\"/setup/uninstall\"", html);
+        Assert.DoesNotContain("data-confirm-post=\"/setup/uninstall\"", html);
         Assert.Contains("must be removed manually", html);
     }
 

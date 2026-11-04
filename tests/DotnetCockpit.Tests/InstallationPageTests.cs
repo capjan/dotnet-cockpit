@@ -19,7 +19,7 @@ public sealed class InstallationPageTests
         Assert.Equal(4, Regex.Matches(html, "<tr data-kind=").Count);
         Assert.Contains(snapshot.Sdks[0].InstallationPath, html);
         Assert.Contains(snapshot.Runtimes[0].InstallationPath, html);
-        Assert.Contains("10.0.5</fluent-badge>", html);
+        Assert.Contains("data-full-version>10.0.5</span>", html);
         Assert.DoesNotContain("id=\"root\"", html);
     }
 
@@ -29,7 +29,7 @@ public sealed class InstallationPageTests
         var html = InstallationPage.Render(Snapshot(), new(Query: "asp.net 10.0.7", Kind: "runtimes"));
         Assert.Single(Regex.Matches(html, "<tr data-kind="));
         Assert.Contains("ASP.NET Core Runtime</strong>", html);
-        Assert.DoesNotContain("10.0.5</fluent-badge>", html);
+        Assert.DoesNotContain("data-full-version>10.0.5</span>", html);
         Assert.Contains("1 of 4 installations shown", html);
     }
 
@@ -43,7 +43,7 @@ public sealed class InstallationPageTests
 
         var html = InstallationPage.Render(snapshot, new());
 
-        Assert.Single(Regex.Matches(html, "<tr data-kind=\"runtime\">"));
+        Assert.Single(Regex.Matches(html, "<tr data-kind=\"runtime\""));
         Assert.Contains("Microsoft.NETCore.App", html);
         Assert.Contains("Microsoft.AspNetCore.App", html);
         Assert.Contains(Path.Combine("/opt/dotnet/shared/Microsoft.NETCore.App", "10.0.7"), html);
@@ -60,11 +60,11 @@ public sealed class InstallationPageTests
 
         var html = InstallationPage.Render(snapshot, new(Kind: "sdks"));
 
-        Assert.Contains("<th scope=\"col\">Actions</th>", html);
-        Assert.Contains("action=\"/installation/remove\"", html);
+        Assert.Contains(">Actions</th>", html);
+        Assert.Contains("data-confirm-post=\"/installation/remove\"", html);
         Assert.Contains("name=\"kind\" value=\"sdk\"", html);
         Assert.Contains("name=\"version\" value=\"10.0.9\"", html);
-        Assert.DoesNotContain("action=\"/installation/remove\"", InstallationPage.Render(Snapshot(), new()));
+        Assert.DoesNotContain("data-confirm-post=\"/installation/remove\"", InstallationPage.Render(Snapshot(), new()));
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public sealed class InstallationPageTests
 
         var html = InstallationPage.Render(snapshot, new());
 
-        Assert.Contains("10.0.403</fluent-badge>", html);
-        Assert.Contains("10.0.14</fluent-badge>", html);
+        Assert.Contains("data-full-version>10.0.403</span>", html);
+        Assert.Contains("data-full-version>10.0.14</span>", html);
         Assert.Contains("name=\"version\" value=\"10.0.403\"", html);
         Assert.DoesNotContain("/10.0.403", html);
         Assert.DoesNotContain("/10.0.14", html);
@@ -89,8 +89,8 @@ public sealed class InstallationPageTests
     {
         var descending = InstallationPage.Render(Snapshot(), new());
         var ascending = InstallationPage.Render(Snapshot(), new(Ascending: true));
-        Assert.True(descending.IndexOf("10.0.10</fluent-badge>", StringComparison.Ordinal) < descending.IndexOf("10.0.9</fluent-badge>", StringComparison.Ordinal));
-        Assert.True(ascending.IndexOf("10.0.10</fluent-badge>", StringComparison.Ordinal) > ascending.IndexOf("10.0.9</fluent-badge>", StringComparison.Ordinal));
+        Assert.True(descending.IndexOf("data-full-version>10.0.10</span>", StringComparison.Ordinal) < descending.IndexOf("data-full-version>10.0.9</span>", StringComparison.Ordinal));
+        Assert.True(ascending.IndexOf("data-full-version>10.0.10</span>", StringComparison.Ordinal) > ascending.IndexOf("data-full-version>10.0.9</span>", StringComparison.Ordinal));
     }
 
     [Fact]

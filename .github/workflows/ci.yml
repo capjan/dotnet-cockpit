@@ -8,7 +8,7 @@ on:
     inputs:
       version:
         type: string
-        default: '0.1.0'
+        default: '0.2.0'
 
 permissions:
   contents: read
@@ -62,7 +62,7 @@ jobs:
       - name: Publish Native AOT executable
         shell: bash
         env:
-          PACKAGE_VERSION: ${{ inputs.version || '0.1.0' }}
+          PACKAGE_VERSION: ${{ inputs.version || '0.2.0' }}
         run: dotnet publish src/DotnetCockpit/DotnetCockpit.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained true -p:PublishAot=true -warnaserror:IL2026,IL2104,IL3050,IL3053 -p:Version="$PACKAGE_VERSION" --output artifacts/native
       - name: Smoke test published executable
         run: node scripts/smoke.mjs artifacts/native/${{ matrix.exe }}
@@ -73,6 +73,13 @@ jobs:
       - name: Test UI against native backend
         if: runner.os == 'Linux'
         run: npm --prefix ui run test:browser
+      - name: Install browser for screenshot comparison
+        if: matrix.os == 'macos-latest'
+        working-directory: ui
+        run: npx playwright install chromium
+      - name: Compare screenshots
+        if: matrix.os == 'macos-latest'
+        run: npm --prefix ui run test:visual
       - name: Archive native executable
         shell: pwsh
         env:
@@ -116,11 +123,11 @@ jobs:
           npm --prefix ui run build
       - name: Pack .NET tool
         env:
-          PACKAGE_VERSION: ${{ inputs.version || '0.1.0' }}
+          PACKAGE_VERSION: ${{ inputs.version || '0.2.0' }}
         run: dotnet pack src/DotnetCockpit/DotnetCockpit.csproj --configuration Release -p:Version="$PACKAGE_VERSION" --output artifacts/packages
       - name: Install and smoke test tool package
         env:
-          PACKAGE_VERSION: ${{ inputs.version || '0.1.0' }}
+          PACKAGE_VERSION: ${{ inputs.version || '0.2.0' }}
         run: |
           dotnet tool install dotnet-cockpit --tool-path "$PWD/artifacts/tool" --add-source "$PWD/artifacts/packages" --version "$PACKAGE_VERSION"
           PATH="$PWD/artifacts/tool:$PATH" dotnet cockpit --help

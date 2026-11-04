@@ -105,10 +105,10 @@ public sealed class ToolsTests
         var withoutManifestLocal = ToolsPage.Render(snapshot, new("local", "format"), search);
         Assert.DoesNotContain("Initialize local tools", withoutManifest);
         Assert.Contains("Initialize local tools", withoutManifestLocal);
-        Assert.Contains("action=\"/tools/init\"", withoutManifestLocal);
+        Assert.Contains("data-confirm-post=\"/tools/init\"", withoutManifestLocal);
         Assert.Contains("Install globally", withoutManifest);
         Assert.DoesNotContain("Install locally", withoutManifest);
-        Assert.Contains("action=\"/tools/uninstall\"", withoutManifest);
+        Assert.Contains("data-confirm-post=\"/tools/uninstall\"", withoutManifest);
 
         var initialized = snapshot with { LocalManifestInitialized = true };
         var withManifest = ToolsPage.Render(initialized, new("global", "format"), search);
@@ -122,7 +122,7 @@ public sealed class ToolsTests
             "/workspace/.config/dotnet-tools.json", true);
         var ownedHtml = ToolsPage.Render(owned, new("local"));
         Assert.Contains("Remove local tools", ownedHtml);
-        Assert.Contains("action=\"/tools/remove-manifest\"", ownedHtml);
+        Assert.Contains("data-confirm-post=\"/tools/remove-manifest\"", ownedHtml);
 
         var inherited = owned with { LocalManifestOwned = false, LocalManifestPath = "/workspace/../.config/dotnet-tools.json" };
         var inheritedHtml = ToolsPage.Render(inherited, new("local"));

@@ -1,0 +1,144 @@
+.app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; }
+.brand img { width: 30px; height: 30px; object-fit: contain; }
+.brand b { display: block; font-size: var(--t-md); font-weight: 600; }
+.brand small { display: block; font-size: var(--t-xs); color: var(--muted); }
+
+.rail-label {
+  padding: 16px 10px 6px;
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  transition: background var(--ease), color var(--ease);
+}
+.nav-link:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+.nav-link[aria-current] { background: var(--brand-soft); color: var(--text); font-weight: 500; }
+.nav-link[aria-current] .i { color: var(--brand); }
+/* Counts and the review badge share one centered column, so the digits line up. */
+.nav-count, .nav-link .nav-badge {
+  display: inline-grid;
+  place-items: center;
+  margin-left: auto;
+  min-width: 24px;
+  padding: 0 4px;
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+}
+.nav-count { color: var(--muted); }
+
+.rail-foot { margin-top: auto; display: grid; gap: 8px; }
+.ws-card { display: grid; gap: 2px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-sm); min-width: 0; }
+.ws-card .k { display: flex; align-items: center; gap: 6px; font-size: var(--t-xs); color: var(--muted); }
+.ws-card b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-card code { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+
+.main { min-width: 0; display: flex; flex-direction: column; }
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 max(32px, calc(100% - 1600px + 32px)) 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.crumbs { flex: 1; font-size: var(--t-md); min-width: 0; }
+.crumbs b { font-weight: 500; }
+
+.cmdk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 300px;
+  height: var(--control);
+  padding: 0 6px 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+.cmdk:hover { border-color: var(--line-strong); }
+.cmdk span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.checked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control);
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font-size: var(--t-sm);
+  white-space: nowrap;
+}
+.checked:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+
+.content {
+  flex: 1;
+  width: 100%;
+  max-width: 1600px;
+  padding: 28px 32px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.intro { margin-top: 2px; }
+.overview-header-actions, .tools-header-actions, .inventory-heading-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scope-note { font-size: var(--t-sm); max-width: 80ch; }
+
+@media (max-width: 960px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }
+  .brand { padding: 0 12px 0 0; }
+  .rail-label, .rail-foot { display: none; }
+  .nav-count { margin-left: 4px; }
+  .nav-badge { margin-left: 4px; }
+  .topbar, .content { padding-inline: 16px; }
+  .cmdk { width: auto; flex: 1; }
+  .crumbs { display: none; }
+}
+
+@media (max-width: 640px) {
+  .cmdk span, .cmdk kbd, .checked span { display: none; }
+  .cmdk { flex: 0 0 auto; width: var(--control); justify-content: center; padding: 0; }
+  .topbar { gap: 8px; }
+  .topbar .theme-switch { margin-left: auto; }
+}

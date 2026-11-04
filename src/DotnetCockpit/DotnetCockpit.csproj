@@ -11,7 +11,7 @@
     <IsPackable>true</IsPackable>
     <ToolCommandName>dotnet-cockpit</ToolCommandName>
     <PackageId>dotnet-cockpit</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Jan Ruhlaender</Authors>
     <Description>A local browser cockpit for your .NET installations.</Description>
     <RepositoryUrl>https://github.com/capjan/dotnet-cockpit</RepositoryUrl>

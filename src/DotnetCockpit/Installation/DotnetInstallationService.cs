@@ -2,8 +2,40 @@ using System.ComponentModel;
 
 namespace DotnetCockpit.Installation;
 
+/// <summary>The SDK the dotnet host resolves for Cockpit's working directory, including a global.json pin.</summary>
+internal sealed record ActiveSdk(string? Version, string? GlobalJsonPath);
+
 internal sealed class DotnetInstallationService
 {
+    public async Task<ActiveSdk> ReadActiveSdkAsync(CancellationToken cancellationToken)
+    {
+        var globalJson = FindGlobalJson(Environment.CurrentDirectory);
+        var executable = DotnetLocator.Find(Environment.GetEnvironmentVariable("PATH"));
+        if (executable is null) return new(null, globalJson);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        try
+        {
+            var output = await DotnetCommand.RunAsync(executable, ["--version"], timeout.Token);
+            return new(output.Trim(), globalJson);
+        }
+        catch (Exception exception) when (IsQueryFailure(exception) && !cancellationToken.IsCancellationRequested)
+        {
+            return new(null, globalJson);
+        }
+    }
+
+    private static string? FindGlobalJson(string directory)
+    {
+        for (var current = new DirectoryInfo(directory); current is not null; current = current.Parent)
+        {
+            var candidate = Path.Combine(current.FullName, "global.json");
+            if (File.Exists(candidate)) return candidate;
+        }
+        return null;
+    }
+
     public async Task<InstallationSnapshot> ReadAsync(CancellationToken cancellationToken)
     {
         var executable = DotnetLocator.Find(Environment.GetEnvironmentVariable("PATH"));

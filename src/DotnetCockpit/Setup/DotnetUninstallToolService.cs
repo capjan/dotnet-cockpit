@@ -127,14 +127,13 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         }
     }
 
-    public async Task<SetupActionResult> RemoveInstallationAsync(string? version, string? kind, CancellationToken cancellationToken)
+    public Task<SetupActionResult> RemoveInstallationAsync(string? version, string? kind, CancellationToken cancellationToken) =>
+        RemoveInstallationsAsync([(version, kind)], cancellationToken);
+
+    /// <summary>Removes everything in one elevated run, so the person approves once however many items are selected.</summary>
+    public async Task<SetupActionResult> RemoveInstallationsAsync(IReadOnlyList<(string? Version, string? Kind)> items, CancellationToken cancellationToken)
     {
         if (!IsSupported()) return new(false, "The .NET Uninstall Tool supports Windows and macOS only.");
-
-        var targetVersion = version?.Trim();
-        var targetKind = kind?.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(targetVersion) || targetKind is not ("sdk" or "runtime"))
-            return new(false, "The selected .NET installation is invalid.");
 
         var installation = Read().UninstallTool;
         if (!installation.Installed || installation.Path is null)
@@ -143,37 +142,42 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromMinutes(5));
+            timeout.CancelAfter(TimeSpan.FromMinutes(10));
             var list = DotnetOutputParser.ParseUninstallList(await DotnetCommand.RunAsync(installation.Path, ["list"], timeout.Token));
-            if (targetKind == "sdk")
+
+            var removals = new List<(string Version, string Filter)>();
+            var allResolved = true;
+            foreach (var (version, kind) in items)
             {
-                if (!list.SdkVersions.Contains(targetVersion, StringComparer.OrdinalIgnoreCase))
-                    return new(false, "The selected SDK is no longer available for removal.");
-                await RemoveWithElevationAsync(installation.Path, targetVersion, "--sdk", timeout.Token);
-            }
-            else
-            {
-                var filters = list.Runtimes
-                    .Where(runtime => string.Equals(runtime.Version, targetVersion, StringComparison.OrdinalIgnoreCase))
-                    .Select(runtime => RuntimeFilter(runtime.Name))
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray();
-                if (filters.Length == 0)
-                    return new(false, "The selected runtime is no longer available for removal.");
-                foreach (var filter in filters)
-                    await RemoveWithElevationAsync(installation.Path, targetVersion, filter, timeout.Token);
+                var targetVersion = version?.Trim() ?? "";
+                var targetKind = kind?.Trim().ToLowerInvariant();
+                var filters = targetVersion.Length == 0
+                    ? []
+                    : targetKind == "sdk" && list.SdkVersions.Contains(targetVersion, StringComparer.OrdinalIgnoreCase)
+                        ? ["--sdk"]
+                        : targetKind == "runtime"
+                            ? list.Runtimes
+                                .Where(runtime => string.Equals(runtime.Version, targetVersion, StringComparison.OrdinalIgnoreCase))
+                                .Select(runtime => RuntimeFilter(runtime.Name))
+                                .Distinct(StringComparer.Ordinal)
+                                .ToArray()
+                            : Array.Empty<string>();
+                if (filters.Length == 0) allResolved = false;
+                removals.AddRange(filters.Select(filter => (targetVersion, filter)));
             }
 
-            return new(true);
+            if (removals.Count == 0) return new(false, "The selected .NET installation is no longer available for removal.");
+            await RemoveWithElevationAsync(installation.Path, removals, timeout.Token);
+            return allResolved ? new(true) : new(false, "Some selected .NET installations were no longer available for removal.");
         }
         catch (Exception exception) when (exception is HttpRequestException or IOException or UnauthorizedAccessException or InvalidOperationException or Win32Exception)
         {
-            logger.LogWarning(exception, "Could not remove .NET {Kind} {Version}.", targetKind, targetVersion);
+            logger.LogWarning(exception, "Could not remove {Count} .NET installations.", items.Count);
             return new(false, "The selected .NET installation could not be removed. Check the permissions and try again.");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning("Timed out while removing .NET {Kind} {Version}.", targetKind, targetVersion);
+            logger.LogWarning("Timed out while removing {Count} .NET installations.", items.Count);
             return new(false, "The .NET installation removal timed out. Check the permissions and try again.");
         }
     }
@@ -246,21 +250,28 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         await RunProcessAsync("cmd.exe", ["/d", "/c", windowsCommand], cancellationToken, useShellExecute: true, elevate: true);
     }
 
-    private async Task RemoveWithElevationAsync(string executablePath, string version, string filter, CancellationToken cancellationToken)
+    private async Task RemoveWithElevationAsync(string executablePath, IReadOnlyList<(string Version, string Filter)> removals, CancellationToken cancellationToken)
     {
-        var arguments = new[] { "remove", version, filter, "--yes" };
         if (OperatingSystem.IsMacOS())
         {
-            var command = $"cd / && {ShellQuote(executablePath)} {string.Join(' ', arguments.Select(ShellQuote))}";
-            var script = $"do shell script {AppleScriptLiteral(command)} with administrator privileges";
+            var script = $"do shell script {AppleScriptLiteral(BuildBatchRemovalCommand(executablePath, removals))} with administrator privileges";
             await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken, useShellExecute: false);
             return;
         }
 
-        await RunProcessAsync(executablePath, arguments, cancellationToken, useShellExecute: true, elevate: true);
+        foreach (var (version, filter) in removals)
+            await RunProcessAsync(executablePath, ["remove", version, filter, "--yes"], cancellationToken, useShellExecute: true, elevate: true);
     }
 
-    private static string RuntimeFilter(string name) => name switch
+    /// <summary>One shell line for all removals. Every item is attempted, and the exit code reports whether any failed.</summary>
+    internal static string BuildBatchRemovalCommand(string executablePath, IEnumerable<(string Version, string Filter)> removals)
+    {
+        var commands = removals.Select(removal =>
+            $"{ShellQuote(executablePath)} 'remove' {ShellQuote(removal.Version)} {ShellQuote(removal.Filter)} '--yes' || status=1");
+        return $"cd / ; status=0 ; {string.Join(" ; ", commands)} ; exit $status";
+    }
+
+    internal static string RuntimeFilter(string name) => name switch
     {
         "Microsoft.AspNetCore.App" => "--aspnet-runtime",
         "Microsoft.WindowsDesktop.App" => "--windows-desktop-runtime",

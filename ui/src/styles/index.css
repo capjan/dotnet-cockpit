@@ -1,0 +1,19 @@
+/*
+  Layer order keeps specificity flat. The rule below stays outside every layer on purpose:
+  unlayered rules beat layered ones, so the hidden attribute always wins without !important.
+*/
+@layer tokens, base, layout, components, pages;
+
+@import './tokens.css' layer(tokens);
+@import './palettes.css' layer(tokens);
+@import './base.css' layer(base);
+@import './layout.css' layer(layout);
+@import './components.css' layer(components);
+@import './overlays.css' layer(components);
+@import './versions.css' layer(pages);
+@import './tools.css' layer(pages);
+@import './overview.css' layer(pages);
+@import './settings.css' layer(pages);
+
+[hidden] { display: none; }
+
