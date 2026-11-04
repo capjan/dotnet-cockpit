@@ -3,13 +3,14 @@ using static DotnetCockpit.PageLayout;
 
 namespace DotnetCockpit;
 
-internal sealed record ToolsViewOptions(string Scope = "global", string SearchQuery = "", string Notice = "", string Selected = "")
+internal sealed record ToolsViewOptions(string Scope = "global", string SearchQuery = "", string Notice = "", string Selected = "", string Changed = "")
 {
     public static ToolsViewOptions From(IQueryCollection query) => new(
         query["scope"].ToString() is "local" ? "local" : query["scope"].ToString() is "all" ? "all" : "global",
         query["q"].ToString().Trim() is { Length: <= 100 } search ? search : "",
         query["notice"].ToString(),
-        query["selected"].ToString().Trim() is { Length: <= 100 } selected ? selected : "");
+        query["selected"].ToString().Trim() is { Length: <= 100 } selected ? selected : "",
+        query["changed"].ToString().Trim());
 }
 
 internal static class ToolsPage
@@ -17,7 +18,7 @@ internal static class ToolsPage
     public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options) =>
         Render(snapshot, options, new(options.SearchQuery, []));
 
-    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search, int navIssues = 0, int? navVersions = null)
+    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search, int navIssues = 0, int? navVersions = null, string? navInventory = null)
     {
         var content = snapshot.Status switch
         {
@@ -75,7 +76,7 @@ internal static class ToolsPage
             {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
             {{(snapshot.Status == "ready" ? RenderAddToolSheet(snapshot, options, search) : "")}}
             <p class="scope-note muted">Local tools are declared in manifests for this working directory or its parents. This view does not check whether they have been restored — run <code>dotnet tool restore</code> in the workspace.</p>
-            """, "/tools", ".NET Tools | .NET Cockpit", navIssues, navVersions, snapshot.Global.Tools.Length + snapshot.Local.Tools.Length, refreshHref: RefreshLink(options));
+            """, "/tools", ".NET Tools | .NET Cockpit", navIssues, navVersions, snapshot.Global.Tools.Length + snapshot.Local.Tools.Length, refreshHref: RefreshLink(options), inventorySignature: navInventory);
     }
 
     private static string RenderTabs(ToolsSnapshot snapshot, ToolsViewOptions options)
@@ -176,7 +177,7 @@ internal static class ToolsPage
                     : $"<span class=\"v-current\">{Encode(tool.Version)}</span>";
 
                 return $"""
-                  <tr data-tool-scope="{toolScopeStr}" data-tool-row data-drawer-key="{Encode(toolKey)}" data-search="{Encode($"{tool.PackageId} {tool.Version} {string.Join(' ', tool.Commands)} {tool.Manifest} {meta.Summary} {meta.Authors}")}"{(isSelected ? " class=\"row-selected\"" : "")}>
+                  <tr data-tool-scope="{toolScopeStr}" data-tool-row data-drawer-key="{Encode(toolKey)}" data-search="{Encode($"{tool.PackageId} {tool.Version} {string.Join(' ', tool.Commands)} {tool.Manifest} {meta.Summary} {meta.Authors}")}"{(isSelected ? " class=\"row-selected\"" : string.Equals(options.Changed, tool.PackageId, StringComparison.OrdinalIgnoreCase) ? " class=\"row-changed\"" : "")}>
                     <td class="tool-cell-main">
                       <div class="tool-name">
                         {logoHtml}
@@ -454,13 +455,13 @@ internal static class ToolsPage
             ("dotnet-outdated-tool", "4.6.8", "dotnet-outdated")
         };
 
-        var itemsHtml = string.Concat(featured.Select((item, idx) =>
+        var itemsHtml = string.Concat(featured.Select(item =>
         {
             var meta = ToolMetadataCatalog.Resolve(item.Id, item.DefaultVer, false);
             var ver = !string.IsNullOrWhiteSpace(meta.LatestVersion) ? meta.LatestVersion : item.DefaultVer;
             var logoHtml = ToolMetadataCatalog.RenderLogo(meta);
             return $"""
-                <div class="sheet-result-item {(idx == 0 ? "active" : "")}" data-pkg-id="{Encode(item.Id)}" data-pkg-ver="{Encode(ver)}">
+                <div class="sheet-result-item" data-pkg-id="{Encode(item.Id)}">
                   {logoHtml}
                   <div class="sheet-result-body">
                     <div class="sheet-result-top">
@@ -475,12 +476,7 @@ internal static class ToolsPage
                       <span><code>{Encode(item.Cmd)}</code></span>
                     </div>
                   </div>
-                  <form method="post" action="/tools/install">
-                    <input type="hidden" name="packageId" value="{Encode(item.Id)}">
-                    <input type="hidden" name="version" value="{Encode(ver)}">
-                    <input type="hidden" name="scope" value="global" data-sheet-form-scope>
-                    <button type="submit" class="button {(idx == 0 ? "primary" : "")} sm">Install</button>
-                  </form>
+                  {ConfirmActions.Trigger(ConfirmActions.ToolInstall(item.Id, ver, "global"), "<button type=\"submit\" class=\"button sm\">Install</button>")}
                 </div>
                 """;
         }));
@@ -511,18 +507,10 @@ internal static class ToolsPage
                   </div>
                 </div>
 
-                <div id="sheet-results" class="sheet-results">
+                <div id="sheet-results" class="sheet-results" data-body-global="{{Encode(ConfirmActions.ToolInstallBody("global"))}}" data-body-local="{{Encode(ConfirmActions.ToolInstallBody("local"))}}">
                   {{itemsHtml}}
                 </div>
 
-                <div class="sheet-foot">
-                  <span class="drawer-section-title">Will run</span>
-                  <div class="drawer-command-box">
-                    <span class="cmd-prompt">$</span>
-                    <code id="sheet-cli-preview">dotnet tool install --global \&#10;  dotnet-coverage \&#10;  --version 18.1.0</code>
-                    <button class="button icon ghost copy-btn" id="sheet-cli-copy" data-copy="dotnet tool install --global \&#10;  dotnet-coverage \&#10;  --version 18.1.0" type="button" title="Copy command">{{Icon("clipboard")}}</button>
-                  </div>
-                </div>
               </div>
             </dialog>
             """;
@@ -552,11 +540,11 @@ internal static class ToolsPage
 
     private static string RenderNotice(string notice) => notice switch
     {
-        "installed" => "<div class=\"action-notice\" role=\"status\">Tool installed successfully.</div>",
-        "updated" => "<div class=\"action-notice\" role=\"status\">Tool updated successfully.</div>",
-        "uninstalled" => "<div class=\"action-notice\" role=\"status\">Tool removed successfully.</div>",
-        "initialized" => "<div class=\"action-notice\" role=\"status\">Local tools are now initialized in this working directory.</div>",
-        "removed" => "<div class=\"action-notice\" role=\"status\">The local tool manifest was removed. Cached packages were left untouched.</div>",
+        "installed" => SuccessToast("Tool installed."),
+        "updated" => SuccessToast("Tool updated."),
+        "uninstalled" => SuccessToast("Tool removed."),
+        "initialized" => SuccessToast("Local tools are initialized in this workspace."),
+        "removed" => SuccessToast("Local manifest removed. Cached packages were left untouched."),
         "failed" => "<div class=\"action-notice error-state\" role=\"alert\">The requested tool action failed. Check the SDK and package sources, then try again.</div>",
         _ => ""
     };

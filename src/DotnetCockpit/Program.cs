@@ -69,15 +69,17 @@ app.MapGet("/overview", async (DotnetInstallationService installationService, Do
     await Task.WhenAll(installationTask, toolsTask, setupTask, sdkTask, activeSdkTask);
     return Results.Content(OverviewPage.Render(installationTask.Result, toolsTask.Result, setupTask.Result, sdkTask.Result, activeSdkTask.Result), "text/html; charset=utf-8");
 });
-app.MapGet("/", async (DotnetInstallationService service, SdkDownloadCatalog sdkCatalog, HttpContext context, ILogger<Program> logger) =>
+app.MapGet("/", async (DotnetInstallationService service, DotnetToolsService toolsService, SdkDownloadCatalog sdkCatalog, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
     var installationTask = ReadInstallation(service, context, logger);
     var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
-    await Task.WhenAll(installationTask, sdkTask);
+    var toolsTask = ReadTools(toolsService, context, logger);
+    await Task.WhenAll(installationTask, sdkTask, toolsTask);
     var snapshot = installationTask.Result;
     var sdkSnapshot = sdkTask.Result;
-    return Results.Content(InstallationPage.Render(snapshot, sdkSnapshot, InstallationViewOptions.From(context.Request.Query)),
+    int? toolsCount = toolsTask.Result.Status == "ready" ? toolsTask.Result.Global.Tools.Length + toolsTask.Result.Local.Tools.Length : null;
+    return Results.Content(InstallationPage.Render(snapshot, sdkSnapshot, InstallationViewOptions.From(context.Request.Query), navTools: toolsCount),
         "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
 });
 app.MapGet("/versions", (HttpContext context) => Results.Redirect("/"));
@@ -163,6 +165,7 @@ app.MapGet("/confirm", async (DotnetInstallationService installationService, Dot
     {
         "version-remove" when rows.FirstOrDefault(row => row.CanRemove && row.Version == query["version"].ToString() && row.Kind == query["kind"].ToString()) is { } row => ConfirmActions.VersionRemove(row, viewOptions),
         "channel-remove" when rows.Where(row => row.CanRemove && row.Channel == query["channel"].ToString()).ToArray() is { Length: > 0 } channelRows => ConfirmActions.ChannelRemove(query["channel"].ToString(), channelRows),
+        "tool-install" when packageId.Length > 0 => ConfirmActions.ToolInstall(packageId, query["version"].ToString(), scope),
         "tool-uninstall" when isListedTool => ConfirmActions.ToolUninstall(packageId, scope),
         "tool-update" when isListedTool => ConfirmActions.ToolUpdate(packageId, scope, null),
         "tools-update-all" when query["items"].Count > 0 => ConfirmActions.ToolsUpdateAll(scope is "local" or "all" ? scope : "global", query["q"].ToString(), query["items"].Select(item => item ?? "").ToArray()),
@@ -211,21 +214,21 @@ app.MapGet("/tools", async (DotnetToolsService service, DotnetInstallationServic
     var search = snapshot.Status == "ready" && options.SearchQuery.Length > 0
         ? await service.SearchAsync(options.SearchQuery, context.RequestAborted)
         : new ToolSearch(options.SearchQuery, []);
-    return Results.Content(ToolsPage.Render(snapshot, options, search, health.Count, installationTask.Result.InstallationCount), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
+    return Results.Content(ToolsPage.Render(snapshot, options, search, health.Count, installationTask.Result.InstallationCount, installationTask.Result.Signature), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
 });
 app.MapPost("/tools/install", async (HttpContext context, DotnetToolsService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
     var scope = form["scope"].ToString();
     var result = await service.InstallAsync(form["packageId"].ToString(), form["version"].ToString(), scope, context.RequestAborted);
-    return Results.Redirect(ToolRedirect(scope, form["q"].ToString(), result.Success ? "installed" : "failed"));
+    return Results.Redirect(ToolRedirect(scope, form["q"].ToString(), result.Success ? "installed" : "failed", form["packageId"].ToString()));
 });
 app.MapPost("/tools/update", async (HttpContext context, DotnetToolsService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
     var scope = form["scope"].ToString();
     var result = await service.UpdateAsync(form["packageId"].ToString(), scope, context.RequestAborted);
-    return Results.Redirect(ToolRedirect(scope, "", result.Success ? "updated" : "failed"));
+    return Results.Redirect(ToolRedirect(scope, "", result.Success ? "updated" : "failed", form["packageId"].ToString()));
 });
 app.MapPost("/tools/update-all", async (HttpContext context, DotnetToolsService service) =>
 {
@@ -317,12 +320,13 @@ static async Task<ToolsSnapshot> ReadTools(DotnetToolsService service, HttpConte
     }
 }
 
-static string ToolRedirect(string scope, string query, string notice)
+static string ToolRedirect(string scope, string query, string notice, string changed = "")
 {
     var normalizedScope = scope == "local" ? "local" : scope == "all" ? "all" : "global";
     var normalizedQuery = query.Trim();
     var result = $"/tools?scope={normalizedScope}";
     if (normalizedQuery.Length is > 0 and <= 100) result += $"&q={Uri.EscapeDataString(normalizedQuery)}";
+    if (changed.Length is > 0 and <= 100) result += $"&changed={Uri.EscapeDataString(changed)}";
     return $"{result}&notice={notice}";
 }
 

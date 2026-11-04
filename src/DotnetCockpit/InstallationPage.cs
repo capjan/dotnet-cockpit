@@ -67,7 +67,7 @@ internal static class InstallationPage
     public static string Render(InstallationSnapshot snapshot, InstallationViewOptions options) =>
         Render(snapshot, null, options);
 
-    public static string Render(InstallationSnapshot snapshot, SdkDownloadSnapshot? sdkSnapshot, InstallationViewOptions options, DateOnly? today = null)
+    public static string Render(InstallationSnapshot snapshot, SdkDownloadSnapshot? sdkSnapshot, InstallationViewOptions options, DateOnly? today = null, int? navTools = null)
     {
         var currentDate = today ?? SupportLifecycle.Today;
         var health = EnvironmentHealth.Evaluate(snapshot, sdkSnapshot, currentDate);
@@ -162,7 +162,7 @@ internal static class InstallationPage
                   </section>
                   {{RenderInstallDotnetSheet(sdkSnapshot ?? new("ready", []), snapshot, options, currentDate)}}
                   <p class="scope-note muted">Locations include the version subfolder. When dotnet-core-uninstall is installed, only versions it can remove are shown; runtime frameworks that share a version are grouped together. Separate installations and other architectures may not appear here.</p>
-                  """, "/", ".NET Cockpit", health.Count, total, refreshHref: WebUtility.HtmlDecode(RefreshLink(options, snapshot.CheckedAt)));
+                  """, "/", ".NET Cockpit", health.Count, total, navTools, WebUtility.HtmlDecode(RefreshLink(options, snapshot.CheckedAt)), snapshot.Signature);
     }
 
     private static string RenderVersionsHub(Row[] allRows, Row[] rows, InstallationViewOptions options, Row? selectedRow)
@@ -515,6 +515,7 @@ internal static class InstallationPage
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var downloads = sdkSnapshot.Downloads ?? [];
+        const int releasesPerChannel = 8;
         var channelLeaders = downloads
             .GroupBy(d => (d.Product, d.Channel))
             .Select(g => g.OrderByDescending(d => d.Version, SdkVersionComparer.Instance).First())
@@ -529,21 +530,11 @@ internal static class InstallationPage
             .GroupBy(d => (d.Product, d.Channel))
             .SelectMany(g => g
                 .OrderByDescending(d => d.Version, SdkVersionComparer.Instance)
-                .Take(8))
+                .Take(releasesPerChannel))
             .OrderByDescending(d => int.TryParse(d.Channel.Split('.')[0], out var ch) ? ch : 0)
             .ThenByDescending(d => d.Version, SdkVersionComparer.Instance)
             .ToArray();
 
-        var firstDefault = curated.FirstOrDefault(d =>
-            d.Product == "SDK" &&
-            !IsDownloadEol(d, today) &&
-            !d.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) &&
-            !d.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase))
-            ?? curated.FirstOrDefault();
-
-        var initialCmd = firstDefault != null
-            ? FormatVerifyInstallCommand(firstDefault.Sha512, GetInstallerFileName(firstDefault.Url))
-            : "";
 
         string resultsHtml;
         if (sdkSnapshot.Status != "ready" || curated.Length == 0)
@@ -589,7 +580,6 @@ internal static class InstallationPage
                     var isInstalled = d.Product == "SDK"
                         ? installedSdks.Contains(d.Version) || installedSdks.Contains(d.InstallationVersion)
                         : installedRuntimes.Contains(d.Version) || installedRuntimes.Contains(d.InstallationVersion);
-                    var isActive = ReferenceEquals(d, firstDefault);
                     var isLeader = channelLeaders.Contains(d) || latestStableLeaders.Contains(d);
                     var searchText = $"{d.Product} {d.Version} .NET {major} {d.Channel} {tagLabelFor(isPreview, isLts)} {string.Join(' ', d.Cves.Select(c => c.Id))}";
                     var matchesView = options.InstallView switch
@@ -630,7 +620,7 @@ internal static class InstallationPage
                         : "";
 
                     return $"""
-                        <div class="sheet-result-item {(isActive ? "active" : "")}"
+                        <div class="sheet-result-item"
                              data-install-row
                              data-product="{Encode(d.Product)}"
                              data-version="{Encode(d.Version)}"
@@ -639,7 +629,6 @@ internal static class InstallationPage
                              data-preview="{(isPreview ? "true" : "false")}"
                              data-supported="{(!isEol ? "true" : "false")}"
                              data-latest="{(isLeader ? "true" : "false")}"
-                             data-cmd="{Encode(verifyCmd)}"
                              data-search="{Encode($"{d.Product} {d.Version} .NET {major} {d.Channel} {tagLabel} {inclRt} {relDate} {string.Join(' ', d.Cves.Select(c => c.Id))}")}"
                              {(initiallyHidden ? "hidden" : "")}>
                           <div class="sheet-result-body">
@@ -650,33 +639,45 @@ internal static class InstallationPage
                             </div>
                             <span class="muted text-xs">{Encode(subtitle)}</span>
                             <div class="sheet-result-meta muted text-xs">
-                              {(string.IsNullOrEmpty(shortSha) ? "" : $"<span>SHA-512 <code>{Encode(shortSha)}</code></span>")}
+                              {(string.IsNullOrEmpty(shortSha) ? "" : $"<span>SHA-512 <code class=\"drawer-sha\" data-copy=\"{Encode(d.Sha512)}\" title=\"Copy SHA-512\">{Encode(shortSha)}</code></span>")}
                               {cveMeta}
                             </div>
+                            <details class="row-command">
+                              <summary>Install command</summary>
+                              <div class="drawer-command-box">
+                                <span class="cmd-prompt">$</span>
+                                <code>{Encode(verifyCmd)}</code>
+                                <button class="button icon ghost copy-btn" data-copy="{Encode(verifyCmd)}" type="button" title="Copy command" aria-label="Copy command">{Icon("clipboard")}</button>
+                              </div>
+                            </details>
                           </div>
                           <div class="sheet-result-actions">
-                            {(string.IsNullOrEmpty(d.Sha512) ? "" : $"<button type=\"button\" class=\"button icon sm ghost copy-btn\" data-copy=\"{Encode(d.Sha512)}\" title=\"Copy SHA-512 checksum\">{Icon("clipboard", "xs")}</button>")}
                             <a class="button {(isInstalled ? "ghost" : "")} sm" href="{Encode(d.Url)}" download>{Icon("download", "xs")} {(isInstalled ? "Download again" : "Download")}</a>
                           </div>
                         </div>
                         """;
                 }));
 
-                var countLabel = initialVisibleCount == 1 ? "1 release" : $"{initialVisibleCount} releases";
+                int Available(string product) => downloads.Count(d => d.Product == product && d.Channel.Split('.')[0] == major);
+                var available = Available(options.InstallProduct);
+                var countLabel = initialVisibleCount >= releasesPerChannel && available > initialVisibleCount
+                    ? $"Newest {initialVisibleCount} of {available}"
+                    : initialVisibleCount == 1 ? "1 release" : $"{initialVisibleCount} releases";
                 return $"""
-                    <section class="sheet-channel-group" data-install-channel-group="{Encode(major)}" {(initialVisibleCount == 0 ? "hidden" : "")}>
-                      <div class="sheet-channel-head">
+                    <details class="sheet-channel-group" open data-install-channel-group="{Encode(major)}" data-available-sdk="{Available("SDK")}" data-available-runtime="{Available(".NET Runtime")}" data-cap="{releasesPerChannel}" {(initialVisibleCount == 0 ? "hidden" : "")}>
+                      <summary class="sheet-channel-head">
+                        <span class="sheet-channel-chevron">{Icon("chevd", "xs")}</span>
                         <div class="sheet-channel-head-main">
                           <strong>.NET {Encode(major)}</strong>
                           <span class="channel-tag {chTagClass}">{chTagLabel}</span>
                           {chPhaseBadge}
                         </div>
                         <span class="sheet-channel-count muted text-xs" data-install-channel-count>{countLabel}</span>
-                      </div>
+                      </summary>
                       <div class="sheet-channel-items">
                         {rowsHtml}
                       </div>
-                    </section>
+                    </details>
                     """;
             }));
 
@@ -727,14 +728,6 @@ internal static class InstallationPage
                   {{resultsHtml}}
                 </div>
 
-                <div class="sheet-foot">
-                  <span class="drawer-section-title">Verify checksum and install</span>
-                  <div class="drawer-command-box">
-                    <span class="cmd-prompt">$</span>
-                    <code id="install-dotnet-cli-preview">{{Encode(initialCmd)}}</code>
-                    <button class="button icon ghost copy-btn" id="install-dotnet-cli-copy" data-copy="{{Encode(initialCmd)}}" type="button" title="Copy command">{{Icon("clipboard")}}</button>
-                  </div>
-                </div>
               </div>
             </dialog>
             """;
@@ -1005,7 +998,8 @@ internal static class InstallationPage
 
     private static string RenderNotice(string notice) => notice switch
     {
-        "removed" => "<div class=\"action-notice\" role=\"status\">The selected .NET installation was removed. <a href=\"/overview\">Back to Overview</a></div>",
+        "removed" => SuccessToast("The selected .NET installation was removed."),
+        "detected" => SuccessToast("Installed .NET versions changed. This view is up to date."),
         "remove-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The selected .NET installation could not be removed. The administrator approval may have been declined. Try again, or run the command yourself.</div>",
         _ => ""
     };

@@ -11,6 +11,31 @@ internal sealed record HealthAction(string Severity, string Icon, string Title, 
 internal sealed record HealthReport(HealthAction[] Actions, bool SupportKnown, string Headline)
 {
     public int Count => Actions.Length;
+
+    /// <summary>The ring shows the action list in proportion, most severe first, with a hairline between parts.</summary>
+    public string RingGradient
+    {
+        get
+        {
+            if (Count == 0) return SupportKnown ? "var(--ok)" : "var(--line-strong)";
+            string[] order = ["bad", "warn", "info"];
+            var parts = order
+                .Select(severity => (Severity: severity, Share: Actions.Count(action => action.Severity == severity) / (double)Count))
+                .Where(part => part.Share > 0)
+                .ToArray();
+            var gap = parts.Length > 1 ? 1.5 : 0;
+            var start = 0.0;
+            var stops = new List<string>();
+            foreach (var (severity, share) in parts)
+            {
+                var end = start + share * 100;
+                stops.Add(FormattableString.Invariant($"var(--{severity}) {start:0.##}% {end - gap:0.##}%"));
+                if (gap > 0) stops.Add(FormattableString.Invariant($"transparent {end - gap:0.##}% {end:0.##}%"));
+                start = end;
+            }
+            return $"conic-gradient({string.Join(", ", stops)})";
+        }
+    }
 }
 
 internal static class EnvironmentHealth

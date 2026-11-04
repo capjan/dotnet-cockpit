@@ -98,12 +98,20 @@ dialog::backdrop { background: var(--scrim); }
 .search-source { font-size: var(--t-xs); color: var(--muted); }
 .sheet-controls { display: grid; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
 .sheet-results { flex: 1; min-height: 0; overflow-y: auto; }
-.sheet-channel-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 20px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
-.sheet-channel-head-main { display: flex; align-items: center; gap: 8px; }
+.sheet-channel-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 8px 20px; background: var(--surface-2); border-bottom: 1px solid var(--line); cursor: pointer; list-style: none; }
+.sheet-channel-head::-webkit-details-marker { display: none; }
+.sheet-channel-head:hover { background: var(--surface-3); }
+.sheet-channel-chevron { display: inline-grid; color: var(--muted); transition: transform var(--ease); }
+.sheet-channel-group:not([open]) .sheet-channel-chevron { transform: rotate(-90deg); }
+.sheet-channel-head-main { display: flex; align-items: center; gap: 8px; flex: 1; }
+.row-command { font-size: var(--t-xs); }
+.row-command summary { width: fit-content; color: var(--muted); cursor: pointer; }
+.row-command summary:hover { color: var(--text); }
+.row-command .drawer-command-box { margin-top: 6px; }
 .sheet-channel-head-main strong { font-weight: 600; }
 .sheet-channel-count { font-size: var(--t-xs); }
 .sheet-result-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line); }
-.sheet-result-item.active { background: var(--surface-2); }
+.sheet-result-item:hover { background: var(--surface-2); }
 .sheet-result-item form { margin: 0; }
 .sheet-result-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .sheet-result-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -111,7 +119,6 @@ dialog::backdrop { background: var(--scrim); }
 .sheet-result-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sheet-result-meta span { display: inline-flex; align-items: center; gap: 4px; }
 .sheet-result-actions { display: flex; align-items: center; gap: 4px; }
-.sheet-foot { display: grid; gap: 6px; padding: 12px 20px; border-top: 1px solid var(--line); }
 
 /* Command palette */
 .scrim { position: fixed; inset: 0; z-index: 50; background: var(--scrim); }

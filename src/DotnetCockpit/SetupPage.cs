@@ -180,7 +180,7 @@ internal static class SetupPage
                 </section>
               </div>
             </div>
-            """, "/setup", "Settings | .NET Cockpit", issues, installation.InstallationCount, toolsCount);
+            """, "/setup", "Settings | .NET Cockpit", issues, installation.InstallationCount, toolsCount, inventorySignature: installation.Signature);
     }
 
     private static string RenderToolCard(SetupSnapshot snapshot)
@@ -304,11 +304,11 @@ internal static class SetupPage
 
     private static string RenderNotice(string notice) => notice switch
     {
-        "installed" => "<div class=\"action-notice\" role=\"status\">The .NET Uninstall Tool was installed successfully.</div>",
+        "installed" => SuccessToast("The .NET Uninstall Tool was installed."),
         "failed" => "<div class=\"action-notice error-state\" role=\"alert\">The .NET Uninstall Tool could not be installed. Check the network connection and permissions, then try again.</div>",
-        "updated" => "<div class=\"action-notice\" role=\"status\">The .NET Uninstall Tool was updated successfully.</div>",
+        "updated" => SuccessToast("The .NET Uninstall Tool was updated."),
         "update-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The .NET Uninstall Tool could not be updated. Check the network connection and permissions, then try again.</div>",
-        "uninstalled" => "<div class=\"action-notice\" role=\"status\">The .NET Uninstall Tool was uninstalled successfully.</div>",
+        "uninstalled" => SuccessToast("The .NET Uninstall Tool was removed."),
         "uninstall-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The .NET Uninstall Tool could not be uninstalled. Check the permissions and try again.</div>",
         _ => ""
     };

@@ -90,9 +90,16 @@ test('opens the NuGet Add Tool sheet and updates CLI preview', async ({ page }) 
   await expect(page.locator('[data-sheet-scope="global"]')).toContainText('User');
   await expect(page.locator('[data-sheet-scope="local"]')).toContainText('Local');
   await expect(page.locator('[data-sheet-scope="local"]')).toContainText('Workspace');
-  await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --global \\');
+  // No row is singled out, and the command appears only once a tool is chosen
+  await expect(dialog.locator('.sheet-result-item .button.primary')).toHaveCount(0);
   await page.locator('[data-sheet-scope="local"]').click();
-  await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --local \\');
+  await dialog.locator('.sheet-result-item button[type="submit"]').first().click();
+  const confirm = page.locator('#confirm-dialog');
+  await expect(confirm).toBeVisible();
+  await expect(page.locator('#confirm-dialog-command')).toContainText('dotnet tool install --local');
+  await page.locator('#confirm-dialog-cancel').click();
+  await expect(confirm).toBeHidden();
+  await expect(dialog).toBeVisible();
   await page.locator('#close-add-tool-btn').click();
   await expect(dialog).toBeHidden();
 });
@@ -138,4 +145,10 @@ test('asks for confirmation before removing a tool, with and without JavaScript'
     await plain.getByRole('link', { name: 'Cancel' }).click();
     await expect(plain).toHaveURL(/\/tools\?scope=local/);
   } finally { await context.close(); }
+});
+
+test('the inline search stays out of the way once script has loaded', async ({ page }) => {
+  await page.goto('http://127.0.0.1:5234/tools?scope=global&q=coverage');
+  await expect(page.locator('#tool-search-section')).toBeHidden();
+  await expect(page.locator('#add-tool-dialog')).toBeVisible();
 });

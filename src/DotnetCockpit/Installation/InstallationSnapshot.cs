@@ -33,6 +33,11 @@ internal sealed record InstallationSnapshot(
     [JsonIgnore]
     public int InstallationCount => Sdks.Length + Runtimes.Select(runtime => runtime.Version).Distinct().Count();
 
+    /// <summary>Changes whenever a version appears or disappears, so an open page can notice without polling.</summary>
+    public string Signature => string.Join('|', Sdks.Select(sdk => $"sdk:{sdk.Version}")
+        .Concat(Runtimes.Select(runtime => $"{runtime.Name}:{runtime.Version}"))
+        .Order(StringComparer.Ordinal));
+
     public static InstallationSnapshot Create(
         string status, string? executablePath,
         SdkInstallation[]? sdks = null, RuntimeInstallation[]? runtimes = null, string? error = null) =>

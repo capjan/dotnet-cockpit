@@ -6,8 +6,15 @@
   border-radius: var(--r-md);
 }
 .hero-health-pane { display: flex; align-items: center; gap: 20px; padding: 20px; min-width: 0; }
-.hero-ring { display: grid; place-items: center; width: 84px; height: 84px; flex: none; border-radius: var(--r-full); border: 5px solid var(--warn); }
-.hero-ring.ring-ok { border-color: var(--ok); }
+.hero-ring { position: relative; display: grid; place-items: center; width: 84px; height: 84px; flex: none; }
+.hero-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-full);
+  background: var(--ring);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), black calc(100% - 5.5px));
+}
 .hero-ring-inner { display: grid; justify-items: center; line-height: 1.1; }
 .hero-ring-inner strong { font-size: var(--t-2xl); font-weight: 600; }
 .hero-ring-inner span { font-size: var(--t-xs); color: var(--muted); }
@@ -98,6 +105,8 @@
 .tl-bar.sts { background: var(--sts); }
 .tl-bar.preview { background: var(--brand-soft); border: 1px dashed var(--brand); line-height: 16px; }
 .tl-bar.eol { background: var(--surface-3); }
+.timeline-row.not-installed .tl-bar { opacity: .4; }
+.timeline-row.not-installed .tl-channel b { font-weight: 400; color: var(--muted); }
 .tl-bar.installed { outline: 2px solid var(--text-2); outline-offset: -1px; }
 .tl-status { font-size: var(--t-xs); text-align: right; color: var(--muted); }
 .tl-status.warn { color: var(--warn); font-weight: 500; }

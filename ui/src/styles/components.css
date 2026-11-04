@@ -254,3 +254,49 @@
 
 /* Copying needs script, so the controls only appear once it has loaded. */
 html:not(.js) .copy-btn { display: none; }
+
+/* Success confirms briefly and leaves; the changed row keeps the eye on the result. */
+@keyframes toast-life {
+  0% { opacity: 0; transform: translate(-50%, -8px); visibility: visible; }
+  6%, 88% { opacity: 1; transform: translate(-50%, 0); visibility: visible; }
+  100% { opacity: 0; transform: translate(-50%, -8px); visibility: hidden; }
+}
+@keyframes toast-steps {
+  0%, 99% { visibility: visible; }
+  100% { visibility: hidden; }
+}
+@keyframes check-pop {
+  0%, 10% { transform: scale(0); }
+  18% { transform: scale(1.2); }
+  24%, 100% { transform: scale(1); }
+}
+@keyframes row-flash {
+  0%, 60% { background: var(--ok-soft); }
+  100% { background: transparent; }
+}
+.toast {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 8px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-full);
+  box-shadow: var(--shadow);
+  font-size: var(--t-sm);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  animation: toast-life 3200ms ease forwards;
+}
+.toast:hover { animation-play-state: paused; }
+.toast-check { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-full); background: var(--ok-soft); color: var(--ok); animation: check-pop 3200ms ease both; }
+tr.row-changed { animation: row-flash 2600ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: toast-steps 3200ms steps(1) forwards; }
+  .toast-check { animation: none; }
+  tr.row-changed { animation: none; }
+}

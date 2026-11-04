@@ -77,6 +77,17 @@ public sealed class SupportLifecycleTests
     }
 
     [Fact]
+    public void TheRingShowsTheActionListInProportionMostSevereFirst()
+    {
+        HealthAction Action(string severity) => new(severity, "", "", "", []);
+        var report = new HealthReport([Action("bad"), Action("bad"), Action("warn"), Action("info")], true, "");
+
+        Assert.Equal("conic-gradient(var(--bad) 0% 48.5%, transparent 48.5% 50%, var(--warn) 50% 73.5%, transparent 73.5% 75%, var(--info) 75% 98.5%, transparent 98.5% 100%)", report.RingGradient);
+        Assert.Equal("var(--ok)", new HealthReport([], true, "").RingGradient);
+        Assert.Equal("var(--line-strong)", new HealthReport([], false, "").RingGradient);
+    }
+
+    [Fact]
     public void AFailedQueryIsNotReportedAsAMissingSdk()
     {
         var health = EnvironmentHealth.Evaluate(InstallationSnapshot.Create("error", null, error: "boom"), Catalog(), Today);

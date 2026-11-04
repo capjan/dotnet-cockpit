@@ -46,8 +46,9 @@
 .pf-theme-btn { position: fixed; top: 16px; right: 16px; }
 .preflight { display: grid; justify-items: center; padding: 48px 16px; }
 .pf { display: grid; gap: 14px; width: min(720px, 100%); }
-.pf-brand { display: flex; align-items: center; gap: 14px; }
-.pf-brand img { width: 44px; height: 44px; object-fit: contain; }
+.pf-brand { display: flex; align-items: last baseline; gap: 14px; }
+/* The image file has transparent padding; the margins put the visible mark on the text's baseline and left edge. */
+.pf-brand img { width: 56px; height: 56px; margin: 0 -9px -16.5px -8px; object-fit: contain; }
 .pf-kicker { font-size: var(--t-sm); }
 .grad-text { background: linear-gradient(120deg, var(--brand), var(--info)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .pf-desc { color: var(--muted); max-width: 66ch; }

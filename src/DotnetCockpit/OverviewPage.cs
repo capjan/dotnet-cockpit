@@ -86,7 +86,7 @@ internal static class OverviewPage
 
             <section class="overview-hero-card" aria-label="System health and summary">
               <div class="hero-health-pane">
-                <div class="hero-ring {{(isHealthy ? "ring-ok" : "ring-warn")}}" aria-hidden="true">
+                <div class="hero-ring" style="--ring: {{health.RingGradient}}">
                   <div class="hero-ring-inner">
                     <strong>{{issues}}</strong>
                     <span>to review</span>
@@ -194,7 +194,7 @@ internal static class OverviewPage
               <div class="inventory-heading">
                 <div>
                   <h2 id="timeline-title">Support Lifecycle Timeline</h2>
-                  <p class="muted">Official Microsoft lifecycle dates. Ringed bars are installed on this machine.</p>
+                  <p class="muted">Official Microsoft lifecycle dates. Ringed bars are installed, pale bars are available to install.</p>
                 </div>
                 <div class="tl-legend">
                   <span class="tl-leg-item"><i class="tl-dot lts"></i> LTS</span>
@@ -204,7 +204,7 @@ internal static class OverviewPage
               </div>
               {{RenderTimeline(snapshot, sdkSnapshot, currentDate)}}
             </section>
-            """, "/overview", ".NET Cockpit · Overview", issues, snapshot.InstallationCount, toolsAvailable ? tools.Global.Tools.Length + tools.Local.Tools.Length : null);
+            """, "/overview", ".NET Cockpit · Overview", issues, snapshot.InstallationCount, toolsAvailable ? tools.Global.Tools.Length + tools.Local.Tools.Length : null, inventorySignature: snapshot.Signature);
     }
 
     private static string RenderTimeline(InstallationSnapshot snapshot, SdkDownloadSnapshot sdkSnapshot, DateOnly today)
@@ -260,7 +260,7 @@ internal static class OverviewPage
                 _ => ("muted", channel.EndOfSupport is { } until ? $"until {until.ToString("MMM yyyy", CultureInfo.InvariantCulture)}" : "supported")
             };
             return $"""
-                <div class="timeline-row">
+                <div class="timeline-row {(isInstalled ? "" : "not-installed")}">
                   <div class="tl-channel">
                     <b>.NET {Encode(major)}</b>
                     <span class="channel-tag {tagClass}">{Encode(tag)}</span>

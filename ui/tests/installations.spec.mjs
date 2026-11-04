@@ -180,7 +180,14 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
   await expect(page.getByRole('heading', { name: 'Install .NET' })).toBeVisible();
   await expect(page.locator('[data-install-lifecycle="latest"]')).toHaveClass(/active/);
   await expect(page.locator('[data-install-lifecycle="lts"]')).toHaveText('LTS');
-  await expect(page.locator('#install-dotnet-cli-preview')).toContainText('sudo installer -pkg');
+  const firstCommand = dialog.locator('[data-install-row]:not([hidden]) .row-command').first();
+  await firstCommand.locator('summary').click();
+  await expect(firstCommand).toContainText('sudo installer -pkg');
+  await firstCommand.locator('summary').click();
+  const firstChannel = dialog.locator('[data-install-channel-group]:not([hidden])').first();
+  await firstChannel.locator('.sheet-channel-head').click();
+  await expect(firstChannel.locator('[data-install-row]:not([hidden])').first()).toBeHidden();
+  await firstChannel.locator('.sheet-channel-head').click();
 
   const visibleGroups = page.locator('[data-install-channel-group]:not([hidden])');
   expect(await visibleGroups.count()).toBeGreaterThan(0);
@@ -361,4 +368,28 @@ test('overlays return focus and keep the keyboard inside', async ({ page }) => {
   expect(await page.evaluate(() => Boolean(document.activeElement.closest('#cmdk-dialog')))).toBe(true);
   await page.keyboard.press('Escape');
   await expect(page.locator('#cmdk-dialog')).toBeHidden();
+});
+
+test('the page notices a changed installation when the window regains focus, without polling', async ({ page }) => {
+  let calls = 0;
+  page.on('request', request => { if (request.url().endsWith('/api/installation')) calls++; });
+  await page.goto('/');
+  await page.waitForTimeout(500);
+  expect(calls).toBe(0);
+  await page.route('**/api/installation', async route => {
+    const response = await route.fetch();
+    const json = await response.json();
+    await route.fulfill({ response, json: { ...json, signature: 'changed' } });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.locator('.toast')).toContainText('versions changed');
+});
+
+test('digits in the navigation share one vertical line', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  const centers = await page.evaluate(() => [...document.querySelectorAll('.nav-link .nav-count, .nav-link .nav-badge')]
+    .map(element => { const box = element.getBoundingClientRect(); return Math.round(box.left + box.width / 2); }));
+  expect(centers.length).toBeGreaterThan(1);
+  expect(new Set(centers).size).toBe(1);
 });

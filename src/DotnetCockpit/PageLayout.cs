@@ -10,7 +10,7 @@ internal static class PageLayout
     private static string WorkspaceName =>
         Path.GetFileName(Environment.CurrentDirectory.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : Environment.CurrentDirectory;
 
-    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null, string? refreshHref = null) => $$"""
+    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null, string? refreshHref = null, string? inventorySignature = null) => $$"""
         <!doctype html>
         <html lang="en" data-theme="{{CurrentSettings().Theme}}">
         <head>
@@ -23,7 +23,7 @@ internal static class PageLayout
           <link rel="stylesheet" href="/assets/app.css">
           <script type="module" src="/assets/app.js"></script>
         </head>
-        <body class="app-body">
+        <body class="app-body"{{(inventorySignature is null ? "" : $" data-inventory=\"{Encode(inventorySignature)}\"")}}>
           <a class="skip-link" href="#main">Skip to content</a>
           <div class="app">
             <aside class="rail" aria-label="Workspace navigation">
@@ -164,6 +164,10 @@ internal static class PageLayout
         "/preflight" => "Pre-flight Check",
         _ => "Versions"
     };
+
+    /// <summary>A success message that confirms and then gets out of the way. Failures stay on the page instead.</summary>
+    public static string SuccessToast(string text) =>
+        $"<div class=\"toast\" role=\"status\"><span class=\"toast-check\">{Icon("check", "sm")}</span>{Encode(text)}</div>";
 
     public static string Encode(string value) => HtmlEncoder.Default.Encode(value);
 

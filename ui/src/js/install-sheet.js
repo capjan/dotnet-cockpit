@@ -5,10 +5,7 @@ export function setupInstallSheet() {
   const dialog = document.getElementById('install-dotnet-dialog');
   if (!dialog) return;
   const search = document.getElementById('install-dotnet-search-input');
-  const results = document.getElementById('install-dotnet-results');
   const empty = document.getElementById('install-dotnet-empty');
-  const preview = document.getElementById('install-dotnet-cli-preview');
-  const copy = document.getElementById('install-dotnet-cli-copy');
   const productButtons = [...dialog.querySelectorAll('[data-install-product]')];
   const filterButtons = [...dialog.querySelectorAll('[data-install-lifecycle]')];
   const groups = [...dialog.querySelectorAll('[data-install-channel-group]')];
@@ -19,12 +16,6 @@ export function setupInstallSheet() {
     view: dialog.dataset.view || 'latest',
     previews: dialog.dataset.previews === 'true',
   };
-
-  function showCommand(row) {
-    if (!row?.dataset.cmd) return;
-    preview.textContent = row.dataset.cmd;
-    copy.dataset.copy = row.dataset.cmd;
-  }
 
   function syncButtons() {
     for (const button of filterButtons) {
@@ -44,7 +35,6 @@ export function setupInstallSheet() {
 
   function filter() {
     let visible = 0;
-    let first = null;
     for (const row of rows) {
       const data = row.dataset;
       const isPreview = data.preview === 'true';
@@ -53,24 +43,20 @@ export function setupInstallSheet() {
         && (state.previews || !isPreview)
         && matchesTerms(data.search || '', search.value);
       row.hidden = !show;
-      if (show) {
-        visible++;
-        first ??= row;
-      } else {
-        row.classList.remove('active');
-      }
+      if (show) visible++;
     }
     for (const group of groups) {
       const count = group.querySelectorAll('[data-install-row]:not([hidden])').length;
       group.hidden = count === 0;
       const label = group.querySelector('[data-install-channel-count]');
-      if (label) label.textContent = count === 1 ? '1 release' : `${count} releases`;
+      if (label) {
+        const available = Number(state.product === 'SDK' ? group.dataset.availableSdk : group.dataset.availableRuntime);
+        label.textContent = count >= Number(group.dataset.cap) && available > count
+          ? `Newest ${count} of ${available}`
+          : count === 1 ? '1 release' : `${count} releases`;
+      }
     }
     if (empty) empty.hidden = visible > 0;
-    if (!rows.some(row => !row.hidden && row.classList.contains('active')) && first) {
-      first.classList.add('active');
-      showCommand(first);
-    }
   }
 
   for (const button of productButtons) {
@@ -101,13 +87,6 @@ export function setupInstallSheet() {
     previewsToggle.classList.toggle('active', state.previews);
     previewsToggle.setAttribute('aria-pressed', state.previews ? 'true' : 'false');
     filter();
-  });
-
-  results?.addEventListener('mouseover', event => {
-    const row = event.target.closest('[data-install-row]');
-    if (!row) return;
-    for (const other of rows) other.classList.toggle('active', other === row);
-    showCommand(row);
   });
 
   search?.addEventListener('input', filter);

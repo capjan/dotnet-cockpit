@@ -67,6 +67,21 @@ internal static class ConfirmActions
             Items: rows.Select(row => $"{row.Name} {row.DisplayVersion}").ToArray());
     }
 
+    public static ConfirmSpec ToolInstall(string packageId, string version, string scope) => new(
+        "tool-install",
+        $"Install {packageId}?",
+        ToolInstallBody(scope),
+        $"dotnet tool install --{Scope(scope)} \\\n  {packageId} \\\n  --version {version}",
+        "Install tool",
+        $"Installing {packageId}…",
+        "/tools/install",
+        $"/tools?scope={Scope(scope)}",
+        [("packageId", packageId), ("version", version), ("scope", Scope(scope))]);
+
+    public static string ToolInstallBody(string scope) => scope == "local"
+        ? "The tool is added to this workspace's manifest."
+        : "The tool is installed for your user account and works in every project.";
+
     public static ConfirmSpec ToolUninstall(string packageId, string scope) => new(
         "tool-uninstall",
         $"Remove {packageId}?",

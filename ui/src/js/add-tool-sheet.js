@@ -5,25 +5,37 @@ export function setupAddToolSheet() {
   const dialog = document.getElementById('add-tool-dialog');
   if (!dialog) return;
   const inlineSearch = document.getElementById('tool-search-section');
-  if (inlineSearch?.dataset.hasQuery === 'false') inlineSearch.hidden = true;
+  // The inline form is the path without JavaScript. With it, the sheet does this job.
+  if (inlineSearch) inlineSearch.hidden = true;
 
   const search = document.getElementById('sheet-search-input');
   const results = document.getElementById('sheet-results');
-  const preview = document.getElementById('sheet-cli-preview');
-  const copy = document.getElementById('sheet-cli-copy');
   const scopeButtons = [...dialog.querySelectorAll('[data-sheet-scope]')];
-  const firstRow = results.querySelector('[data-pkg-id]');
   let scope = 'global';
-  let focused = { id: firstRow?.dataset.pkgId, version: firstRow?.dataset.pkgVer };
   let timer = null;
 
-  function showCommand() {
-    if (!focused.id) return;
-    const lines = [`dotnet tool install --${scope} \\`, `  ${focused.id}${focused.version ? ' \\' : ''}`];
-    if (focused.version) lines.push(`  --version ${focused.version}`);
-    const text = lines.join('\n');
-    preview.textContent = text;
-    copy.dataset.copy = text;
+  // Each Install button opens the shared confirmation, which shows the exact command for that tool.
+  function applyScope() {
+    for (const form of dialog.querySelectorAll('form[data-confirm]')) {
+      form.querySelector('input[name="scope"]').value = scope;
+      form.dataset.confirmCommand = form.dataset.confirmCommand.replace(/--(global|local)/, `--${scope}`);
+      form.dataset.confirmBody = results.dataset[scope === 'local' ? 'bodyLocal' : 'bodyGlobal'];
+    }
+  }
+
+  function installTrigger(item) {
+    const command = `dotnet tool install --${scope} \\\n  ${item.packageId} \\\n  --version ${item.version}`;
+    return `<form method="get" action="/confirm" data-confirm
+        data-confirm-title="Install ${esc(item.packageId)}?" data-confirm-body=""
+        data-confirm-command="${esc(command)}" data-confirm-label="Install tool"
+        data-confirm-busy="Installing ${esc(item.packageId)}…" data-confirm-post="/tools/install"
+        data-confirm-danger="false" data-confirm-admin="false">
+        <input type="hidden" name="action" value="tool-install">
+        <input type="hidden" name="packageId" value="${esc(item.packageId)}">
+        <input type="hidden" name="version" value="${esc(item.version)}">
+        <input type="hidden" name="scope" value="${esc(scope)}">
+        <button type="submit" class="button sm">Install</button>
+      </form>`;
   }
 
   function message(html) {
@@ -50,10 +62,8 @@ export function setupAddToolSheet() {
         message(`<h3>No tools found</h3><p class="muted">Nothing on NuGet.org matches “${esc(query)}”.</p>`);
         return;
       }
-      focused = { id: items[0].packageId, version: items[0].version };
-      showCommand();
-      results.innerHTML = items.map((item, index) => `
-        <div class="sheet-result-item ${index === 0 ? 'active' : ''}" data-pkg-id="${esc(item.packageId)}" data-pkg-ver="${esc(item.version)}">
+      results.innerHTML = items.map(item => `
+        <div class="sheet-result-item" data-pkg-id="${esc(item.packageId)}">
           <span class="tool-monogram tool-logo has-img"><img src="/api/tools/icon?packageId=${encodeURIComponent(item.packageId)}&version=${encodeURIComponent(item.version)}" alt="" class="tool-logo-img" width="36" height="36" loading="lazy"></span>
           <div class="sheet-result-body">
             <div class="sheet-result-top">
@@ -66,14 +76,9 @@ export function setupAddToolSheet() {
               <span>${esc(item.downloads)} downloads</span>
             </div>
           </div>
-          <form method="post" action="/tools/install" data-busy="Installing…">
-            <input type="hidden" name="packageId" value="${esc(item.packageId)}">
-            <input type="hidden" name="version" value="${esc(item.version)}">
-            <input type="hidden" name="q" value="${esc(query)}">
-            <input type="hidden" name="scope" value="${esc(scope)}" data-sheet-form-scope>
-            <button type="submit" class="button ${index === 0 ? 'primary' : ''} sm">Install</button>
-          </form>
+          ${installTrigger(item)}
         </div>`).join('');
+      applyScope();
     } catch {
       message('<h3>Search failed</h3><p class="muted">NuGet.org could not be searched. Try again.</p>');
     }
@@ -84,18 +89,9 @@ export function setupAddToolSheet() {
       if (button.disabled) return;
       scope = button.dataset.sheetScope;
       for (const other of scopeButtons) other.classList.toggle('active', other === button);
-      for (const input of dialog.querySelectorAll('[data-sheet-form-scope]')) input.value = scope;
-      showCommand();
+      applyScope();
     });
   }
-
-  results.addEventListener('mouseover', event => {
-    const row = event.target.closest('[data-pkg-id]');
-    if (!row) return;
-    for (const other of results.querySelectorAll('[data-pkg-id]')) other.classList.toggle('active', other === row);
-    focused = { id: row.dataset.pkgId, version: row.dataset.pkgVer };
-    showCommand();
-  });
 
   search.addEventListener('input', () => {
     clearTimeout(timer);
@@ -118,7 +114,7 @@ export function setupAddToolSheet() {
   });
 
   const params = new URLSearchParams(window.location.search);
-  if (params.get('add') === '1') {
+  if (params.get('add') === '1' || params.get('q')) {
     openModal(dialog, search);
     if (search.value.trim()) runSearch(search.value);
   }
