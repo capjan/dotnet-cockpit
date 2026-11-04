@@ -246,10 +246,17 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
 
         var globalDirectory = GetGlobalDirectory();
         var detectedDirectory = Path.GetDirectoryName(executablePath);
-        var windowsCommand = detectedDirectory is not null && IsSamePath(detectedDirectory, globalDirectory)
-            ? $"if exist {QuoteArgument(globalDirectory)} rmdir /s /q {QuoteArgument(globalDirectory)}"
-            : $"del /f /q {QuoteArgument(executablePath)}";
-        await RunElevatedAsync("cmd.exe", $"/d /c {windowsCommand}", cancellationToken);
+        var arguments = detectedDirectory is not null && IsSamePath(detectedDirectory, globalDirectory)
+            ? WindowsRemovalArguments(globalDirectory, $"rmdir /s /q {QuoteArgument(globalDirectory)}")
+            : WindowsRemovalArguments(executablePath, $"del /f /q {QuoteArgument(executablePath)}");
+        await RunElevatedAsync("cmd.exe", arguments, cancellationToken);
+    }
+
+    /// <summary>Windows cannot delete a program while it runs, and Cockpit itself reads the tool's list in the background. Retrying inside the one elevated run avoids a second approval.</summary>
+    internal static string WindowsRemovalArguments(string path, string removeCommand)
+    {
+        var target = QuoteArgument(path);
+        return $"/d /c for /l %i in (1,1,15) do @if exist {target} ({removeCommand} & if exist {target} ping -n 2 127.0.0.1 > nul)";
     }
 
     private async Task RemoveWithElevationAsync(string executablePath, IReadOnlyList<(string Version, string Filter)> removals, CancellationToken cancellationToken)
