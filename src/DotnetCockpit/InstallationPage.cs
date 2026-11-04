@@ -88,7 +88,7 @@ internal static class InstallationPage
         };
 
         var filterNavHtml = $"""
-            <a href="{Link(options with { Kind = "all" })}" class="pill-badge {(options.Kind == "all" ? "active" : "")}"{(options.Kind == "all" ? " aria-current=\"page\"" : "")}>All<span class="sr-only"> versions</span> <strong class="summary-count" aria-hidden="true">{total}</strong></a>
+            <a href="{Link(options with { Kind = "all" })}" class="pill-badge {(options.Kind == "all" ? "active" : "")}" data-version-kind="all"{(options.Kind == "all" ? " aria-current=\"page\"" : "")}>All<span class="sr-only"> versions</span> <strong class="summary-count" aria-hidden="true">{total}</strong></a>
             {TypeLink("SDKs", "sdks", options)}
             {TypeLink("Runtimes", "runtimes", options)}
             {TypeLink("Previews", "previews", options)}
@@ -254,7 +254,7 @@ internal static class InstallationPage
                 """;
         }));
 
-        var emptyRow = $"""<tr class="empty-row" {(rows.Length == 0 ? "" : "hidden")}><td colspan="{columnCount}"><div class="empty-state"><h3>No matching versions</h3><p class="muted">Try another filter or switch to All versions.</p><a class="button" href="/#inventory">Clear filters</a></div></td></tr>""";
+        var emptyRow = $"""<tr class="empty-row" {(rows.Length == 0 ? "" : "hidden")}><td colspan="{columnCount}"><div class="empty-state"><h3>No matching versions</h3><p class="muted">Try another filter or switch to All versions.</p><a class="button" href="/">Clear filters</a></div></td></tr>""";
 
         var drawerHtml = RenderDrawer(selectedRow ?? allRows.FirstOrDefault(), selectedRow != null, options);
         var jsonDictionary = SerializeRowsJson(allRows);
@@ -1048,7 +1048,7 @@ internal static class InstallationPage
     {
         var active = options.Kind == kind;
         var checkHtml = active ? "<span class=\"pill-chk\" aria-hidden=\"true\">✓ </span>" : "";
-        return $"<a href=\"{Link(options with { Kind = active ? "all" : kind })}\" class=\"filter-pill {(active ? "active" : "")}\"{(active ? " aria-current=\"page\"" : "")}>{checkHtml}{label}</a>";
+        return $"<a href=\"{Link(options with { Kind = active ? "all" : kind })}\" class=\"filter-pill {(active ? "active" : "")}\" data-version-kind=\"{kind}\" data-version-label=\"{label}\"{(active ? " aria-current=\"page\"" : "")}>{checkHtml}{label}</a>";
     }
 
     private static string SortHeader(string label, string column, InstallationViewOptions options)
@@ -1059,10 +1059,10 @@ internal static class InstallationPage
     }
 
     private static string RefreshLink(InstallationViewOptions options, DateTimeOffset checkedAt) => Encode(
-        $"/?q={Uri.EscapeDataString(options.Query)}&kind={options.Kind}&sort={options.Sort}&direction={(options.Ascending ? "asc" : "desc")}&refresh={checkedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)}#inventory");
+        $"/?q={Uri.EscapeDataString(options.Query)}&kind={options.Kind}&sort={options.Sort}&direction={(options.Ascending ? "asc" : "desc")}&refresh={checkedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)}");
 
     private static string Link(InstallationViewOptions options) => Encode(
-        $"/?q={Uri.EscapeDataString(options.Query)}&kind={options.Kind}&sort={options.Sort}&direction={(options.Ascending ? "asc" : "desc")}{(string.IsNullOrEmpty(options.Selected) ? "" : $"&selected={Uri.EscapeDataString(options.Selected)}")}#inventory");
+        $"/?q={Uri.EscapeDataString(options.Query)}&kind={options.Kind}&sort={options.Sort}&direction={(options.Ascending ? "asc" : "desc")}{(string.IsNullOrEmpty(options.Selected) ? "" : $"&selected={Uri.EscapeDataString(options.Selected)}")}");
 
     private static string RuntimeName(string name) => name switch
     {

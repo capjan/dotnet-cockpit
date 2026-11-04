@@ -638,41 +638,99 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Instant client-side search for versions
-if (versionFilterInput) {
-  function runVersionFilter() {
-    const query = versionFilterInput.value.trim().toLowerCase();
-    const terms = query.split(/\s+/).filter(Boolean);
-    let visibleCount = 0;
-    const channelVisibility = new Set();
+// Instant client-side filter & kind pills (All, SDKs, Runtimes, Previews) for versions without scrolling
+const versionKindLinks = [...document.querySelectorAll('[data-version-kind]')];
+const versionKindInput = versionFilterForm?.querySelector('input[name="kind"]');
+const initialVersionKind = versionKindInput?.value || 'all';
+let activeVersionKind = initialVersionKind;
 
-    for (const row of versionRows) {
-      const version = getRowVersion(row);
-      const text = `${version} ${row.textContent}`.toLowerCase();
-      const matches = !terms.length || terms.every(t => text.includes(t));
-      row.hidden = !matches;
-      if (matches) {
-        visibleCount++;
-        channelVisibility.add(getRowChannel(row));
-      }
+function rowMatchesVersionKind(row, kind) {
+  if (!kind || kind === 'all') return true;
+  if (kind === 'sdks') return row.dataset.kind === 'sdk';
+  if (kind === 'runtimes') return row.dataset.kind === 'runtime';
+  if (kind === 'previews') {
+    const ver = getRowVersion(row);
+    const data = versionsData[ver];
+    return data ? Boolean(data.isPreview) : /-(preview|rc)/i.test(ver);
+  }
+  return true;
+}
+
+function syncVersionKindLinks() {
+  for (const link of versionKindLinks) {
+    const k = link.dataset.versionKind;
+    const isActive = k === activeVersionKind;
+    link.classList.toggle('active', isActive);
+    if (isActive) {
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.removeAttribute('aria-current');
     }
-
-    for (const card of channelCards) {
-      const channel = card.dataset.channelCard;
-      card.hidden = !channelVisibility.has(channel);
+    if (k !== 'all' && link.dataset.versionLabel) {
+      link.innerHTML = `${isActive ? '<span class="pill-chk" aria-hidden="true">✓ </span>' : ''}${link.dataset.versionLabel}`;
     }
+  }
+  if (versionKindInput) {
+    versionKindInput.value = activeVersionKind;
+  }
+}
 
-    if (versionsCount) versionsCount.textContent = `${visibleCount} of ${versionRows.length} installations shown`;
+function runVersionFilter() {
+  const query = (versionFilterInput?.value || '').trim().toLowerCase();
+  const terms = query.split(/\s+/).filter(Boolean);
+  let visibleCount = 0;
+  const channelVisibility = new Set();
 
-    const emptyRow = document.querySelector('tr.empty-row');
-    if (emptyRow) emptyRow.hidden = visibleCount > 0;
-
-    const url = new URL(window.location.href);
-    if (query) url.searchParams.set('q', versionFilterInput.value.trim());
-    else url.searchParams.delete('q');
-    history.replaceState(null, '', url);
+  for (const row of versionRows) {
+    const version = getRowVersion(row);
+    const text = `${version} ${row.textContent}`.toLowerCase();
+    const matchesSearch = !terms.length || terms.every(t => text.includes(t));
+    const matchesKind = rowMatchesVersionKind(row, activeVersionKind);
+    const matches = matchesSearch && matchesKind;
+    row.hidden = !matches;
+    if (matches) {
+      visibleCount++;
+      channelVisibility.add(getRowChannel(row));
+    }
   }
 
+  for (const card of channelCards) {
+    const channel = card.dataset.channelCard;
+    card.hidden = !channelVisibility.has(channel);
+  }
+
+  if (versionsCount) versionsCount.textContent = `${visibleCount} of ${versionRows.length} installations shown`;
+
+  const emptyRow = document.querySelector('tr.empty-row');
+  if (emptyRow) emptyRow.hidden = visibleCount > 0;
+
+  const url = new URL(window.location.href);
+  url.hash = '';
+  if (query) url.searchParams.set('q', versionFilterInput.value.trim());
+  else url.searchParams.delete('q');
+  if (activeVersionKind && activeVersionKind !== 'all') url.searchParams.set('kind', activeVersionKind);
+  else url.searchParams.delete('kind');
+  history.replaceState(null, '', url);
+}
+
+if (versionKindLinks.length && initialVersionKind === 'all') {
+  for (const link of versionKindLinks) {
+    link.addEventListener('click', (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      const clickedKind = link.dataset.versionKind || 'all';
+      if (clickedKind === 'all') {
+        activeVersionKind = 'all';
+      } else {
+        activeVersionKind = activeVersionKind === clickedKind ? 'all' : clickedKind;
+      }
+      syncVersionKindLinks();
+      runVersionFilter();
+    });
+  }
+}
+
+if (versionFilterInput) {
   versionFilterInput.addEventListener('input', runVersionFilter);
   if (versionFilterForm) {
     versionFilterForm.addEventListener('submit', (e) => {

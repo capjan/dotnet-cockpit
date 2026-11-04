@@ -96,6 +96,27 @@ test('filters instantly with client-side JavaScript without page reload', async 
 
   await searchBox.fill('');
   await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(totalRows);
+
+  // Toggling SDKs, Runtimes, and Previews filter pills does not scroll the page
+  const nav = page.getByRole('navigation', { name: 'Installation type' });
+  await nav.getByRole('link', { name: 'SDKs', exact: true }).click();
+  await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(snapshot.sdks.length);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await nav.getByRole('link', { name: 'SDKs', exact: true }).click();
+  await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(totalRows);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await nav.getByRole('link', { name: 'Runtimes', exact: true }).click();
+  await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(runtimeCards);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await nav.getByRole('link', { name: 'Previews', exact: true }).click();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await nav.getByRole('link', { name: 'Previews', exact: true }).click();
+  await expect(page.locator('tbody tr[data-kind]:not([hidden])')).toHaveCount(totalRows);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
 test('opens command palette with keyboard shortcut and triggers navigation', async ({ page }) => {
