@@ -904,6 +904,43 @@ if (addToolDialog) {
     return Math.abs(h) % 5;
   }
 
+  function getToolKindSvg(packageId) {
+    const id = (packageId || '').toLowerCase();
+    if (id.includes('ef') || id.includes('sql') || id.includes('db') || id.includes('data')) {
+      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>';
+    }
+    if (id.includes('cover') || id.includes('test') || id.includes('sec') || id.includes('audit')) {
+      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>';
+    }
+    if (id.includes('report') || id.includes('bench') || id.includes('metric')) {
+      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx="1"/><rect x="12" y="7" width="3" height="10" rx="1"/><rect x="17" y="4" width="3" height="13" rx="1"/></svg>';
+    }
+    if (id.includes('format') || id.includes('csharpier') || id.includes('lint') || id.includes('fantomas')) {
+      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/><path d="M5 3v4M3 5h4"/></svg>';
+    }
+    if (id.includes('trace') || id.includes('dump') || id.includes('counter') || id.includes('monitor')) {
+      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>';
+    }
+    return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>';
+  }
+
+  function getToolFallbackDesc(packageId, authors) {
+    const id = (packageId || '').toLowerCase();
+    const map = {
+      'dotnet-ef': 'Entity Framework Core CLI migrations, DbContext scaffolding, and database management tools.',
+      'dotnet-coverage': 'Cross-platform CLI tool to collect code coverage data and merge coverage reports.',
+      'dotnet-reportgenerator-globaltool': 'Turns XML coverage reports (OpenCover, Cobertura, Coverlet) into readable HTML dashboards.',
+      'coverlet.console': 'Cross-platform code coverage framework for .NET as a global or local CLI tool.',
+      'dotnet-outdated-tool': 'Displays outdated NuGet packages across .NET solutions and projects with one command.',
+      'csharpier': 'Opinionated code formatter for C# and XML projects.',
+      'dotnet-format': 'Code formatter for .NET that applies style preferences from .editorconfig.',
+      'dotnet-trace': 'Cross-platform performance profiler collecting EventPipe traces from running .NET processes.',
+      'dotnet-counters': 'Performance monitoring tool for ad-hoc health monitoring and performance investigation.',
+      'dotnet-dump': 'Collect and analyze Windows and Linux process dumps without a native debugger.'
+    };
+    return map[id] || `.NET CLI tool package published by ${authors || 'NuGet'}.`;
+  }
+
   async function runSheetSearch(q) {
     const query = q.trim();
     if (!query) {
@@ -927,13 +964,14 @@ if (addToolDialog) {
       updateCliPreview(items[0].packageId, items[0].version);
       resultsBox.innerHTML = items.map((item, idx) => `
         <div class="sheet-result-item ${idx === 0 ? 'active' : ''}" data-pkg-id="${item.packageId}" data-pkg-ver="${item.version}">
-          <span class="tool-monogram monogram-${getColorIdx(item.packageId)}">${getMonogram(item.packageId)}</span>
+          <span class="tool-monogram tool-logo monogram-${getColorIdx(item.packageId)}">${getToolKindSvg(item.packageId)}</span>
           <div class="sheet-result-body">
             <div class="sheet-result-top">
               <strong>${item.packageId}</strong>
               <code class="muted">${item.version}</code>
               ${item.verified ? '<span class="badge ok sm">✓ Verified</span>' : ''}
             </div>
+            <span class="muted text-xs">${getToolFallbackDesc(item.packageId, item.authors)}</span>
             <div class="sheet-result-meta muted text-xs">
               <span>👤 ${item.authors}</span>
               <span>↓ ${item.downloads}</span>
@@ -1272,6 +1310,20 @@ try {
       if (saved) { navToolsEl.textContent = saved; navToolsEl.hidden = false; }
     }
   }
+  const navIssuesEl = document.querySelector('[data-nav-issues-badge]');
+  const navPfEl = document.querySelector('[data-nav-pf-badge]');
+  if (navIssuesEl) {
+    if (!navIssuesEl.hidden && navIssuesEl.textContent.trim()) {
+      sessionStorage.setItem('cockpit-issues-count', navIssuesEl.textContent.trim());
+    } else {
+      const saved = sessionStorage.getItem('cockpit-issues-count');
+      if (saved && Number(saved) > 0) {
+        navIssuesEl.textContent = saved;
+        navIssuesEl.hidden = false;
+        if (navPfEl) { navPfEl.textContent = saved; navPfEl.hidden = false; }
+      }
+    }
+  }
 } catch {}
 
 document.addEventListener('click', (e) => {
@@ -1312,3 +1364,199 @@ document.addEventListener('click', (e) => {
     }
   }
 });
+
+// Tool Details Drawer (#tool-drawer on /tools)
+const toolDrawer = document.getElementById('tool-drawer');
+const toolDrawerCloseBtn = document.getElementById('tool-drawer-close');
+const toolsDataEl = document.getElementById('tools-data');
+
+if (toolDrawer && toolsDataEl) {
+  let toolsData = {};
+  try {
+    toolsData = JSON.parse(toolsDataEl.textContent || '{}');
+  } catch {}
+
+  const toolRows = [...document.querySelectorAll('tr[data-tool-row]')];
+
+  function findToolData(keyOrId) {
+    if (!keyOrId) return null;
+    if (toolsData[keyOrId]) return toolsData[keyOrId];
+    const lower = keyOrId.toLowerCase();
+    for (const [k, v] of Object.entries(toolsData)) {
+      if (k.toLowerCase() === lower || (v.packageId && v.packageId.toLowerCase() === lower)) return v;
+    }
+    return null;
+  }
+
+  function openToolDrawer(keyOrId) {
+    const data = findToolData(keyOrId);
+    if (!data) return;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('selected', data.packageId);
+    history.replaceState(null, '', url);
+
+    toolDrawer.hidden = false;
+
+    toolRows.forEach(row => {
+      const rowKey = row.dataset.toolKey || row.dataset.toolId || row.querySelector('.tool-name strong')?.textContent?.trim();
+      const isSelected = Boolean(rowKey && (rowKey.toLowerCase() === (data.key || '').toLowerCase() || (!keyOrId.includes(':') && (row.dataset.toolId || '').toLowerCase() === data.packageId.toLowerCase())));
+      row.classList.toggle('row-selected', isSelected);
+      row.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+    });
+
+    const eyebrow = document.getElementById('tool-drawer-eyebrow');
+    const logo = document.getElementById('tool-drawer-logo');
+    const title = document.getElementById('tool-drawer-title');
+    const badges = document.getElementById('tool-drawer-badges');
+    const desc = document.getElementById('tool-drawer-description');
+    const tags = document.getElementById('tool-drawer-tags');
+    const commands = document.getElementById('tool-drawer-commands');
+    const pkg = document.getElementById('tool-drawer-pkg');
+    const ver = document.getElementById('tool-drawer-ver');
+    const authors = document.getElementById('tool-drawer-authors');
+    const license = document.getElementById('tool-drawer-license');
+    const scope = document.getElementById('tool-drawer-scope');
+    const project = document.getElementById('tool-drawer-project');
+    const pathTitle = document.getElementById('tool-drawer-path-title');
+    const pathEl = document.getElementById('tool-drawer-path');
+    const pathCopy = document.getElementById('tool-drawer-path-copy');
+    const updateCmd = document.getElementById('tool-drawer-update-cmd');
+    const updateCopy = document.getElementById('tool-drawer-update-copy');
+    const uninstallCmd = document.getElementById('tool-drawer-uninstall-cmd');
+    const uninstallCopy = document.getElementById('tool-drawer-uninstall-copy');
+    const nugetBtn = document.getElementById('tool-drawer-nuget-btn');
+    const removeForm = document.getElementById('tool-drawer-remove-form');
+
+    if (eyebrow) eyebrow.textContent = data.eyebrow;
+    if (logo && data.logoHtml) logo.innerHTML = data.logoHtml;
+    if (title) title.textContent = data.packageId;
+    if (badges) {
+      badges.innerHTML = `
+        <span class="v-current">${data.version}</span>
+        <span class="badge ${data.scope === 'local' ? '' : 'ok'} sm">${data.scope === 'local' ? 'Local' : 'Global'}</span>
+        ${data.isVerified ? '<span class="badge ok sm">✓ Verified</span>' : ''}`;
+    }
+    if (desc) desc.textContent = data.fullDescription || data.summary;
+    if (tags) {
+      tags.innerHTML = (data.tags || []).map(t => `<span class="tool-tag-pill">${t}</span>`).join('');
+    }
+    if (commands) {
+      const clipSvg = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+      commands.innerHTML = (data.commands || []).map(cmd => `
+        <div class="drawer-code-box tool-drawer-cmd-item">
+          <div class="tool-drawer-cmd-main">
+            <code>${cmd}</code>
+            <span class="muted text-xs">CLI command</span>
+          </div>
+          <button class="button icon ghost copy-btn" data-copy="${cmd}" type="button" title="Copy command">${clipSvg}</button>
+        </div>`).join('');
+    }
+    if (pkg) pkg.textContent = data.packageId;
+    if (ver) ver.textContent = data.version;
+    if (authors) authors.textContent = data.authors;
+    if (license) license.textContent = data.license;
+    if (scope) scope.textContent = data.scopeLabel;
+    if (project && data.projectUrl) {
+      project.innerHTML = `<a href="${data.projectUrl}" target="_blank" rel="noopener">${data.projectLabel || 'Repository'} ↗</a>`;
+    }
+    if (pathTitle) pathTitle.textContent = data.pathTitle;
+    if (pathEl) pathEl.textContent = data.storePath;
+    if (pathCopy) pathCopy.dataset.copy = data.storePath;
+    if (updateCmd) updateCmd.textContent = data.updateCmd;
+    if (updateCopy) updateCopy.dataset.copy = data.updateCmd;
+    if (uninstallCmd) uninstallCmd.textContent = data.uninstallCmd;
+    if (uninstallCopy) uninstallCopy.dataset.copy = data.uninstallCmd;
+    if (nugetBtn) nugetBtn.href = data.nugetUrl;
+    if (removeForm) {
+      const trashSvg = '<svg class="i xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+      removeForm.innerHTML = `
+        <form method="post" action="/tools/uninstall">
+          <input type="hidden" name="packageId" value="${data.packageId}">
+          <input type="hidden" name="scope" value="${data.scope}">
+          <button class="button danger drawer-remove-btn" type="submit">${trashSvg} Uninstall tool</button>
+        </form>`;
+    }
+  }
+
+  function closeToolDrawer() {
+    toolDrawer.hidden = true;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('selected')) {
+      url.searchParams.delete('selected');
+      history.replaceState(null, '', url);
+    }
+    toolRows.forEach(row => {
+      row.classList.remove('row-selected');
+      row.setAttribute('aria-selected', 'false');
+    });
+  }
+
+  if (toolDrawerCloseBtn) {
+    toolDrawerCloseBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeToolDrawer();
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const inspectBtn = e.target.closest('[data-tool-inspect]');
+    if (inspectBtn) {
+      const id = inspectBtn.dataset.toolInspect;
+      if (id) {
+        e.preventDefault();
+        for (const m of document.querySelectorAll('.tool-context-menu:not([hidden])')) m.hidden = true;
+        openToolDrawer(id);
+      }
+      return;
+    }
+
+    const cmdkTool = e.target.closest('[data-cmdk-tool]');
+    if (cmdkTool) {
+      const id = cmdkTool.dataset.cmdkTool;
+      if (id) {
+        e.preventDefault();
+        if (cmdkDialog) cmdkDialog.hidden = true;
+        if (cmdkScrim) cmdkScrim.hidden = true;
+        openToolDrawer(id);
+      }
+      return;
+    }
+
+    const row = e.target.closest('tr[data-tool-row]');
+    if (row) {
+      if (e.target.closest('form, .tool-more-wrap, a:not(.tool-inspect-btn)')) return;
+      const key = row.dataset.toolKey || row.dataset.toolId || row.querySelector('.tool-name strong')?.textContent?.trim();
+      if (key) {
+        e.preventDefault();
+        openToolDrawer(key);
+      }
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !toolDrawer.hidden) {
+      closeToolDrawer();
+      return;
+    }
+
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !toolDrawer.hidden) {
+      const visibleRows = toolRows.filter(r => !r.hidden);
+      if (!visibleRows.length) return;
+      const currentIndex = visibleRows.findIndex(r => r.classList.contains('row-selected'));
+      let nextIndex = 0;
+      if (currentIndex >= 0) {
+        nextIndex = e.key === 'ArrowDown'
+          ? (currentIndex + 1 < visibleRows.length ? currentIndex + 1 : 0)
+          : (currentIndex - 1 >= 0 ? currentIndex - 1 : visibleRows.length - 1);
+      }
+      e.preventDefault();
+      const nextRow = visibleRows[nextIndex];
+      const nextKey = nextRow.dataset.toolKey || nextRow.dataset.toolId || nextRow.querySelector('.tool-name strong')?.textContent?.trim();
+      if (nextKey) {
+        openToolDrawer(nextKey);
+        nextRow.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  });
+}

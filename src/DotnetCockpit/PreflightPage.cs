@@ -37,15 +37,15 @@ internal static class PreflightPage
                 : "<span class=\"badge ok\">Ready</span>";
 
         var runtimes = installation.Runtimes;
+        var distinctRuntimeVersions = runtimes.Select(r => r.Version).Distinct().ToArray();
         var eolRuntimes = runtimes.Where(r => InstallationSnapshot.IsEol(r.Version)).Select(r => r.Version).Distinct().ToArray();
-        var runtimeChannels = runtimes.Select(r => r.Version.Split('.')[0]).Distinct().OrderByDescending(c => int.TryParse(c, out var v) ? v : 0).ToArray();
         var runtimeOk = runtimes.Length > 0;
         var runtimeStepState = !runtimeOk || eolRuntimes.Length > 0 ? "warn" : "ok";
         var runtimeTitle = runtimeOk
-            ? $"{runtimes.Length} runtime{(runtimes.Length == 1 ? "" : "s")} detected"
+            ? $"{distinctRuntimeVersions.Length} runtime{(distinctRuntimeVersions.Length == 1 ? "" : "s")} detected"
             : "No .NET runtime installed";
         var runtimeDetail = runtimeOk
-            ? $"Installed: {string.Join(", ", runtimes.Select(r => $"{r.Name} {r.Version}").Distinct())}"
+            ? $"Installed: {string.Join(", ", distinctRuntimeVersions)} (ASP.NET Core & .NET Runtime)"
             : "Required to execute compiled .NET applications.";
         var runtimeAction = !runtimeOk
             ? "<a class=\"button sm\" href=\"/setup?product=runtime#sdk-downloads-title\">Set up now</a>"
@@ -66,8 +66,9 @@ internal static class PreflightPage
         var wsOwned = tools.LocalManifestOwned;
         var wsTitle = "Workspace detected";
         var shortenedWsPath = ShortenPath(tools.WorkingDirectory);
+        var wsToolWord = tools.Local.Tools.Length == 1 ? "local tool" : "local tools";
         var wsDetail = wsInitialized
-            ? $"<code>{Encode(shortenedWsPath)}</code> · {(wsOwned ? $"{tools.Local.Tools.Length} local tool declared" : $"{tools.Local.Tools.Length} local tool from an inherited manifest")}"
+            ? $"<code>{Encode(shortenedWsPath)}</code> · {(wsOwned ? $"{tools.Local.Tools.Length} {wsToolWord} declared" : $"{tools.Local.Tools.Length} {wsToolWord} from an inherited manifest")}"
             : $"<code>{Encode(shortenedWsPath)}</code> · No local tool manifest";
 
         var uninstallInstalled = setup.UninstallTool.Installed;

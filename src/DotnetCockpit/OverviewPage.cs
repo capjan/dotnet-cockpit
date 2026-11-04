@@ -60,7 +60,7 @@ internal static class OverviewPage
         var healthHeadline = issues == 0
             ? "All installed versions are supported and up to date."
             : hasEol
-                ? $"{(eolCount == 1 ? "One version is" : $"{eolCount} versions are")} out of support{(patchableSdks.Length > 0 ? $", {patchableSdks.Length} patch available" : "")}."
+                ? $"{(eolCount == 1 ? "One version is" : $"{eolCount} versions are")} out of support{(patchableSdks.Length > 0 ? $", {patchableSdks.Length} {(patchableSdks.Length == 1 ? "patch" : "patches")} available" : "")}."
                 : "Your .NET environment needs attention.";
 
         var actions = new List<string>();
@@ -172,13 +172,16 @@ internal static class OverviewPage
                 : $"<strong>Inherited</strong> <span class=\"muted\">from parent .config</span>";
 
         var localToolPills = tools.Local.Tools.Length > 0
-            ? string.Concat(tools.Local.Tools.Select(t => $"<code class=\"ws-tool-pill\">{Encode(t.PackageId)} {Encode(t.Version)}</code>"))
+            ? string.Concat(tools.Local.Tools.Select(t => $"<a class=\"ws-tool-pill-link\" href=\"/tools?scope=local&amp;selected={Uri.EscapeDataString(t.PackageId)}\" title=\"Inspect {Encode(t.PackageId)} in .NET Tools\"><code class=\"ws-tool-pill\">{Encode(t.PackageId)} {Encode(t.Version)}</code></a>"))
             : "<span class=\"muted\">None declared</span>";
 
-        var sdk10Ver = snapshot.Sdks.FirstOrDefault(s => s.Version.StartsWith("10."))?.Version;
-        var sdk9Ver = snapshot.Sdks.FirstOrDefault(s => s.Version.StartsWith("9."))?.Version;
-        var sdk8Ver = snapshot.Sdks.FirstOrDefault(s => s.Version.StartsWith("8."))?.Version;
-        var sdk7Ver = snapshot.Sdks.FirstOrDefault(s => s.Version.StartsWith("7."))?.Version;
+        var orderedSdks = snapshot.Sdks
+            .OrderByDescending(s => s.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
+            .ToArray();
+        var sdk10Ver = orderedSdks.FirstOrDefault(s => s.Version.StartsWith("10."))?.Version;
+        var sdk9Ver = orderedSdks.FirstOrDefault(s => s.Version.StartsWith("9."))?.Version;
+        var sdk8Ver = orderedSdks.FirstOrDefault(s => s.Version.StartsWith("8."))?.Version;
+        var sdk7Ver = orderedSdks.FirstOrDefault(s => s.Version.StartsWith("7."))?.Version;
 
         return PageLayout.Render($$"""
             <div class="page-heading">
@@ -337,7 +340,7 @@ internal static class OverviewPage
                       <span class="channel-tag preview">Preview</span>
                     </div>
                     <div class="tl-track">
-                      <div class="tl-bar preview" style="left: 55%; width: 32%;">Preview · Nov 2026</div>
+                      <div class="tl-bar preview" style="left: 65%; width: 25%;">Preview · GA Nov 2026</div>
                     </div>
                     <span class="tl-status muted">GA Nov 2026</span>
                   </div>

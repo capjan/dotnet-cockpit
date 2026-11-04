@@ -3188,3 +3188,238 @@ dialog::backdrop {
     flex-wrap: wrap;
   }
 }
+
+/* Tools Hub, Tool Logos, Descriptions & Tool Detail Drawer */
+.tools-hub {
+  display: flex;
+  position: relative;
+  align-items: flex-start;
+  gap: 24px;
+}
+.tools-list {
+  flex: 1;
+  min-width: 0;
+}
+@media (min-width: 1101px) {
+  .main:has(#tool-drawer:not([hidden])) {
+    padding-right: 440px;
+  }
+  .main:has(#tool-drawer:not([hidden])) .tool-author-chip,
+  .main:has(#tool-drawer:not([hidden])) .tool-more-wrap,
+  .main:has(#tool-drawer:not([hidden])) .tool-inspect-btn {
+    display: none;
+  }
+  .main:has(#tool-drawer:not([hidden])) .tool-desc {
+    max-width: 240px;
+  }
+  .main:has(#tool-drawer:not([hidden])) .tools-table th,
+  .main:has(#tool-drawer:not([hidden])) .tools-table td {
+    padding: 11px 10px;
+  }
+}
+
+.tools-table tr[data-tool-row] {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.tools-table tr[data-tool-row]:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+:root[data-theme="light"] .tools-table tr[data-tool-row]:hover td {
+  background: rgba(15, 23, 42, 0.028);
+}
+.tools-table tr[data-tool-row].row-selected td {
+  background: rgba(99, 102, 241, 0.12) !important;
+}
+.tools-table tr[data-tool-row].row-selected td:first-child {
+  box-shadow: inset 3px 0 0 #6366f1;
+}
+
+.tool-monogram.tool-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+:root[data-theme="light"] .tool-monogram.tool-logo {
+  border-color: rgba(15, 23, 42, 0.1);
+}
+.tool-monogram.tool-logo.has-img {
+  background: rgba(255, 255, 255, 0.07);
+  padding: 4px;
+}
+:root[data-theme="light"] .tool-monogram.tool-logo.has-img {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.tool-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  display: block;
+}
+.tool-logo-svg {
+  width: 19px;
+  height: 19px;
+  display: block;
+}
+.tool-monogram.tool-logo.drawer-logo-lg {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+.tool-monogram.tool-logo.drawer-logo-lg .tool-logo-svg {
+  width: 24px;
+  height: 24px;
+}
+
+.tool-name {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.tool-name-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.tool-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tool-id-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.tool-title-line strong {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tool-verified-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.18);
+  color: var(--ok);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.tool-author-chip {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.tool-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  max-width: 440px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: clip;
+}
+
+.tool-drawer-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+.tool-drawer-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.tool-drawer-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tool-drawer-about {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 13px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tool-drawer-desc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-line;
+}
+.tool-drawer-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tool-tag-pill {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.tool-drawer-cmd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tool-drawer-cmd-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tool-drawer-cmd-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tool-drawer-cmd-main code {
+  font-weight: 600;
+  color: var(--text);
+}
+.drawer-code-box code,
+.drawer-command-box code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drawer-code-box .copy-btn,
+.drawer-command-box .copy-btn {
+  flex-shrink: 0;
+}
+.ws-tool-pill-link {
+  text-decoration: none;
+}
+.ws-tool-pill-link:hover .ws-tool-pill {
+  border-color: var(--brand);
+  color: var(--text);
+}
