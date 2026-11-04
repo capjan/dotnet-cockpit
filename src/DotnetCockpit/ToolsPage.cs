@@ -27,13 +27,9 @@ internal static class ToolsPage
             _ => RenderTabs(snapshot, options)
         };
 
-        var manifestSubtitle = snapshot.LocalManifestInitialized
-            ? $"Local tools come from {(snapshot.LocalManifestOwned ? "this workspace manifest" : "an inherited manifest")}: {Encode(snapshot.LocalManifestPath ?? ".config/dotnet-tools.json")}"
-            : "Local tools use manifests from this directory and its parents.";
-
         var manifestBadge = snapshot.LocalManifestInitialized
-            ? (snapshot.LocalManifestOwned ? "Local manifest" : "Inherited · read-only here")
-            : "Current workspace";
+            ? (snapshot.LocalManifestOwned ? "Local manifest in this workspace" : "Local manifest inherited from a parent folder")
+            : "No local manifest";
 
         var activeTools = options.Scope == "local"
             ? snapshot.Local.Tools
@@ -65,27 +61,21 @@ internal static class ToolsPage
                 <p class="muted intro">Global tools for your account and local tools declared for this workspace.</p>
               </div>
               <div class="tools-header-actions">
-                <a class="button sm ghost refresh-btn" href="{{RefreshLink(options)}}">{{Icon("refresh", "xs")}} Refresh</a>
                 {{updateAllHtml}}
                 {{(snapshot.Status == "ready" ? $"<a class=\"button primary\" id=\"open-add-tool-btn\" href=\"/tools?add=1#tool-search-section\">{Icon("plus", "xs")} Add tool</a>" : "")}}
               </div>
             </div>
             <div class="working-directory">
-              <div class="working-directory-heading">
-                <span class="context-icon">{{Icon("folder")}}</span>
-                <div>
-                  <div class="ws-banner-line"><strong>Workspace</strong> <code>{{Encode(snapshot.WorkingDirectory)}}</code></div>
-                  <span class="muted">{{manifestSubtitle}}</span>
-                </div>
-                <span class="context-badge">{{manifestBadge}}</span>
-              </div>
+              {{Icon("folder", "xs")}}
+              <code title="{{Encode(snapshot.LocalManifestPath ?? "")}}">{{Encode(snapshot.WorkingDirectory)}}</code>
+              <span class="muted">{{manifestBadge}}</span>
             </div>
             {{RenderNotice(options.Notice)}}
             {{content}}
             {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
             {{(snapshot.Status == "ready" ? RenderAddToolSheet(snapshot, options, search) : "")}}
             <p class="scope-note muted">Local tools are declared in manifests for this working directory or its parents. This view does not check whether they have been restored — run <code>dotnet tool restore</code> in the workspace.</p>
-            """, "/tools", ".NET Tools | .NET Cockpit", navIssues, navVersions, snapshot.Global.Tools.Length + snapshot.Local.Tools.Length);
+            """, "/tools", ".NET Tools | .NET Cockpit", navIssues, navVersions, snapshot.Global.Tools.Length + snapshot.Local.Tools.Length, refreshHref: RefreshLink(options));
     }
 
     private static string RenderTabs(ToolsSnapshot snapshot, ToolsViewOptions options)
@@ -93,14 +83,12 @@ internal static class ToolsPage
         var isLocal = options.Scope == "local";
         var isAll = options.Scope == "all";
         var isGlobal = !isLocal && !isAll;
-        var allCountHtml = (snapshot.Global.Error is null && snapshot.Local.Error is null)
-            ? $"<span class=\"tool-tab-count summary-count\">{snapshot.Global.Tools.Length + snapshot.Local.Tools.Length}</span>"
-            : "";
+        var allCount = snapshot.Global.Error is null && snapshot.Local.Error is null ? snapshot.Global.Tools.Length + snapshot.Local.Tools.Length : (int?)null;
         var tabsHtml = $"""
-            <div class="tool-tabs version-scope-pills" role="tablist" aria-label="Tool scope">
-              <a class="tool-tab pill-badge {(isAll ? "active" : "")}" href="/tools?scope=all" role="tab" aria-selected="{isAll.ToString().ToLowerInvariant()}" aria-controls="all-tools-panel">All{allCountHtml}</a>
-              {RenderTab("global", "Global", snapshot.Global, isGlobal)}
-              {RenderTab("local", "Local", snapshot.Local, isLocal)}
+            <div class="segmented tool-tabs" role="tablist" aria-label="Tool scope">
+              {RenderTab("global", "Global", snapshot.Global.Error is null ? snapshot.Global.Tools.Length : null, isGlobal)}
+              {RenderTab("local", "Local", snapshot.Local.Error is null ? snapshot.Local.Tools.Length : null, isLocal)}
+              {RenderTab("all", "All", allCount, isAll)}
             </div>
             """;
         if (isAll)
@@ -113,10 +101,10 @@ internal static class ToolsPage
         return RenderList(isLocal ? "Local tools" : "Global tools", isLocal ? "local-tools" : "global-tools", selected, isLocal, snapshot.LocalManifestInitialized, snapshot.LocalManifestOwned, options, tabsHtml);
     }
 
-    private static string RenderTab(string scope, string label, ToolList list, bool selected)
+    private static string RenderTab(string scope, string label, int? count, bool selected)
     {
-        var count = list.Error is null ? $"<span class=\"tool-tab-count summary-count\">{list.Tools.Length}</span>" : "";
-        return $"<a class=\"tool-tab pill-badge {(selected ? "active" : "")}\" href=\"/tools?scope={scope}\" role=\"tab\" aria-selected=\"{selected.ToString().ToLowerInvariant()}\" aria-controls=\"{scope}-tools-panel\">{label}{count}</a>";
+        var countHtml = count is null ? "" : $"<span class=\"seg-count\" aria-hidden=\"true\">{count}</span>";
+        return $"<a class=\"seg tool-tab {(selected ? "active" : "")}\" href=\"/tools?scope={scope}\" role=\"tab\" aria-selected=\"{selected.ToString().ToLowerInvariant()}\" aria-controls=\"{scope}-tools-panel\">{label}{countHtml}</a>";
     }
 
     private static string RefreshLink(ToolsViewOptions options) =>
@@ -136,7 +124,7 @@ internal static class ToolsPage
                 : RenderTable(orderedTools, local, title, localOwned, options, selectedTool);
 
         var filterInput = orderedTools.Length > 0
-            ? $"<label class=\"filter-input\">{Icon("search", "xs")}<input type=\"search\" data-tools-table-filter placeholder=\"Filter {title.ToLowerInvariant()}...\" aria-label=\"Filter {title.ToLowerInvariant()}\"></label>"
+            ? $"<span class=\"filter-count\" data-tools-count hidden></span><span class=\"spacer\"></span><label class=\"search-field\">{Icon("search", "xs")}<input type=\"search\" data-tools-table-filter placeholder=\"Filter by name or command\" aria-label=\"Filter {title.ToLowerInvariant()}\"></label>"
             : "";
         var localAction = local ? RenderLocalManifestAction(localInitialized, localOwned, options) : "";
         var drawerHtml = RenderToolDrawer(orderedTools, selectedTool, local, localOwned, options);
@@ -144,9 +132,11 @@ internal static class ToolsPage
         return $$"""
             <section class="tool-panel-wrapper" role="tabpanel" aria-labelledby="{{id}}" id="{{id}}-panel">
               <div class="sr-only"><h2 id="{{id}}">{{title}}</h2></div>
-              <div class="tools-toolbar">
+              <div class="filter-bar">
                 {{tabsHtml}}
-                <div class="inventory-heading-actions">{{filterInput}}{{localAction}}</div>
+                {{filterInput}}
+                {{(filterInput.Length == 0 ? "<span class=\"spacer\"></span>" : "")}}
+                {{localAction}}
               </div>
               <div class="tools-hub" id="tools-hub">
                 <div class="tools-list">
@@ -163,7 +153,7 @@ internal static class ToolsPage
     private static string RenderTable(DotnetTool[] orderedTools, bool local, string title, bool localOwned, ToolsViewOptions options, DotnetTool? selectedTool) => $$"""
         <div class="table-scroll" role="region" aria-label="{{title}}" tabindex="0">
           <table class="tools-table" aria-label="{{title}}">
-            <thead><tr><th scope="col">Tool</th><th scope="col">Command</th><th scope="col">Version</th><th scope="col">{{(local ? "Manifest" : "Scope")}}</th><th scope="col">Actions</th></tr></thead>
+            <thead><tr><th scope="col">Tool</th><th scope="col">Command</th><th scope="col">Version</th>{{(options.Scope == "global" ? "" : $"<th scope=\"col\">{(local ? "Manifest" : "Scope")}</th>")}}<th scope="col" class="th-actions">Actions</th></tr></thead>
             <tbody>{{string.Concat(orderedTools.Select(tool =>
             {
                 var isToolLocal = local || tool.Manifest is not null;
@@ -173,8 +163,8 @@ internal static class ToolsPage
                 var meta = ToolMetadataCatalog.Resolve(tool.PackageId, tool.Version, isToolLocal, tool.Manifest);
                 var logoHtml = ToolMetadataCatalog.RenderLogo(meta, colorIdx, monogram);
                 var scopeBadge = isToolLocal
-                    ? $"<span class=\"tool-scope-pill local\">{Icon("folder", "xs")} {(localOwned ? "Local" : "Local · inherited")}</span>"
-                    : $"<span class=\"tool-scope-pill global\">{Icon("tools", "xs")} Global</span>";
+                    ? $"<span class=\"tool-scope-pill\">{(localOwned ? "Local" : "Local · inherited")}</span>"
+                    : "<span class=\"tool-scope-pill\">Global</span>";
                 var primaryCmd = tool.Commands.FirstOrDefault() ?? tool.PackageId;
                 var copyCmd = isToolLocal ? $"dotnet {primaryCmd}" : primaryCmd;
                 var cliEquiv = $"dotnet tool update {(isToolLocal ? "--local" : "--global")} {tool.PackageId}";
@@ -182,7 +172,7 @@ internal static class ToolsPage
                 var toolKey = $"{toolScopeStr}:{tool.PackageId}";
                 var inspectHref = $"/tools?scope={Uri.EscapeDataString(options.Scope)}&selected={Uri.EscapeDataString(tool.PackageId)}";
                 var versionCellHtml = meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion)
-                    ? $"<div class=\"version-patch-flow\"><span class=\"v-current\">{Encode(tool.Version)}</span><span class=\"v-arrow\" title=\"Newer version available on NuGet.org\">→</span><span class=\"v-patch\" title=\"Latest on NuGet.org: {Encode(meta.LatestVersion)}\">{Encode(meta.LatestVersion)}</span></div>"
+                    ? $"<div class=\"version-patch-flow\"><span class=\"v-current\">{Encode(tool.Version)}</span><span class=\"v-arrow\" aria-hidden=\"true\">→</span><span class=\"sr-only\">, update available: </span><span class=\"v-patch\" title=\"Latest on NuGet.org: {Encode(meta.LatestVersion)}\">{Encode(meta.LatestVersion)}</span></div>"
                     : $"<span class=\"v-current\">{Encode(tool.Version)}</span>";
 
                 return $"""
@@ -194,10 +184,9 @@ internal static class ToolsPage
                           <div class="tool-title-line">
                             <span class="tool-id-group">
                               <strong>{Encode(tool.PackageId)}</strong>
-                              {(meta.IsVerified ? "<span class=\"tool-verified-dot\" title=\"Verified publisher on NuGet.org\">✓</span>" : "")}
+                              {(meta.IsVerified ? $"<span class=\"v-ok\" title=\"Verified publisher on NuGet.org\">{Icon("check", "xs")}<span class=\"sr-only\">Verified publisher</span></span>" : "")}
                             </span>
                             <span class="tool-author-chip muted text-xs">by {Encode(meta.Authors)}</span>
-                            {(string.IsNullOrEmpty(meta.DownloadsDisplay) ? "" : $"<span class=\"tool-downloads-chip\" title=\"{Encode(meta.DownloadsFullDisplay)} total downloads on NuGet.org\">↓ {Encode(meta.DownloadsDisplay)}</span>")}
                           </div>
                           <span class="tool-desc muted text-xs">{Encode(meta.Summary)}</span>
                         </div>
@@ -209,17 +198,12 @@ internal static class ToolsPage
                       </div>
                     </td>
                     <td class="tool-cell-ver">{versionCellHtml}</td>
-                    <td class="tool-cell-scope">
-                      <div class="tool-scope-cell">
-                        {scopeBadge}
-                        {(isToolLocal ? $"<code class=\"tool-manifest\">{Encode(tool.Manifest ?? "")}</code>" : "")}
-                      </div>
-                    </td>
+                    {(options.Scope == "global" ? "" : $"<td class=\"tool-cell-scope\"><div class=\"tool-scope-cell\">{scopeBadge}{(isToolLocal ? $"<code class=\"tool-manifest\">{Encode(tool.Manifest ?? "")}</code>" : "")}</div></td>")}
                     <td class="tool-cell-actions">
                       <div class="tool-row-actions">
                         <a class="button sm ghost tool-inspect-btn" href="{inspectHref}" data-inspect="{Encode(toolKey)}" aria-label="Inspect {Encode(tool.PackageId)}">Inspect</a>
                         {(meta.HasUpdate ? ConfirmActions.Trigger(ConfirmActions.ToolUpdate(tool.PackageId, toolScopeStr, meta.LatestVersion), $"<button class=\"button sm\" type=\"submit\" aria-label=\"Update {Encode(tool.PackageId)}\">Update</button>", "tool-action tool-update-form") : "<span class=\"tool-update-slot\" aria-hidden=\"true\"></span>")}
-                        {ConfirmActions.Trigger(ConfirmActions.ToolUninstall(tool.PackageId, toolScopeStr), $"<button class=\"button danger sm\" type=\"submit\" aria-label=\"Remove {Encode(tool.PackageId)}\">Remove</button>", "tool-action tool-uninstall-form")}
+                        {ConfirmActions.Trigger(ConfirmActions.ToolUninstall(tool.PackageId, toolScopeStr), $"<button class=\"button remove sm\" type=\"submit\" aria-label=\"Remove {Encode(tool.PackageId)}\">Remove</button>", "tool-action tool-uninstall-form")}
                         <div class="tool-more-wrap">
                           <button type="button" class="button icon sm ghost tool-menu-trigger" hidden data-js-only data-tool-menu-btn aria-label="More actions for {Encode(tool.PackageId)}" aria-expanded="false">{Icon("more", "sm")}</button>
                           <div class="tool-context-menu" hidden>
@@ -361,7 +345,7 @@ internal static class ToolsPage
                 <a class="button ghost" href="{nugetUrl}" target="_blank" rel="noopener">{Icon("external", "xs")} NuGet.org</a>
                 <span class="spacer"></span>
                 {(meta.HasUpdate ? ConfirmActions.Trigger(ConfirmActions.ToolUpdate(tool.PackageId, scope, meta.LatestVersion), $"<button class=\"button primary\" type=\"submit\">{Icon("refresh", "xs")} Update to {Encode(meta.LatestVersion ?? "latest")}</button>") : "")}
-                {ConfirmActions.Trigger(ConfirmActions.ToolUninstall(tool.PackageId, scope), $"<button class=\"button danger drawer-remove-btn\" type=\"submit\">{Icon("trash", "xs")} Remove</button>")}
+                {ConfirmActions.Trigger(ConfirmActions.ToolUninstall(tool.PackageId, scope), $"<button class=\"button remove drawer-remove-btn\" type=\"submit\">{Icon("trash", "xs")} Remove</button>")}
               </div>
             """;
     }
@@ -383,7 +367,7 @@ internal static class ToolsPage
         if (!owned)
             return "<span class=\"manifest-status muted\">Using an inherited manifest</span>";
 
-        return ConfirmActions.Trigger(ConfirmActions.ManifestRemove(options.SearchQuery), "<button class=\"button danger\" type=\"submit\">Remove local tools</button>", "manifest-action");
+        return ConfirmActions.Trigger(ConfirmActions.ManifestRemove(options.SearchQuery), "<button class=\"button remove\" type=\"submit\">Remove local tools</button>", "manifest-action");
     }
 
     private static string RenderSearch(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search)
@@ -513,17 +497,16 @@ internal static class ToolsPage
                 </div>
 
                 <div class="sheet-controls">
-                  <label class="sheet-search-box" for="sheet-search-input">
-                    {{Icon("search", "sm")}}
-                    <input id="sheet-search-input" type="search" placeholder="Search NuGet tools (e.g. coverage, dotnet-ef, format)..." value="{{Encode(options.SearchQuery)}}" autocomplete="off">
-                    <kbd>↵</kbd>
+                  <label class="search-field wide" for="sheet-search-input">
+                    {{Icon("search", "xs")}}
+                    <input id="sheet-search-input" type="search" placeholder="Search NuGet.org, for example coverage or dotnet-ef" value="{{Encode(options.SearchQuery)}}" autocomplete="off">
                   </label>
 
-                  <div class="sheet-scope-bar">
-                    <span class="muted text-xs">Install to</span>
-                    <div class="version-scope-pills" role="group" aria-label="Installation target scope">
-                      <button type="button" class="pill-badge active" data-sheet-scope="global">{{Icon("tools", "xs")}} Global <span class="muted text-xs">· User</span></button>
-                      {{(canInstallLocal ? $"<button type=\"button\" class=\"pill-badge\" data-sheet-scope=\"local\">{Icon("folder", "xs")} Local <span class=\"muted text-xs\">· Workspace</span></button>" : "<button type=\"button\" class=\"pill-badge\" disabled title=\"A local manifest is required to install into this workspace\">Local <span class=\"muted text-xs\">· Workspace</span></button>")}}
+                  <div class="filter-bar">
+                    <span class="muted">Install to</span>
+                    <div class="segmented" role="group" aria-label="Installation target">
+                      <button type="button" class="seg active" data-sheet-scope="global">Global · User</button>
+                      {{(canInstallLocal ? "<button type=\"button\" class=\"seg\" data-sheet-scope=\"local\">Local · Workspace</button>" : "<button type=\"button\" class=\"seg\" disabled title=\"A local manifest is required to install into this workspace\">Local · Workspace</button>")}}
                     </div>
                   </div>
                 </div>
@@ -533,7 +516,7 @@ internal static class ToolsPage
                 </div>
 
                 <div class="sheet-foot">
-                  <span class="drawer-section-title">WILL RUN</span>
+                  <span class="drawer-section-title">Will run</span>
                   <div class="drawer-command-box">
                     <span class="cmd-prompt">$</span>
                     <code id="sheet-cli-preview">dotnet tool install --global \&#10;  dotnet-coverage \&#10;  --version 18.1.0</code>

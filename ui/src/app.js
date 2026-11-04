@@ -1,4 +1,4 @@
-import './styles.css';
+import './styles/index.css';
 import { setupClipboard } from './js/clipboard.js';
 import { setupConfirm } from './js/confirm.js';
 import { setupDialogs, revealScriptOnlyControls } from './js/dialogs.js';

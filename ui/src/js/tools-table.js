@@ -11,7 +11,7 @@ export function setupToolsTable() {
   const filter = document.querySelector('[data-tools-table-filter]');
   if (filter) {
     const rows = [...document.querySelectorAll('[data-tool-row]')];
-    const count = document.querySelector('.tool-tabs [role="tab"][aria-selected="true"] .tool-tab-count');
+    const count = document.querySelector('[data-tools-count]');
     const empty = document.querySelector('[data-tools-empty]');
     filter.addEventListener('input', () => {
       let visible = 0;
@@ -19,7 +19,10 @@ export function setupToolsTable() {
         row.hidden = !matchesTerms(row.dataset.search || row.textContent, filter.value);
         if (!row.hidden) visible++;
       }
-      if (count) count.textContent = visible;
+      if (count) {
+        count.textContent = `${visible} of ${rows.length} tools shown`;
+        count.hidden = !filter.value.trim();
+      }
       if (empty) empty.hidden = visible > 0;
     });
   }

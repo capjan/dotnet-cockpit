@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using DotnetCockpit.Installation;
 using DotnetCockpit.SdkDownloads;
 using static DotnetCockpit.PageLayout;
@@ -88,11 +89,15 @@ internal static class InstallationPage
             _ => RenderVersionsHub(allRows, rows, options, selectedRow)
         };
 
+        var sdkCount = allRows.Count(row => row.Kind == "sdk");
+        var isFiltered = options.Kind != "all" || !string.IsNullOrWhiteSpace(options.Query);
         var filterNavHtml = $"""
-            <a href="{Link(options with { Kind = "all" })}" class="pill-badge {(options.Kind == "all" ? "active" : "")}" data-version-kind="all"{(options.Kind == "all" ? " aria-current=\"page\"" : "")}>All<span class="sr-only"> versions</span> <strong class="summary-count" aria-hidden="true">{total}</strong></a>
-            {TypeLink("SDKs", "sdks", options)}
-            {TypeLink("Runtimes", "runtimes", options)}
-            {TypeLink("Previews", "previews", options)}
+            <div class="segmented">
+              {KindSegment("All", "all", total, options, " versions")}
+              {KindSegment("SDKs", "sdks", sdkCount, options)}
+              {KindSegment("Runtimes", "runtimes", runtimeCount, options)}
+            </div>
+            <a href="{Link(options with { Kind = options.Kind == "previews" ? "all" : "previews" })}" class="toggle-chip {(options.Kind == "previews" ? "active" : "")}" data-version-kind="previews"{(options.Kind == "previews" ? " aria-current=\"page\"" : "")}><span class="chip-box" aria-hidden="true">{Icon("check", "xs")}</span>Previews</a>
             """;
 
         var hasSuperseded = allRows
@@ -115,7 +120,6 @@ internal static class InstallationPage
                       <p class="muted intro">Installed SDKs and runtimes, organised by release channel.</p>
                     </div>
                     <div class="overview-header-actions">
-                      <a class="button sm ghost refresh-btn" href="{{RefreshLink(options, snapshot.CheckedAt)}}">{{Icon("refresh", "xs")}} Refresh</a>
                       {{(canSmartCleanup ? $"<button type=\"button\" class=\"button\" id=\"open-cleanup-btn\" hidden data-js-only data-cleanup-action=\"{defaultCleanupMode}\">{Icon("sparkle", "xs")} Clean up…</button>" : "")}}
                       <a class="button primary" id="open-install-dotnet-btn" href="/?install=1">{{Icon("download", "xs")}} Install .NET</a>
                     </div>
@@ -131,12 +135,16 @@ internal static class InstallationPage
                       <h2 id="inventory-title">Installed versions</h2>
                       <p class="muted">{{inventoryDescription}}</p>
                     </div>
-                    <div class="inventory-scope-bar">
-                      <nav class="tool-tabs version-scope-pills" aria-label="Installation type">
+                    <div class="filter-bar">
+                      <nav class="filter-group" aria-label="Installation type">
                         {{filterNavHtml}}
                       </nav>
-                      <form method="get" action="/" class="filter-form version-search-compact" role="search" data-versions-filter>
-                        <label class="filter-input-compact">
+                      <span class="filter-count" data-versions-count {{(isFiltered ? "" : "hidden")}}>{{rows.Length}} of {{total}} installations shown</span>
+                      <a class="filter-reset" href="/" data-filter-reset {{(isFiltered ? "" : "hidden")}}>Reset</a>
+                      <span class="spacer"></span>
+                      {{SortMenu(options)}}
+                      <form method="get" action="/" class="filter-form" role="search" data-versions-filter>
+                        <label class="search-field">
                           {{Icon("search", "xs")}}
                           <input id="installed-version-filter" type="search" name="q" value="{{Encode(options.Query)}}" placeholder="Filter by version or path" aria-label="Filter installed versions">
                         </label>
@@ -147,20 +155,15 @@ internal static class InstallationPage
                       </form>
                     </div>
                     {{content}}
-                    <div class="inventory-footer sr-only">
-                      <span><span data-versions-count>{{rows.Length}} of {{total}} installations shown</span></span>
-                      <span>Checked <time datetime="{{snapshot.CheckedAt.ToString("O", CultureInfo.InvariantCulture)}}">{{snapshot.CheckedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)}}</time></span>
-                    </div>
                   </section>
                   {{RenderInstallDotnetSheet(sdkSnapshot ?? new("ready", []), snapshot, options.OpenInstall, currentDate)}}
                   <p class="scope-note muted">Locations include the version subfolder. When dotnet-core-uninstall is installed, only versions it can remove are shown; runtime frameworks that share a version are grouped together. Separate installations and other architectures may not appear here.</p>
-                  """, "/", ".NET Cockpit", health.Count, total);
+                  """, "/", ".NET Cockpit", health.Count, total, refreshHref: WebUtility.HtmlDecode(RefreshLink(options, snapshot.CheckedAt)));
     }
 
     private static string RenderVersionsHub(Row[] allRows, Row[] rows, InstallationViewOptions options, Row? selectedRow)
     {
         var showActions = allRows.Any(row => row.CanRemove);
-        var columnCount = showActions ? 4 : 3;
 
         // Preserve the sorted order of `rows` from FilterRows when grouping by channel
         var channelGroups = rows
@@ -173,57 +176,25 @@ internal static class InstallationPage
             var support = group.First().Support;
             var isEol = support.IsEol;
             var isPreviewChannel = support.State == SupportState.Preview || group.All(r => r.IsPreview);
-            var patchCount = group.Count(r => r.HasPatch);
-
-            var channelStatusBadge = isEol
-                ? "<span class=\"badge bad sm\">End of life</span>"
-                : patchCount > 0
-                    ? $"<span class=\"badge warn sm\">↑ {patchCount} {(patchCount == 1 ? "patch" : "patches")}</span>"
-                    : "<span class=\"badge ok sm\">✓ Up to date</span>";
-
-            var sdkInChannel = allRows
-                .Where(r => r.Channel == channel && r.Kind == "sdk")
-                .OrderByDescending(r => r.PackageVersion ?? r.DisplayVersion, SdkVersionComparer.Instance)
-                .FirstOrDefault() ?? group.FirstOrDefault(r => r.Kind == "sdk");
-            var rtInChannel = allRows
-                .Where(r => r.Channel == channel && r.Kind == "runtime")
-                .OrderByDescending(r => r.PackageVersion ?? r.DisplayVersion, SdkVersionComparer.Instance)
-                .FirstOrDefault() ?? group.FirstOrDefault(r => r.Kind == "runtime");
-            var latestSdkVer = sdkInChannel?.PackageVersion ?? sdkInChannel?.DisplayVersion;
-            var latestRtVer = rtInChannel?.PackageVersion ?? rtInChannel?.DisplayVersion ?? (sdkInChannel?.PackageRuntime != null ? ShortDisplayVersion(sdkInChannel.PackageRuntime) : null);
-
-            var channelSubtitle = isEol
-                ? support.EndDate.Length > 0 ? $"No security fixes since {support.EndDate}" : "No more security fixes"
-                : latestSdkVer != null && latestRtVer != null
-                    ? $"Latest patch {latestSdkVer} · Runtime {latestRtVer}"
-                    : latestSdkVer != null
-                        ? $"Latest patch {latestSdkVer}"
-                        : latestRtVer != null
-                            ? $"Latest runtime {latestRtVer}"
-                            : $"Active .NET {channel} channel";
-
             var lifeTextClass = isEol ? "bad" : support.IsEndingSoon ? "warn" : "";
             var tagClass = isPreviewChannel ? "preview" : (support.IsLts ? "lts" : "sts");
             var tagLabel = isPreviewChannel ? "Preview" : support.ReleaseType;
 
+            var removeAll = group.Any(r => r.CanRemove)
+                ? $"<a class=\"button sm {(isEol ? "danger" : "remove")}\" href=\"/confirm?action=channel-remove&amp;channel={channel}\" data-remove-channel=\"{channel}\" aria-label=\"Remove all of .NET {channel}\">Remove all</a>"
+                : "";
+
             var headerRow = $"""
-                <tr class="channel-header-row" data-channel-header="{channel}">
-                  <td colspan="{columnCount}">
+                <tr class="channel-header-row" role="row" data-channel-header="{channel}">
+                  <td role="cell">
                     <div class="channel-header-card">
-                      <div class="channel-avatar channel-avatar-{channel}">{channel}</div>
-                      <div class="channel-header-body">
-                        <div class="channel-title-row">
-                          <strong class="channel-title">.NET {channel}</strong>
-                          {(tagLabel.Length > 0 ? $"<span class=\"channel-tag {tagClass}\">{tagLabel}</span>" : "")}
-                          {channelStatusBadge}
-                        </div>
-                        <span class="channel-subtitle muted">{Encode(channelSubtitle)}</span>
+                      <span class="chevron-slot"><button type="button" class="button icon sm ghost channel-collapse-btn" data-collapse-channel="{channel}" aria-label="Toggle .NET {channel} channel" aria-expanded="true" hidden data-js-only>{Icon("chevd", "sm")}</button></span>
+                      <div class="channel-title-row">
+                        <strong class="channel-title">.NET {channel}</strong>
+                        {(tagLabel.Length > 0 ? $"<span class=\"channel-tag {tagClass}\">{tagLabel}</span>" : "")}
                       </div>
-                      <div class="channel-life">
-                        <span class="life-status {lifeTextClass}">{Encode(support.Label)}</span>
-                      </div>
-                      {(group.Any(r => r.CanRemove) ? $"<a class=\"button sm danger\" href=\"/confirm?action=channel-remove&amp;channel={channel}\" data-remove-channel=\"{channel}\">{Icon("trash", "xs")} Remove channel</a>" : "")}
-                      <button type="button" class="button icon sm ghost channel-collapse-btn" data-collapse-channel="{channel}" aria-label="Toggle .NET {channel} channel" hidden data-js-only>{Icon("chevd", "sm")}</button>
+                      <span class="life-status {lifeTextClass}">{Encode(support.Label)}</span>
+                      <span class="channel-actions">{removeAll}</span>
                     </div>
                   </td>
                 </tr>
@@ -232,20 +203,21 @@ internal static class InstallationPage
             var rowsHtml = string.Concat(group.Select(row =>
             {
                 var isSelected = selectedRow?.Version == row.Version;
+                var fullVersion = $"<span class=\"sr-only\" data-full-version>{Encode(row.Version)}</span>";
                 var versionCell = row.HasPatch
-                    ? $"""<div class="version-patch-flow"><span class="sr-only" data-full-version>{Encode(row.Version)}</span><span class="v-current">{Encode(row.DisplayVersion)}</span><span class="v-arrow">→</span><strong class="v-patch">{Encode(row.LatestPatchVersion!)}</strong></div>"""
-                    : row.IsEol
-                        ? $"""<div class="version-patch-flow"><span class="sr-only" data-full-version>{Encode(row.Version)}</span><span class="v-current">{Encode(row.DisplayVersion)}</span><span class="badge bad sm">EOL</span></div>"""
-                        : $"""<div class="version-patch-flow"><span class="sr-only" data-full-version>{Encode(row.Version)}</span><span class="v-current">{Encode(row.DisplayVersion)}</span><span class="badge ok sm">Latest</span></div>""";
+                    ? $"""<div class="version-patch-flow">{fullVersion}<span class="v-current">{Encode(row.DisplayVersion)}</span><span class="v-arrow" aria-hidden="true">→</span><span class="sr-only">, patch available: {Encode(row.LatestPatchVersion!)}</span><span class="v-patch" aria-hidden="true">{Encode(ShortPatchTarget(row.DisplayVersion, row.LatestPatchVersion!))}</span></div>"""
+                    : row.IsEol || row.Support.State == SupportState.Unknown
+                        ? $"""<div class="version-patch-flow">{fullVersion}<span class="v-current">{Encode(row.DisplayVersion)}</span></div>"""
+                        : $"""<div class="version-patch-flow">{fullVersion}<span class="v-current">{Encode(row.DisplayVersion)}</span><span class="v-ok" title="Latest patch">{Icon("check", "xs")}<span class="sr-only">Latest patch</span></span></div>""";
 
                 var primaryPath = row.Paths.FirstOrDefault() ?? "";
                 var extraPaths = row.Paths.Count > 1 ? $"<span class=\"sr-only\"> {Encode(string.Join(" ", row.Paths.Skip(1)))}</span>" : "";
                 return $"""
-                    <tr data-kind="{row.Kind}" data-drawer-key="{Encode(row.Version)}" data-preview="{(row.IsPreview ? "true" : "false")}"{(isSelected ? " class=\"row-selected\"" : "")}>
-                      <td class="cell-name"><div class="installation-name"><span class="installation-icon">{Icon(row.Kind == "sdk" ? "versions" : "cpu", "sm")}</span><div><div class="installation-header"><strong>{Encode(row.Name)}</strong></div><span class="muted framework-name">{Encode(ShortFrameworkSubtitle(row.Description))}<span class="sr-only"> {Encode(row.Description)}</span></span></div></div></td>
-                      <td class="cell-version">{versionCell}</td>
-                      <td class="cell-path"><code class="installation-path installation-path-clean">{Encode(primaryPath)}{extraPaths}</code></td>
-                      <td class="cell-actions">
+                    <tr data-kind="{row.Kind}" role="row" data-drawer-key="{Encode(row.Version)}" data-preview="{(row.IsPreview ? "true" : "false")}"{(isSelected ? " class=\"row-selected\"" : "")}>
+                      <td role="cell" class="cell-name"><strong>{Encode(row.Name)}</strong><span class="muted framework-name">{Encode(ShortFrameworkSubtitle(row.Description))}<span class="sr-only"> {Encode(row.Description)}</span></span></td>
+                      <td role="cell" class="cell-path"><code class="installation-path" title="{Encode(primaryPath)}"><bdi>{Encode(primaryPath)}</bdi>{extraPaths}</code></td>
+                      <td role="cell" class="cell-version">{versionCell}</td>
+                      <td role="cell" class="cell-actions">
                         <a href="{Link(options with { Selected = row.Version })}" class="button sm ghost inspect-btn" data-inspect="{Encode(row.Version)}" aria-label="Inspect {Encode(row.Version)}">Inspect</a>
                         {RemoveAction(row, options)}
                       </td>
@@ -253,15 +225,16 @@ internal static class InstallationPage
                     """;
             }));
 
+            var cardState = isEol ? "eol" : support.IsEndingSoon ? "ending" : "ok";
             return $"""
-                <tbody class="channel-card" data-channel-card="{channel}">
+                <tbody class="channel-card" role="rowgroup" data-channel-card="{channel}" data-state="{cardState}">
                   {headerRow}
                   {rowsHtml}
                 </tbody>
                 """;
         }));
 
-        var emptyRow = $"""<tr class="empty-row" {(rows.Length == 0 ? "" : "hidden")}><td colspan="{columnCount}"><div class="empty-state"><h3>No matching versions</h3><p class="muted">Try another filter or switch to All versions.</p><a class="button" href="/">Clear filters</a></div></td></tr>""";
+        var emptyRow = $"""<tr class="empty-row" role="row" {(rows.Length == 0 ? "" : "hidden")}><td role="cell"><div class="empty-state"><h3>No matching versions</h3><p class="muted">Try another filter or switch to All versions.</p><a class="button" href="/">Clear filters</a></div></td></tr>""";
 
         var drawerHtml = RenderDrawer(selectedRow, options, allRows);
         var jsonDictionary = SerializeRowsJson(allRows);
@@ -281,10 +254,10 @@ internal static class InstallationPage
             <div class="versions-hub" id="versions-hub">
               <div class="versions-list">
                 <div class="table-scroll" role="region" aria-label="Installed .NET versions" tabindex="0">
-                  <table class="versions-table" aria-label="Installed .NET versions">
-                    <thead class="versions-thead"><tr>{{SortHeader("Installation", "name", options)}}{{SortHeader("Version", "version", options)}}{{SortHeader("Location", "path", options)}}<th scope="col">Actions</th></tr></thead>
+                  <table class="versions-table" role="table" aria-label="Installed .NET versions">
+                    <thead class="sr-only" role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Installation</th><th scope="col" role="columnheader">Location</th><th scope="col" role="columnheader">Version</th><th scope="col" role="columnheader">Actions</th></tr></thead>
                     {{tableBody}}
-                    <tbody>
+                    <tbody role="rowgroup">
                       {{emptyRow}}
                     </tbody>
                   </table>
@@ -448,10 +421,10 @@ internal static class InstallationPage
             ? ""
             : needsPatchDownload
                 ? $"<a class=\"button primary drawer-primary-btn\" href=\"{Encode(row.PackageUrl)}\" download>{Icon("download", "sm")} Download {Encode(row.LatestPatchVersion!)}</a>"
-                : $"<a class=\"button ghost drawer-primary-btn\" href=\"{Encode(row.PackageUrl)}\" download>{Icon("download", "sm")} Download installer again</a>";
+                : $"<a class=\"button ghost drawer-primary-btn\" href=\"{Encode(row.PackageUrl)}\" download>{Icon("download", "sm")} Download again</a>";
 
         var removeAction = row.CanRemove
-            ? ConfirmActions.Trigger(ConfirmActions.VersionRemove(row, options), $"<button class=\"button danger drawer-remove-btn\" type=\"submit\">{Icon("trash", "xs")} Remove</button>")
+            ? ConfirmActions.Trigger(ConfirmActions.VersionRemove(row, options), $"<button class=\"button remove drawer-remove-btn\" type=\"submit\">{Icon("trash", "xs")} Remove</button>")
             : "";
 
         var runtimeLabel = row.Kind == "sdk" ? "Included runtime" : "Frameworks";
@@ -585,11 +558,7 @@ internal static class InstallationPage
                 var chIsLts = orderedItems.Any(d => string.Equals(d.ReleaseType, "LTS", StringComparison.OrdinalIgnoreCase));
                 var chTagClass = chIsPreviewOnly ? "preview" : (chIsLts ? "lts" : "sts");
                 var chTagLabel = chIsPreviewOnly ? "Preview" : (chIsLts ? "LTS" : "STS");
-                var chPhaseBadge = chIsEol
-                    ? "<span class=\"badge bad sm\">EOL</span>"
-                    : chIsPreviewOnly
-                        ? "<span class=\"badge warn sm\">Preview</span>"
-                        : "<span class=\"badge ok sm\">Supported</span>";
+                var chPhaseBadge = chIsEol ? "<span class=\"badge bad sm\">End of life</span>" : "";
 
                 var initialVisibleCount = 0;
                 var rowsHtml = string.Concat(orderedItems.Select(d =>
@@ -608,14 +577,10 @@ internal static class InstallationPage
                     var tagClass = isPreview ? "preview" : (isLts ? "lts" : "sts");
                     var tagLabel = isPreview ? "Preview" : (isLts ? "LTS" : "STS");
                     var statusBadge = isInstalled
-                        ? "<span class=\"badge ok sm\">✓ Installed</span>"
+                        ? $"<span class=\"v-ok\">{Icon("check", "xs")} Installed</span>"
                         : isEol
-                            ? "<span class=\"badge bad sm\">EOL</span>"
-                            : isActive
-                                ? "<span class=\"badge brand sm\">Recommended</span>"
-                                : isLeader
-                                    ? "<span class=\"badge ok sm\">Latest</span>"
-                                    : "";
+                            ? "<span class=\"badge bad sm\">End of life</span>"
+                            : "";
 
                     var relDate = FormatReleaseDate(d.ReleaseDate) ?? d.ReleaseDate;
                     var inclRt = ShortDisplayVersion(d.IncludedRuntimeVersion ?? $"{major}.0");
@@ -644,7 +609,6 @@ internal static class InstallationPage
                              data-cmd="{Encode(verifyCmd)}"
                              data-search="{Encode($"{d.Product} {d.Version} .NET {major} {d.Channel} {tagLabel} {inclRt} {relDate} {string.Join(' ', d.Cves.Select(c => c.Id))}")}"
                              {(initiallyHidden ? "hidden" : "")}>
-                          <span class="channel-avatar channel-avatar-{Encode(major)}">{Encode(major)}</span>
                           <div class="sheet-result-body">
                             <div class="sheet-result-top">
                               <strong>.NET {Encode(d.Product == "SDK" ? "SDK" : "Runtime")} {Encode(d.Version)}</strong>
@@ -659,7 +623,7 @@ internal static class InstallationPage
                           </div>
                           <div class="sheet-result-actions">
                             {(string.IsNullOrEmpty(d.Sha512) ? "" : $"<button type=\"button\" class=\"button icon sm ghost copy-btn\" data-copy=\"{Encode(d.Sha512)}\" title=\"Copy SHA-512 checksum\">{Icon("clipboard", "xs")}</button>")}
-                            <a class="button {(isActive && !isInstalled ? "primary" : "")} sm" href="{Encode(d.Url)}" download>{Icon("download", "xs")} {(isInstalled ? "Re-download" : "Download .pkg")}</a>
+                            <a class="button {(isInstalled ? "ghost" : "")} sm" href="{Encode(d.Url)}" download>{Icon("download", "xs")} {(isInstalled ? "Download again" : "Download")}</a>
                           </div>
                         </div>
                         """;
@@ -669,7 +633,6 @@ internal static class InstallationPage
                 return $"""
                     <section class="sheet-channel-group" data-install-channel-group="{Encode(major)}" {(initialVisibleCount == 0 ? "hidden" : "")}>
                       <div class="sheet-channel-head">
-                        <span class="channel-avatar sm channel-avatar-{Encode(major)}">{Encode(major)}</span>
                         <div class="sheet-channel-head-main">
                           <strong>.NET {Encode(major)}</strong>
                           <span class="channel-tag {chTagClass}">{chTagLabel}</span>
@@ -698,37 +661,29 @@ internal static class InstallationPage
               <div class="sheet-inner">
                 <div class="sheet-head">
                   <div class="sheet-title-group">
-                    <h2 id="install-dotnet-sheet-title">Install .NET SDK or runtime</h2>
+                    <h2 id="install-dotnet-sheet-title">Install .NET</h2>
                     <span class="search-source">builds.dotnet.microsoft.com</span>
                   </div>
                   <a class="button icon ghost" id="close-install-dotnet-btn" href="/" aria-label="Close install .NET panel">{{Icon("x", "sm")}}</a>
                 </div>
 
                 <div class="sheet-controls">
-                  <label class="sheet-search-box" for="install-dotnet-search-input">
-                    {{Icon("search", "sm")}}
-                    <input id="install-dotnet-search-input" type="search" placeholder="Search by version, channel or CVE (e.g. 10.0, 9.0.320, LTS)..." autocomplete="off">
-                    <kbd>↵</kbd>
+                  <label class="search-field wide" for="install-dotnet-search-input">
+                    {{Icon("search", "xs")}}
+                    <input id="install-dotnet-search-input" type="search" placeholder="Search by version, channel or CVE" autocomplete="off">
                   </label>
-
-                  <div class="sheet-scope-bar">
-                    <div class="sheet-filter-group">
-                      <span class="muted text-xs">Product</span>
-                      <div class="version-scope-pills" role="group" aria-label="Product type">
-                        <button type="button" class="pill-badge active" data-install-product="SDK">{{Icon("versions", "xs")}} .NET SDK</button>
-                        <button type="button" class="pill-badge" data-install-product=".NET Runtime">{{Icon("cpu", "xs")}} .NET Runtime</button>
-                      </div>
+                  <div class="filter-bar">
+                    <div class="segmented" role="group" aria-label="Product">
+                      <button type="button" class="seg active" data-install-product="SDK" aria-pressed="true">SDK</button>
+                      <button type="button" class="seg" data-install-product=".NET Runtime" aria-pressed="false">Runtime</button>
                     </div>
-                    <div class="sheet-filter-group">
-                      <span class="muted text-xs">Filter</span>
-                      <div class="version-scope-pills" role="group" aria-label="Release filter">
-                        <button type="button" class="pill-badge active" data-install-lifecycle="latest" aria-pressed="true">Latest</button>
-                        <button type="button" class="pill-badge active" data-install-lifecycle="supported" aria-pressed="true">Supported</button>
-                        <button type="button" class="pill-badge" data-install-lifecycle="lts" aria-pressed="false">LTS</button>
-                        <button type="button" class="pill-badge" data-install-lifecycle="previews" aria-pressed="false">+ Previews</button>
-                        <button type="button" class="pill-badge" data-install-lifecycle="all" aria-pressed="false">All</button>
-                      </div>
+                    <div class="segmented" role="group" aria-label="Releases to show">
+                      <button type="button" class="seg active" data-install-lifecycle="latest" aria-pressed="true">Latest</button>
+                      <button type="button" class="seg" data-install-lifecycle="supported" aria-pressed="false">All patches</button>
+                      <button type="button" class="seg" data-install-lifecycle="lts" aria-pressed="false">LTS</button>
+                      <button type="button" class="seg" data-install-lifecycle="all" aria-pressed="false">Everything</button>
                     </div>
+                    <button type="button" class="toggle-chip" data-install-previews aria-pressed="false"><span class="chip-box" aria-hidden="true">{{Icon("check", "xs")}}</span>Previews</button>
                   </div>
                 </div>
 
@@ -737,7 +692,7 @@ internal static class InstallationPage
                 </div>
 
                 <div class="sheet-foot">
-                  <span class="drawer-section-title">VERIFY CHECKSUM &amp; INSTALL (.PKG)</span>
+                  <span class="drawer-section-title">Verify checksum and install</span>
                   <div class="drawer-command-box">
                     <span class="cmd-prompt">$</span>
                     <code id="install-dotnet-cli-preview">{{Encode(initialCmd)}}</code>
@@ -945,6 +900,13 @@ internal static class InstallationPage
         return version;
     }
 
+    /// <summary>"11.0.100-preview.7" → "11.0.100-rc.3" reads better as "rc.3" once the shared core is on screen.</summary>
+    private static string ShortPatchTarget(string current, string target)
+    {
+        var dash = target.IndexOf('-');
+        return dash > 0 && current.StartsWith(target[..dash], StringComparison.Ordinal) ? target[(dash + 1)..] : target;
+    }
+
     private static string ShortSha(string? sha) =>
         string.IsNullOrEmpty(sha)
             ? ""
@@ -1003,7 +965,7 @@ internal static class InstallationPage
 
     private static string RemoveAction(Row row, InstallationViewOptions options) => !row.CanRemove
         ? ""
-        : ConfirmActions.Trigger(ConfirmActions.VersionRemove(row, options), $"<button class=\"button danger\" type=\"submit\" aria-label=\"Remove {Encode(row.Name)} {Encode(row.DisplayVersion)}\">Remove</button>");
+        : ConfirmActions.Trigger(ConfirmActions.VersionRemove(row, options), $"<button class=\"button sm remove\" type=\"submit\" aria-label=\"Remove {Encode(row.Name)} {Encode(row.DisplayVersion)}\">Remove</button>");
 
     private static string RenderNotice(string notice) => notice switch
     {
@@ -1012,18 +974,34 @@ internal static class InstallationPage
         _ => ""
     };
 
-    private static string TypeLink(string label, string kind, InstallationViewOptions options)
+    private static string KindSegment(string label, string kind, int count, InstallationViewOptions options, string srSuffix = "")
     {
         var active = options.Kind == kind;
-        var checkHtml = active ? "<span class=\"pill-chk\" aria-hidden=\"true\">✓ </span>" : "";
-        return $"<a href=\"{Link(options with { Kind = active ? "all" : kind })}\" class=\"filter-pill {(active ? "active" : "")}\" data-version-kind=\"{kind}\" data-version-label=\"{label}\"{(active ? " aria-current=\"page\"" : "")}>{checkHtml}{label}</a>";
+        var target = options with { Kind = active ? "all" : kind };
+        return $"<a href=\"{Link(target)}\" class=\"seg {(active ? "active" : "")}\" data-version-kind=\"{kind}\"{(active ? " aria-current=\"page\"" : "")}>{label}{(srSuffix.Length > 0 ? $"<span class=\"sr-only\">{srSuffix}</span>" : "")}<span class=\"seg-count\" aria-hidden=\"true\">{count}</span></a>";
     }
 
-    private static string SortHeader(string label, string column, InstallationViewOptions options)
+    private static string SortMenu(InstallationViewOptions options)
     {
-        var active = options.Sort == column;
-        var direction = active ? options.Ascending ? "ascending" : "descending" : "none";
-        return $"<th scope=\"col\" aria-sort=\"{direction}\"><a href=\"{Link(options with { Sort = column, Ascending = !active || !options.Ascending })}\">{label}{(active ? options.Ascending ? " ↑" : " ↓" : "")}</a></th>";
+        var current = (options.Sort, options.Ascending) switch
+        {
+            ("name", false) => "Name, Z to A",
+            ("name", true) => "Name, A to Z",
+            ("path", false) => "Location, Z to A",
+            ("path", true) => "Location, A to Z",
+            (_, true) => "Oldest version",
+            _ => "Newest version"
+        };
+        string Option(string label, string sort, bool ascending) =>
+            $"<a class=\"menu-item {(label == current ? "active" : "")}\" href=\"{Link(options with { Sort = sort, Ascending = ascending })}\"{(label == current ? " aria-current=\"true\"" : "")}>{label}</a>";
+        return $"""
+            <details class="menu sort-menu">
+              <summary class="button sm ghost" aria-label="Sort: {current}">{current} {Icon("chevd", "xs")}</summary>
+              <div class="menu-panel">
+                {Option("Newest version", "version", false)}{Option("Oldest version", "version", true)}{Option("Name, A to Z", "name", true)}{Option("Name, Z to A", "name", false)}{Option("Location, A to Z", "path", true)}{Option("Location, Z to A", "path", false)}
+              </div>
+            </details>
+            """;
     }
 
     private static string RefreshLink(InstallationViewOptions options, DateTimeOffset checkedAt) => Encode(

@@ -10,6 +10,7 @@ export function setupVersionsFilter() {
   const cards = [...document.querySelectorAll('tbody.channel-card[data-channel-card]')];
   const counter = document.querySelector('[data-versions-count]');
   const emptyRow = document.querySelector('tr.empty-row');
+  const reset = document.querySelector('[data-filter-reset]');
   let activeKind = kindField.value;
 
   function matchesKind(row) {
@@ -26,7 +27,12 @@ export function setupVersionsFilter() {
       if (!row.hidden) visible++;
     }
     for (const card of cards) card.hidden = card.querySelectorAll('tr[data-kind]:not([hidden])').length === 0;
-    if (counter) counter.textContent = `${visible} of ${rows.length} installations shown`;
+    const filtered = activeKind !== 'all' || input.value.trim() !== '';
+    if (counter) {
+      counter.textContent = `${visible} of ${rows.length} installations shown`;
+      counter.hidden = !filtered;
+    }
+    if (reset) reset.hidden = !filtered;
     if (emptyRow) emptyRow.hidden = visible > 0;
     replaceQuery(url => {
       url.hash = '';
@@ -57,6 +63,16 @@ export function setupVersionsFilter() {
       run();
     });
   }
+
+  reset?.addEventListener('click', event => {
+    if (!isPlainClick(event)) return;
+    event.preventDefault();
+    activeKind = 'all';
+    input.value = '';
+    syncLinks();
+    run();
+    input.focus();
+  });
 
   input.addEventListener('input', run);
   form.addEventListener('submit', event => {

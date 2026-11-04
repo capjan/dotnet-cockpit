@@ -60,7 +60,7 @@ public sealed class InstallationPageTests
 
         var html = InstallationPage.Render(snapshot, new(Kind: "sdks"));
 
-        Assert.Contains("<th scope=\"col\">Actions</th>", html);
+        Assert.Contains(">Actions</th>", html);
         Assert.Contains("data-confirm-post=\"/installation/remove\"", html);
         Assert.Contains("name=\"kind\" value=\"sdk\"", html);
         Assert.Contains("name=\"version\" value=\"10.0.9\"", html);

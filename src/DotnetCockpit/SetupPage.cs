@@ -64,7 +64,6 @@ internal static class SetupPage
                 <p class="muted intro">How Cockpit behaves on this machine.</p>
               </div>
               <div class="inventory-heading-actions">
-                <a class="button sm ghost refresh-btn" href="/setup">{Icon("refresh", "xs")} Refresh</a>
                 <a class="button primary" href="/?install=1">{Icon("download", "xs")} Install .NET</a>
               </div>
             </div>
@@ -200,7 +199,7 @@ internal static class SetupPage
                   <div>
                     <div class="removal-support-title-row">
                       <h2 id="uninstall-tool-title">Removal support · .NET Uninstall Tool</h2>
-                      {(installed ? $"<span class=\"badge ok sm\">{(IsUpdateAvailable(snapshot.UninstallTool.Version, snapshot.LatestVersion) ? "Installed" : "Up to date")}</span>" : "")}
+                      {(installed ? $"<span class=\"badge ok sm\">{(snapshot.LatestVersion is null || IsUpdateAvailable(snapshot.UninstallTool.Version, snapshot.LatestVersion) ? "Installed" : "Up to date")}</span>" : "")}
                     </div>
                     <p class="muted">Microsoft's <code>dotnet-core-uninstall</code> lets Cockpit remove SDKs and runtimes that were installed by supported installers.</p>
                   </div>
@@ -229,7 +228,7 @@ internal static class SetupPage
             var update = IsUpdateAvailable(snapshot.UninstallTool.Version, snapshot.LatestVersion)
                 ? ConfirmActions.Trigger(ConfirmActions.SetupUpdate(snapshot.LatestVersion), $"<button class=\"button primary\" type=\"submit\">Update to {Encode(snapshot.LatestVersion!)}</button>")
                 : "";
-            return $"<div class=\"setup-card-actions\">{update}{ConfirmActions.Trigger(ConfirmActions.SetupUninstall(), "<button class=\"button danger\" type=\"submit\" aria-label=\"Remove .NET Uninstall Tool\" title=\"Remove .NET Uninstall Tool\">Remove</button>")}</div>";
+            return $"<div class=\"setup-card-actions\">{update}{ConfirmActions.Trigger(ConfirmActions.SetupUninstall(), "<button class=\"button remove\" type=\"submit\" aria-label=\"Remove .NET Uninstall Tool\" title=\"Remove .NET Uninstall Tool\">Remove</button>")}</div>";
         }
 
         return $"<div class=\"setup-card-actions\"><span class=\"badge sm\">Not installed</span>{RenderInstallControl(snapshot)}</div>";

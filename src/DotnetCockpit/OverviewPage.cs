@@ -81,7 +81,6 @@ internal static class OverviewPage
               <div class="overview-header-actions">
                 <a class="button" href="/tools?add=1">{{Icon("plus", "xs")}} Add tool</a>
                 <a class="button primary" href="/?install=1">{{Icon("download", "xs")}} Install .NET</a>
-                <a class="button icon ghost" href="/overview" title="Refresh" aria-label="Refresh">{{Icon("refresh", "sm")}}</a>
               </div>
             </div>
 
@@ -96,7 +95,7 @@ internal static class OverviewPage
                 <div class="hero-health-copy">
                   <div class="hero-eyebrow-row">
                     <span class="sr-only">System Health</span>
-                    <span class="badge {{healthBadgeClass}}">● {{healthStatus}}</span>
+                    <span class="badge {{healthBadgeClass}}">{{healthStatus}}</span>
                   </div>
                   <h2 class="hero-headline">{{Encode(health.Headline)}}</h2>
                   <div class="hero-meta-row">

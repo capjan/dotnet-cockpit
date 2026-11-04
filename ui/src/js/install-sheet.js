@@ -13,7 +13,8 @@ export function setupInstallSheet() {
   const filterButtons = [...dialog.querySelectorAll('[data-install-lifecycle]')];
   const groups = [...dialog.querySelectorAll('[data-install-channel-group]')];
   const rows = [...dialog.querySelectorAll('[data-install-row]')];
-  const state = { product: 'SDK', latest: true, supported: true, lts: false, previews: false };
+  const previewsToggle = dialog.querySelector('[data-install-previews]');
+  const state = { product: 'SDK', view: 'latest', previews: false };
 
   function showCommand(row) {
     if (!row?.dataset.cmd) return;
@@ -22,13 +23,19 @@ export function setupInstallSheet() {
   }
 
   function syncButtons() {
-    const unfiltered = !state.latest && !state.supported && !state.lts;
     for (const button of filterButtons) {
-      const key = button.dataset.installLifecycle;
-      const active = key === 'all' ? unfiltered : state[key];
+      const active = button.dataset.installLifecycle === state.view;
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     }
+  }
+
+  function matchesView(data) {
+    const supported = data.supported === 'true';
+    if (state.view === 'latest') return supported && data.latest === 'true';
+    if (state.view === 'supported') return supported;
+    if (state.view === 'lts') return supported && data.lts === 'true';
+    return true;
   }
 
   function filter() {
@@ -38,9 +45,7 @@ export function setupInstallSheet() {
       const data = row.dataset;
       const isPreview = data.preview === 'true';
       const show = data.product === state.product
-        && (!state.latest || data.latest === 'true')
-        && (!state.supported || data.supported === 'true' || (state.previews && isPreview))
-        && (!state.lts || data.lts === 'true')
+        && matchesView(data)
         && (state.previews || !isPreview)
         && matchesTerms(data.search || '', search.value);
       row.hidden = !show;
@@ -78,19 +83,18 @@ export function setupInstallSheet() {
 
   for (const button of filterButtons) {
     button.addEventListener('click', () => {
-      const key = button.dataset.installLifecycle;
-      if (key === 'all') {
-        const unfiltered = !state.latest && !state.supported && !state.lts;
-        state.latest = unfiltered;
-        state.supported = unfiltered;
-        state.lts = false;
-      } else {
-        state[key] = !state[key];
-      }
+      state.view = button.dataset.installLifecycle;
       syncButtons();
       filter();
     });
   }
+
+  previewsToggle?.addEventListener('click', () => {
+    state.previews = !state.previews;
+    previewsToggle.classList.toggle('active', state.previews);
+    previewsToggle.setAttribute('aria-pressed', state.previews ? 'true' : 'false');
+    filter();
+  });
 
   results?.addEventListener('mouseover', event => {
     const row = event.target.closest('[data-install-row]');

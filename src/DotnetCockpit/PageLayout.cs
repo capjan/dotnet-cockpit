@@ -10,7 +10,7 @@ internal static class PageLayout
     private static string WorkspaceName =>
         Path.GetFileName(Environment.CurrentDirectory.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : Environment.CurrentDirectory;
 
-    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null) => $$"""
+    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null, string? refreshHref = null) => $$"""
         <!doctype html>
         <html lang="en" data-theme="{{CurrentSettings().Theme}}">
         <head>
@@ -62,9 +62,9 @@ internal static class PageLayout
                   <span>Search versions, tools and actions</span>
                   <kbd>⌘K</kbd>
                 </button>
-                <a class="checked" href="{{Encode(currentPath == "/confirm" ? "/overview" : currentPath)}}" title="Check again">
+                <a class="checked" href="{{Encode(refreshHref ?? (currentPath == "/confirm" ? "/overview" : currentPath))}}" title="Check again" aria-label="Refresh. Checked {{DateTime.Now.ToString("HH:mm")}}">
                   {{Icon("refresh", "xs")}}
-                  <span>Checked {{DateTime.Now.ToString("HH:mm")}}</span>
+                  <span>Checked <time datetime="{{DateTimeOffset.Now:O}}">{{DateTime.Now.ToString("HH:mm")}}</time></span>
                 </a>
                 {{ThemeSwitch()}}
               </header>

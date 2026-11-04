@@ -29,7 +29,8 @@ test('filters and sorts on the server with JavaScript disabled', async ({ browse
     await expect(page).toHaveURL(/q=/);
     await expect(page.locator('tbody tr[data-kind]').first()).toContainText(snapshot.sdks[0].version);
     await expect(page.locator('tbody tr[data-kind="runtime"]')).toHaveCount(0);
-    await page.getByRole('columnheader', { name: /^Version/ }).getByRole('link').click();
+    await page.locator('.sort-menu summary').click();
+    await page.locator('.sort-menu').getByRole('link', { name: 'Oldest version' }).click();
     await expect(page).toHaveURL(/direction=asc/);
     await page.getByRole('searchbox', { name: 'Filter installed versions' }).fill('no-match');
     await page.getByRole('button', { name: 'Filter', exact: true }).click();
@@ -55,7 +56,7 @@ test('switches Fluent themes with the keyboard and retains the choice across nav
 test('refreshes the server-rendered inventory', async ({ page }) => {
   await page.goto('/?q=&kind=all&sort=version&direction=desc#inventory');
   const before = await page.locator('time').getAttribute('datetime');
-  await page.getByRole('link', { name: 'Refresh', exact: true }).click();
+  await page.getByRole('link', { name: /^Refresh/ }).click();
   await expect(page.locator('time')).not.toHaveAttribute('datetime', before);
   await expect(page.getByRole('table')).toBeVisible();
 });
@@ -176,7 +177,7 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
 
   const dialog = page.locator('#install-dotnet-dialog');
   await expect(dialog).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Install .NET SDK or runtime' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Install .NET' })).toBeVisible();
   await expect(page.locator('[data-install-lifecycle="latest"]')).toHaveClass(/active/);
   await expect(page.locator('[data-install-lifecycle="lts"]')).toHaveText('LTS');
   await expect(page.locator('#install-dotnet-cli-preview')).toContainText('sudo installer -pkg');
@@ -187,17 +188,13 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
   const latestCount = await page.locator('[data-install-row]:not([hidden])').count();
   expect(latestCount).toBeGreaterThan(0);
 
-  // Toggle Latest off independently to reveal all supported releases per channel
-  await page.locator('[data-install-lifecycle="latest"]').click();
+  // Exactly one view is active at a time, and more patches means at least as many rows
+  await page.locator('[data-install-lifecycle="supported"]').click();
+  await expect(page.locator('[data-install-lifecycle="supported"]')).toHaveClass(/active/);
   await expect(page.locator('[data-install-lifecycle="latest"]')).not.toHaveClass(/active/);
-  const allSupportedCount = await page.locator('[data-install-row]:not([hidden])').count();
-  expect(allSupportedCount).toBeGreaterThanOrEqual(latestCount);
-
-  // Toggle LTS on and Latest back on to combine Latest + LTS
-  await page.locator('[data-install-lifecycle="lts"]').click();
+  expect(await page.locator('[data-install-row]:not([hidden])').count()).toBeGreaterThanOrEqual(latestCount);
   await page.locator('[data-install-lifecycle="latest"]').click();
-  await expect(page.locator('[data-install-lifecycle="lts"]')).toHaveClass(/active/);
-  await expect(page.locator('[data-install-lifecycle="latest"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-install-row]:not([hidden])')).toHaveCount(latestCount);
 
   await page.locator('[data-install-product=".NET Runtime"]').click();
   await expect(page.locator('[data-install-row]:not([hidden])').first()).toContainText('.NET Runtime');
@@ -221,6 +218,7 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
     await expect(page.locator('#remove-dialog-title')).toHaveText('Clean up .NET installations');
     await expect(page.locator('#remove-dialog-modes')).toBeVisible();
     await expect(page.locator('.cleanup-strategy-card:not([hidden])').first()).toBeVisible();
+    await expect(page.locator('#remove-dialog-items input:checked')).toHaveCount(await page.locator('#remove-dialog-items input').count());
     await page.locator('#remove-dialog-cancel').click();
     await expect(removeDialog).toBeHidden();
   }
@@ -273,4 +271,33 @@ test('remembers the appearance across pages through the settings file', async ({
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.locator('header [data-theme-pref="auto"]').click();
   await page.waitForLoadState('networkidle');
+});
+
+test('all row actions line up with the channel action in every channel', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  const edges = await page.evaluate(() => [...document.querySelectorAll('[data-remove-channel], tr[data-kind] .remove')]
+    .map(element => { const box = element.getBoundingClientRect(); return [Math.round(box.right * 10) / 10, Math.round(box.width * 10) / 10]; }));
+  if (edges.length) {
+    expect(new Set(edges.map(edge => edge[0])).size).toBe(1);
+    expect(new Set(edges.map(edge => edge[1])).size).toBe(1);
+  }
+});
+
+test('filters keep their position and height while switching', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  const measure = () => page.evaluate(() => [...document.querySelectorAll('[data-version-kind], .filter-form .search-field')]
+    .map(element => { const box = element.getBoundingClientRect(); return { left: Math.round(box.left), top: Math.round(box.top), height: Math.round(box.height) }; }));
+  const before = await measure();
+  await page.locator('[data-version-kind="sdks"]').click();
+  const after = await measure();
+  expect(after.map(item => item.left)).toEqual(before.map(item => item.left));
+  expect(new Set(before.filter((_, index) => index > 2).map(item => item.height)).size).toBe(1);
+});
+
+test('without a dotnet host the overview says so instead of reporting zero tools', async ({ page }) => {
+  await page.goto('http://127.0.0.1:5232/overview');
+  await expect(page.locator('.hero-meta-row')).not.toContainText('dotnet on PATH');
+  await expect(page.locator('.hero-stat-cell').nth(2)).toContainText('Not available');
 });
