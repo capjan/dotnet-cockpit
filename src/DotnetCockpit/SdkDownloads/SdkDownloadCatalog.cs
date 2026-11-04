@@ -95,6 +95,14 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
             if (string.IsNullOrWhiteSpace(releaseDate)) continue;
             var cves = ReadCves(release);
             AddPackages(release, "sdk", "SDK", "dotnet-sdk", channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, downloads);
+            if (release.TryGetProperty("sdks", out var sdksArray) && sdksArray.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var sdkEl in sdksArray.EnumerateArray())
+                {
+                    if (sdkEl.ValueKind == JsonValueKind.Object)
+                        AddProductElement(sdkEl, "sdk", "SDK", "dotnet-sdk", channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, downloads);
+                }
+            }
             AddPackages(release, "runtime", ".NET Runtime", "dotnet-runtime", channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, downloads);
         }
 
@@ -104,8 +112,15 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
     private static void AddPackages(JsonElement release, string productProperty, string productName, string packagePrefix,
         string channel, string releaseType, string supportPhase, string? endOfSupportDate, string releaseDate, SdkCve[] cves, List<SdkDownload> downloads)
     {
-        if (!release.TryGetProperty(productProperty, out var product) || product.ValueKind != JsonValueKind.Object ||
-            !product.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
+        if (!release.TryGetProperty(productProperty, out var product) || product.ValueKind != JsonValueKind.Object)
+            return;
+        AddProductElement(product, productProperty, productName, packagePrefix, channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, downloads);
+    }
+
+    private static void AddProductElement(JsonElement product, string productProperty, string productName, string packagePrefix,
+        string channel, string releaseType, string supportPhase, string? endOfSupportDate, string releaseDate, SdkCve[] cves, List<SdkDownload> downloads)
+    {
+        if (!product.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
             return;
 
         var version = GetString(product, "version-display") ?? GetString(product, "version");

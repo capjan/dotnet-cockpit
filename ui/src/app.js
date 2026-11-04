@@ -461,12 +461,15 @@ function openVersionDrawer(version) {
     if (data.isEol) {
       alert.className = 'drawer-alert drawer-alert-bad';
       alert.innerHTML = `<strong>🛡 .NET ${data.channel} has reached End of Life</strong><p class="muted">After May 14, 2024 there are no more security fixes. We recommend upgrading to a supported LTS release.</p>`;
+    } else if (data.hasPatch && data.patchInstalled) {
+      alert.className = 'drawer-alert drawer-alert-warn';
+      alert.innerHTML = `<strong>⏱ Newer release ${data.patchVersion} is already installed</strong><p class="muted">You already have ${data.patchVersion} installed side-by-side in the .NET ${data.channel} channel. You can remove ${data.displayVersion || data.version} if no global.json pins it.</p>`;
     } else if (data.hasPatch) {
       alert.className = 'drawer-alert drawer-alert-warn';
       alert.innerHTML = `<strong>⏱ Newer release ${data.patchVersion} available</strong><p class="muted">A newer update in the .NET ${data.channel} channel includes security and reliability fixes.</p>`;
     } else if (data.channel === '9' || data.channel === '8') {
       alert.className = 'drawer-alert drawer-alert-warn';
-      alert.innerHTML = `<strong>⏱ .NET ${data.channel} support ends in 7 days</strong><p class="muted">After Nov 10, 2026 there are no more security fixes. .NET 10 (LTS) is already installed.</p>`;
+      alert.innerHTML = `<strong>⏱ .NET ${data.channel} support ends Nov 10, 2026</strong><p class="muted">After Nov 10, 2026 there are no more security fixes. .NET 10 (LTS) is already installed.</p>`;
     } else {
       alert.className = 'drawer-alert drawer-alert-ok';
       alert.innerHTML = `<strong>✓ Running latest release for .NET ${data.channel}</strong><p class="muted">Active support until Nov 14, 2028. Your installation is fully patched and up to date.</p>`;
@@ -530,7 +533,13 @@ function openVersionDrawer(version) {
     if (data.pkgUrl) {
       downloadBtn.hidden = false;
       downloadBtn.href = data.pkgUrl;
-      if (downloadLabel) downloadLabel.textContent = data.hasPatch ? 'Download & open installer' : 'Download .pkg installer';
+      const needsPatchDownload = Boolean(data.hasPatch && !data.patchInstalled);
+      downloadBtn.classList.toggle('primary', needsPatchDownload);
+      if (downloadLabel) {
+        downloadLabel.textContent = needsPatchDownload
+          ? 'Download & open installer'
+          : (data.hasPatch && data.patchInstalled ? 'Download .pkg installer' : 'Re-download .pkg installer');
+      }
     } else {
       downloadBtn.hidden = true;
     }
@@ -995,6 +1004,139 @@ if (addToolDialog) {
   }
 }
 
+// Install .NET SDK or Runtime Sheet (<dialog id="install-dotnet-dialog" closedby="any">)
+const installDotnetDialog = document.getElementById('install-dotnet-dialog');
+const openInstallDotnetBtn = document.getElementById('open-install-dotnet-btn');
+const closeInstallDotnetBtn = document.getElementById('close-install-dotnet-btn');
+
+if (installDotnetDialog) {
+  let activeProduct = 'SDK';
+  let activeLifecycle = 'supported';
+  let includePreviews = false;
+  const searchInput = document.getElementById('install-dotnet-search-input');
+  const resultsBox = document.getElementById('install-dotnet-results');
+  const emptyState = document.getElementById('install-dotnet-empty');
+  const cliPreview = document.getElementById('install-dotnet-cli-preview');
+  const cliCopy = document.getElementById('install-dotnet-cli-copy');
+  const productBtns = [...installDotnetDialog.querySelectorAll('[data-install-product]')];
+  const lifecycleBtns = [...installDotnetDialog.querySelectorAll('[data-install-lifecycle]')];
+  const rows = [...installDotnetDialog.querySelectorAll('[data-install-row]')];
+
+  function updateInstallCliPreview(row) {
+    if (!row) return;
+    const cmd = row.dataset.cmd || '';
+    if (cliPreview && cmd) cliPreview.textContent = cmd;
+    if (cliCopy && cmd) cliCopy.dataset.copy = cmd;
+  }
+
+  function filterInstallRows() {
+    const query = (searchInput?.value || '').trim().toLowerCase();
+    const terms = query.split(/\s+/).filter(Boolean);
+    let visibleCount = 0;
+    let firstVisible = null;
+
+    for (const row of rows) {
+      const matchesProduct = row.dataset.product === activeProduct;
+      const isSupported = row.dataset.supported === 'true';
+      const isLts = row.dataset.lts === 'true';
+      const isPre = row.dataset.preview === 'true';
+
+      let matchesLifecycle = true;
+      if (activeLifecycle === 'supported') {
+        matchesLifecycle = isSupported && (includePreviews || !isPre);
+      } else if (activeLifecycle === 'lts') {
+        matchesLifecycle = isSupported && isLts && (includePreviews || !isPre);
+      } else if (activeLifecycle === 'all') {
+        matchesLifecycle = includePreviews || !isPre;
+      }
+
+      const searchStr = (row.dataset.search || '').toLowerCase();
+      const matchesQuery = !terms.length || terms.every(t => searchStr.includes(t));
+
+      const show = matchesProduct && matchesLifecycle && matchesQuery;
+      row.hidden = !show;
+      if (show) {
+        visibleCount++;
+        if (!firstVisible) firstVisible = row;
+      } else {
+        row.classList.remove('active');
+      }
+    }
+
+    if (emptyState) emptyState.hidden = visibleCount > 0;
+    const currentActive = rows.find(r => !r.hidden && r.classList.contains('active'));
+    if (!currentActive && firstVisible) {
+      firstVisible.classList.add('active');
+      updateInstallCliPreview(firstVisible);
+    }
+  }
+
+  for (const btn of productBtns) {
+    btn.addEventListener('click', () => {
+      activeProduct = btn.dataset.installProduct || 'SDK';
+      productBtns.forEach(b => b.classList.toggle('active', b === btn));
+      filterInstallRows();
+    });
+  }
+
+  for (const btn of lifecycleBtns) {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.installLifecycle;
+      if (val === 'previews') {
+        includePreviews = !includePreviews;
+        btn.classList.toggle('active', includePreviews);
+      } else if (val) {
+        activeLifecycle = val;
+        lifecycleBtns
+          .filter(b => b.dataset.installLifecycle !== 'previews')
+          .forEach(b => b.classList.toggle('active', b === btn));
+      }
+      filterInstallRows();
+    });
+  }
+
+  if (resultsBox) {
+    resultsBox.addEventListener('mouseover', (e) => {
+      const row = e.target.closest('[data-install-row]');
+      if (!row || row.hidden) return;
+      rows.forEach(r => r.classList.toggle('active', r === row));
+      updateInstallCliPreview(row);
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', filterInstallRows);
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        filterInstallRows();
+      }
+    });
+  }
+
+  if (openInstallDotnetBtn) {
+    openInstallDotnetBtn.addEventListener('click', () => {
+      installDotnetDialog.showModal();
+      searchInput?.focus();
+    });
+  }
+
+  if (closeInstallDotnetBtn) {
+    closeInstallDotnetBtn.addEventListener('click', () => installDotnetDialog.close());
+  }
+
+  const initUrl = new URL(window.location.href);
+  const installParam = initUrl.searchParams.get('install');
+  const tabParam = initUrl.searchParams.get('tab');
+  if (installParam === '1' || installParam === 'open' || installParam === 'true' || tabParam === 'all-releases' || tabParam === 'all') {
+    initUrl.searchParams.delete('install');
+    initUrl.searchParams.delete('tab');
+    history.replaceState(null, '', initUrl);
+    installDotnetDialog.showModal();
+    searchInput?.focus();
+  }
+}
+
 // Settings Page Controls (Appearance segmented control & Pre-flight launch toggle)
 const themeSegBtns = [...document.querySelectorAll('[data-theme-pref]')];
 if (themeSegBtns.length) {
@@ -1046,6 +1188,15 @@ if (cmdkDialog) {
       cmdkDialog.hidden = true;
       if (cmdkScrim) cmdkScrim.hidden = true;
       openVersionDrawer(inspectOpt.dataset.cmdkInspect);
+      return;
+    }
+    const installOpt = e.target.closest('[data-cmdk-install-dotnet]');
+    if (installOpt && installDotnetDialog) {
+      e.preventDefault();
+      cmdkDialog.hidden = true;
+      if (cmdkScrim) cmdkScrim.hidden = true;
+      installDotnetDialog.showModal();
+      document.getElementById('install-dotnet-search-input')?.focus();
       return;
     }
     const removeOpt = e.target.closest('[data-cmdk-remove]');

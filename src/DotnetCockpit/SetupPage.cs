@@ -64,7 +64,7 @@ internal static class SetupPage
               </div>
               <div class="inventory-heading-actions">
                 <a class="button sm ghost refresh-btn" href="/setup">{Icon("refresh", "xs")} Refresh</a>
-                <a class="button primary" href="/?tab=all-releases">{Icon("download", "xs")} Install SDK or runtime</a>
+                <a class="button primary" href="/?install=1">{Icon("download", "xs")} Install SDK or runtime</a>
               </div>
             </div>
             {RenderNotice(options.Notice)}
@@ -129,7 +129,7 @@ internal static class SetupPage
                     <dt>Startup workspace</dt>
                     <dd><code>{Encode(Environment.CurrentDirectory)}</code></dd>
                     <dt>Official installers</dt>
-                    <dd><a href="/?tab=all-releases">Browse .NET SDK &amp; Runtime catalog →</a></dd>
+                    <dd><a href="/?install=1">Browse .NET SDK &amp; Runtime catalog →</a></dd>
                   </dl>
                 </section>
 

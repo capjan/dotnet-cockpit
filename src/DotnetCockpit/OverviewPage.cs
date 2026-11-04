@@ -25,11 +25,26 @@ internal static class OverviewPage
             var major = sdk.Version.Split('.')[0];
             var isPre = sdk.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) || sdk.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
             var shortVer = InstallationPage.ShortDisplayVersion(sdk.Version);
-            var latest = downloads
+            var catalogEntry = downloads.FirstOrDefault(d => d.Product == "SDK" && (d.Version == sdk.Version || d.InstallationVersion == sdk.Version || d.Version == shortVer));
+            var channelDownloads = downloads
                 .Where(d => d.Product == "SDK" && (d.Channel == major || d.Channel == $"{major}.0") && (isPre || (!d.Version.Contains("-preview") && !d.Version.Contains("-rc"))))
                 .OrderByDescending(d => d.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
-                .FirstOrDefault();
-            return latest != null && latest.Version != sdk.Version && latest.InstallationVersion != sdk.Version && SdkDownloadsSection.SdkVersionComparer.Instance.Compare(latest.Version, shortVer) > 0;
+                .ToArray();
+            var latest = channelDownloads.FirstOrDefault();
+            var bandPrefix = InstallationPage.GetSdkFeatureBandPrefix(shortVer);
+            var latestInBand = !string.IsNullOrEmpty(bandPrefix)
+                ? channelDownloads.FirstOrDefault(d => InstallationPage.GetSdkFeatureBandPrefix(d.Version) == bandPrefix)
+                : null;
+            var isCurrentFeatureBandLatest = latestInBand != null &&
+                (latestInBand.Version == sdk.Version || latestInBand.Version == shortVer) &&
+                !string.IsNullOrEmpty(catalogEntry?.IncludedRuntimeVersion) &&
+                catalogEntry.IncludedRuntimeVersion == latest?.IncludedRuntimeVersion;
+            var patchTarget = (latestInBand != null && latestInBand.IncludedRuntimeVersion == latest?.IncludedRuntimeVersion)
+                ? latestInBand
+                : latest;
+            return !isCurrentFeatureBandLatest && patchTarget != null &&
+                patchTarget.Version != sdk.Version && patchTarget.InstallationVersion != sdk.Version &&
+                SdkDownloadsSection.SdkVersionComparer.Instance.Compare(patchTarget.Version, shortVer) > 0;
         }).ToArray();
 
         var latestInstalledSdk = snapshot.Sdks
@@ -123,7 +138,7 @@ internal static class OverviewPage
                     <p class="muted">No SDK was found on this machine. An SDK is required to build applications.</p>
                   </div>
                   <div class="action-buttons">
-                    <a class="button sm primary" href="/?tab=all-releases">Install SDK</a>
+                    <a class="button sm primary" href="/?install=1">Install SDK</a>
                   </div>
                 </div>
                 """);
@@ -137,7 +152,7 @@ internal static class OverviewPage
                 <p class="muted">Browse LTS, STS, and preview installers side-by-side without affecting pinned projects.</p>
               </div>
               <div class="action-buttons">
-                <a class="button sm ghost" href="/?tab=all-releases">View releases</a>
+                <a class="button sm ghost" href="/?install=1">View releases</a>
               </div>
             </div>
             """);
@@ -173,7 +188,7 @@ internal static class OverviewPage
               </div>
               <div class="overview-header-actions">
                 <a class="button" href="/tools#tool-search-title">{{Icon("plus", "xs")}} Add tool</a>
-                <a class="button primary" href="/?tab=all-releases">{{Icon("download", "xs")}} Install .NET</a>
+                <a class="button primary" href="/?install=1">{{Icon("download", "xs")}} Install .NET</a>
                 <a class="button icon ghost" href="/overview" title="Refresh" aria-label="Refresh">{{Icon("refresh", "sm")}}</a>
               </div>
             </div>
@@ -268,7 +283,7 @@ internal static class OverviewPage
                 <div class="overview-card shortcuts-card">
                   <h3>Shortcuts</h3>
                   <div class="shortcuts-list">
-                    <a class="shortcut-row" href="/?tab=all-releases">
+                    <a class="shortcut-row" href="/?install=1">
                       <span>{{Icon("download", "xs")}} Install the latest LTS SDK</span>
                       <span class="badge {{(installedChannels.Contains("10") ? "ok" : "brand")}} sm">{{(installedChannels.Contains("10") ? "Installed" : "Download")}}</span>
                     </a>

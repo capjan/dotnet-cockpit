@@ -2872,6 +2872,16 @@ dialog::backdrop {
   border-radius: 12px 0 0 12px;
   border-right: none;
 }
+.install-dotnet-sheet {
+  width: min(640px, 100vw);
+}
+dialog:modal {
+  overscroll-behavior: contain;
+}
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
 .sheet-inner {
   height: 100%;
   display: flex;
@@ -2924,7 +2934,26 @@ dialog::backdrop {
 .sheet-scope-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+}
+.sheet-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sheet-result-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+#install-dotnet-cli-preview {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  max-width: 100%;
 }
 .sheet-results {
   flex: 1;

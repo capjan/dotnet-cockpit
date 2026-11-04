@@ -139,6 +139,24 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
   await expect(page.locator('#version-drawer')).toBeHidden();
 });
 
+test('opens the Install .NET side-drawer and filters SDK and runtime releases', async ({ page }) => {
+  await page.goto('/');
+  const openBtn = page.locator('#open-install-dotnet-btn');
+  await expect(openBtn).toBeVisible();
+  await openBtn.click();
+
+  const dialog = page.locator('#install-dotnet-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Install .NET SDK or runtime' })).toBeVisible();
+  await expect(page.locator('#install-dotnet-cli-preview')).toContainText('sudo installer -pkg');
+
+  await page.locator('[data-install-product=".NET Runtime"]').click();
+  await expect(page.locator('[data-install-row]:not([hidden])').first()).toContainText('.NET Runtime');
+
+  await page.locator('#close-install-dotnet-btn').click();
+  await expect(dialog).toBeHidden();
+});
+
 test('renders the overview page with system summary and health cards', async ({ page }) => {
   await page.goto('/overview');
   await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();

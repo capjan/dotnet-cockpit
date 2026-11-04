@@ -94,7 +94,7 @@ internal static class PageLayout
                 <div><b>Add a .NET tool</b> <small>· Search and install from NuGet.org</small></div>
                 <span class="badge">NuGet</span>
               </a>
-              <a class="opt" href="/?tab=all-releases">
+              <a class="opt" href="/?install=1" data-cmdk-install-dotnet>
                 {{Icon("download", "sm")}}
                 <div><b>Install new .NET SDK or Runtime</b> <small>· Official macOS .pkg catalog</small></div>
                 <span class="badge brand">Download</span>
