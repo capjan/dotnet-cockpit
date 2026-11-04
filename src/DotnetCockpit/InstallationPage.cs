@@ -537,8 +537,19 @@ internal static class InstallationPage
             .ToArray();
 
 
+        var hasInstallers = InstallerPlatform.Current.HasInstallers;
         string resultsHtml;
-        if (sdkSnapshot.Status != "ready" || curated.Length == 0)
+        if (!hasInstallers)
+        {
+            resultsHtml = $"""
+                <div class="empty-state">
+                  <h3>Install .NET with your distribution's packages</h3>
+                  <p class="muted">Microsoft offers no installer for Linux, so Cockpit shows versions and support status here but does not install or remove them.</p>
+                  <a class="button" id="linux-install-guide" href="{InstallerPlatform.LinuxInstallGuide}" target="_blank" rel="noopener">{Icon("external", "xs")} Official install guide</a>
+                </div>
+                """;
+        }
+        else if (sdkSnapshot.Status != "ready" || curated.Length == 0)
         {
             resultsHtml = $"""
                 <div class="empty-state error-state">
@@ -702,7 +713,7 @@ internal static class InstallationPage
                   <a class="button icon ghost" id="close-install-dotnet-btn" href="/" aria-label="Close install .NET panel">{{Icon("x", "sm")}}</a>
                 </div>
 
-                <div class="sheet-controls">
+                <div class="sheet-controls" {{(hasInstallers ? "" : "hidden")}}>
                   <form method="get" action="/" class="filter-form" data-install-search>
                     <input type="hidden" name="install" value="1">
                     <input type="hidden" name="product" value="{{(options.InstallProduct == "SDK" ? "sdk" : "runtime")}}">
@@ -981,7 +992,11 @@ internal static class InstallationPage
         Uri.TryCreate(url, UriKind.Absolute, out var uri) ? System.IO.Path.GetFileName(uri.LocalPath) : "";
 
     private static string FormatVerifyInstallCommand(string? sha512, string fileName) =>
-        !string.IsNullOrEmpty(sha512)
+        OperatingSystem.IsWindows()
+            ? !string.IsNullOrEmpty(sha512)
+                ? $"if ((Get-FileHash {fileName} -Algorithm SHA512).Hash -ne \"{sha512}\") {{ throw \"Checksum mismatch\" }}\n.\\{fileName} /install /quiet /norestart"
+                : $".\\{fileName} /install /quiet /norestart"
+        : !string.IsNullOrEmpty(sha512)
             ? $"echo \"{sha512}  {fileName}\" \\\n  | shasum -a 512 -c - \\\n  && sudo installer -pkg {fileName} \\\n    -target /"
             : $"sudo installer -pkg {fileName} \\\n  -target /";
 

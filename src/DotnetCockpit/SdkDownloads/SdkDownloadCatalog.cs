@@ -9,10 +9,27 @@ internal sealed record SdkDownload(string Product, string Version, string Instal
 
 internal sealed record SdkDownloadSnapshot(string Status, SdkDownload[] Downloads, string? Error = null, ChannelLifecycle[]? Channels = null);
 
+/// <summary>Which official installer fits this machine. Microsoft offers none for Linux, only archives and package feeds.</summary>
+internal sealed record InstallerPlatform(string Rid, string? Extension)
+{
+    public static readonly InstallerPlatform Mac = new("osx", ".pkg");
+    public static readonly InstallerPlatform Windows = new("win", ".exe");
+    public static readonly InstallerPlatform Linux = new("linux", null);
+
+    public static InstallerPlatform Current =>
+        OperatingSystem.IsMacOS() ? Mac : OperatingSystem.IsWindows() ? Windows : Linux;
+
+    public bool HasInstallers => Extension is not null;
+
+    public const string LinuxInstallGuide = "https://learn.microsoft.com/en-us/dotnet/core/install/linux";
+}
+
 internal sealed record StoredCatalog(SdkDownload[] Downloads, ChannelLifecycle[] Channels);
 
-internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, HttpClient httpClient, string? storeDirectory = null)
+internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, HttpClient httpClient, string? storeDirectory = null, InstallerPlatform? platform = null)
 {
+    private readonly InstallerPlatform installerPlatform = platform ?? InstallerPlatform.Current;
+
     private const string IndexUrl = "https://builds.dotnet.microsoft.com/dotnet/release-metadata/releases-index.json";
     private static readonly Uri OfficialHost = new("https://builds.dotnet.microsoft.com/");
     private (SdkDownload[] Downloads, ChannelLifecycle[] Channels)? cachedCatalog;
@@ -193,7 +210,7 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
         return (downloads.ToArray(), lifecycle);
     }
 
-    private static void AddPackages(JsonElement release, string productProperty, string productName, string packagePrefix,
+    private void AddPackages(JsonElement release, string productProperty, string productName, string packagePrefix,
         string channel, string releaseType, string supportPhase, string? endOfSupportDate, string releaseDate, SdkCve[] cves, List<SdkDownload> downloads)
     {
         if (!release.TryGetProperty(productProperty, out var product) || product.ValueKind != JsonValueKind.Object)
@@ -201,7 +218,7 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
         AddProductElement(product, productProperty, productName, packagePrefix, channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, downloads);
     }
 
-    private static void AddProductElement(JsonElement product, string productProperty, string productName, string packagePrefix,
+    private void AddProductElement(JsonElement product, string productProperty, string productName, string packagePrefix,
         string channel, string releaseType, string supportPhase, string? endOfSupportDate, string releaseDate, SdkCve[] cves, List<SdkDownload> downloads)
     {
         if (!product.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
@@ -212,11 +229,18 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
         var installationVersion = GetString(product, "version") ?? version;
         var includedRuntimeVersion = productProperty == "sdk" ? GetString(product, "runtime-version") : null;
 
+        // Without an installer the release still counts: patches and security fixes are reported the same way.
+        if (!installerPlatform.HasInstallers)
+        {
+            downloads.Add(new(productName, version, installationVersion, includedRuntimeVersion, channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, "", ""));
+            return;
+        }
+
         var architecture = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
         foreach (var file in files.EnumerateArray())
         {
             var name = GetString(file, "name");
-            if (!string.Equals(name, $"{packagePrefix}-osx-{architecture}.pkg", StringComparison.Ordinal)) continue;
+            if (!string.Equals(name, $"{packagePrefix}-{installerPlatform.Rid}-{architecture}{installerPlatform.Extension}", StringComparison.Ordinal)) continue;
             var url = GetString(file, "url");
             if (!IsOfficialUrl(url)) continue;
             downloads.Add(new(productName, version, installationVersion, includedRuntimeVersion, channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, url!, GetString(file, "hash") ?? ""));

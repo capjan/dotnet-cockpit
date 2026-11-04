@@ -141,7 +141,7 @@ internal static class SetupPage
                         <span class="endpoint-icon">{Icon("globe", "sm")}</span>
                         <div>
                           <strong>Microsoft release metadata</strong>
-                          <p class="muted text-xs">Official release index, lifecycle dates, CVEs, SHA-512 checksums, and .pkg installers.</p>
+                          <p class="muted text-xs">Official release index, lifecycle dates, CVEs, SHA-512 checksums, and installers.</p>
                         </div>
                       </div>
                       <code class="muted">builds.dotnet.microsoft.com</code>
@@ -183,7 +183,7 @@ internal static class SetupPage
                   <div class="settings-card-head">
                     <h2 id="settings-about-title">About .NET Cockpit</h2>
                   </div>
-                  <p class="scope-note muted">Choose a package in Versions → Install .NET to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package. The .NET Uninstall Tool uses official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
+                  <p class="scope-note muted">{InstallGuidance} The .NET Uninstall Tool uses official dotnet/cli-lab release assets. Review the <a href="{DocumentationUrl}">Microsoft documentation</a> for the tool's limitations and commands.</p>
                 </section>
               </div>
             </div>
@@ -218,7 +218,7 @@ internal static class SetupPage
                 <span class="notice-lock">{Icon("lock", "sm")}</span>
                 <div>
                   <strong>Administrator approval</strong>
-                  <p class="muted">Installing, updating and removing this tool — and removing .NET versions with it — asks for your {Encode(snapshot.OperatingSystem)} administrator password.</p>
+                  <p class="muted">Installing, updating and removing this tool — and removing .NET versions with it — asks for administrator approval.</p>
                 </div>
               </div>
               {RenderReleaseList(snapshot)}
@@ -300,6 +300,11 @@ internal static class SetupPage
             $"<li><a href=\"{Encode(release.Url)}\">{Encode(release.Version)}</a>{(string.IsNullOrWhiteSpace(release.PublishedAt) ? "" : $"<span class=\"muted\">{Encode(FormatReleaseDate(release.PublishedAt!))}</span>")}</li>"));
         return $"<div class=\"setup-release-list\"><strong>Available releases</strong><ul>{releases}</ul></div>";
     }
+
+    private static string InstallGuidance =>
+        OperatingSystem.IsMacOS() ? "Choose a package in Versions → Install .NET to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package."
+        : OperatingSystem.IsWindows() ? "Choose an installer in Versions → Install .NET to download it, then run it to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate installer."
+        : "On Linux, Cockpit shows versions, support status and tools. Install or remove .NET with your distribution's packages or Microsoft's install guide.";
 
     private static string FormatReleaseDate(string raw) =>
         DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto)

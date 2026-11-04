@@ -24,7 +24,7 @@ A local declaration is not proof that its package has been restored. Cockpit nev
 
 On macOS and Windows, Cockpit can detect, install, update, and remove the official global `dotnet-core-uninstall` installation. These operations request administrator approval where the platform requires it. Linux is not supported by the official tool.
 
-On macOS, **Versions → Install .NET** lists official `.pkg` installers for the host architecture. The catalog comes from Microsoft's release metadata and includes SDKs and standalone .NET Runtimes, release channels, support status, release dates, SHA-512 checksums, and release CVEs where Microsoft provides them. Downloading a package is separate from installing it: open the downloaded package in macOS Installer to complete installation.
+**Versions → Install .NET** lists official installers for the host architecture: `.pkg` on macOS and `.exe` on Windows. Microsoft offers no installer for Linux, so there Cockpit shows versions, support status and tools, and links to the official install guide. The catalog comes from Microsoft's release metadata and includes SDKs and standalone .NET Runtimes, release channels, support status, release dates, SHA-512 checksums, and release CVEs where Microsoft provides them. Downloading a package is separate from installing it: open the downloaded package in macOS Installer to complete installation.
 
 The SDK installer includes the matching .NET Runtime and ASP.NET Core Runtime. Use the standalone Runtime package only when you do not need the SDK.
 

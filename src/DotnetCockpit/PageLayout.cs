@@ -108,7 +108,7 @@ internal static class PageLayout
               </a>
               <a class="opt" href="/?install=1">
                 {{Icon("download", "sm")}}
-                <div><b>Install new .NET SDK or Runtime</b> <small>· Official macOS .pkg catalog</small></div>
+                <div><b>Install new .NET SDK or Runtime</b> <small>· Official Microsoft releases</small></div>
                 <span class="badge brand">Download</span>
               </a>
               <a class="opt" href="/preflight">

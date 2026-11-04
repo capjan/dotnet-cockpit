@@ -179,6 +179,11 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
   const dialog = page.locator('#install-dotnet-dialog');
   await expect(dialog).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Install .NET' })).toBeVisible();
+  if (process.platform === 'linux') {
+    await expect(page.locator('#linux-install-guide')).toHaveAttribute('href', /learn\.microsoft\.com/);
+    await expect(page.locator('[data-install-row]')).toHaveCount(0);
+    return;
+  }
   await expect(page.locator('[data-install-lifecycle="latest"]')).toHaveClass(/active/);
   await expect(page.locator('[data-install-lifecycle="lts"]')).toHaveText('LTS');
   const firstCommand = dialog.locator('[data-install-row]:not([hidden]) .row-command').first();

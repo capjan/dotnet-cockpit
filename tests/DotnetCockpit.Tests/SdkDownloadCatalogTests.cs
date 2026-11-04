@@ -12,7 +12,7 @@ public sealed class SdkDownloadCatalogTests
     public async Task ReadsOfficialPackagesForTheCurrentMacArchitecture()
     {
         using var client = new HttpClient(new CatalogHandler());
-        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client);
+        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client, platform: InstallerPlatform.Mac);
 
         var snapshot = await catalog.ReadAsync(CancellationToken.None);
 
@@ -27,10 +27,34 @@ public sealed class SdkDownloadCatalogTests
     }
 
     [Fact]
+    public async Task OffersWindowsInstallersOnWindows()
+    {
+        using var client = new HttpClient(new CatalogHandler());
+        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client, platform: InstallerPlatform.Windows);
+
+        var snapshot = await catalog.ReadAsync(CancellationToken.None);
+
+        Assert.All(snapshot.Downloads, download => Assert.EndsWith(".exe", download.Url));
+        Assert.Equal(2, snapshot.Downloads.Length);
+    }
+
+    [Fact]
+    public async Task KnowsReleasesButOffersNoInstallerOnLinux()
+    {
+        using var client = new HttpClient(new CatalogHandler());
+        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client, platform: InstallerPlatform.Linux);
+
+        var snapshot = await catalog.ReadAsync(CancellationToken.None);
+
+        Assert.Equal("10.0.100", Assert.Single(snapshot.Downloads, download => download.Product == "SDK").Version);
+        Assert.All(snapshot.Downloads, download => Assert.Empty(download.Url));
+    }
+
+    [Fact]
     public async Task DoesNotUseAnUntrustedReleaseMetadataUrl()
     {
         using var client = new HttpClient(new UntrustedCatalogHandler());
-        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client);
+        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client, platform: InstallerPlatform.Mac);
 
         var snapshot = await catalog.ReadAsync(CancellationToken.None);
 
@@ -55,7 +79,7 @@ public sealed class SdkDownloadCatalogTests
             var architecture = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
             var otherArchitecture = architecture == "arm64" ? "x64" : "arm64";
             return """
-                {"releases":[{"release-date":"2026-11-01","cve-list":[{"cve-id":"CVE-2026-0001","cve-url":"https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-0001"}],"sdk":{"version-display":"10.0.100","version":"10.0.100","runtime-version":"10.0.0","files":[{"name":"dotnet-sdk-osx-ARCH.pkg","url":"https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.100/dotnet-sdk-osx-ARCH.pkg","hash":"sdk-hash"},{"name":"dotnet-sdk-osx-OTHER_ARCH.pkg","url":"https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.100/dotnet-sdk-osx-OTHER_ARCH.pkg","hash":"other-hash"}]},"runtime":{"version-display":"10.0.0","version":"10.0.0","files":[{"name":"dotnet-runtime-osx-ARCH.pkg","url":"https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.0/dotnet-runtime-osx-ARCH.pkg","hash":"runtime-hash"}]}}]}
+                {"releases":[{"release-date":"2026-11-01","cve-list":[{"cve-id":"CVE-2026-0001","cve-url":"https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-0001"}],"sdk":{"version-display":"10.0.100","version":"10.0.100","runtime-version":"10.0.0","files":[{"name":"dotnet-sdk-win-ARCH.exe","url":"https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.100/dotnet-sdk-win-ARCH.exe","hash":"win-hash"},{"name":"dotnet-sdk-osx-ARCH.pkg","url":"https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.100/dotnet-sdk-osx-ARCH.pkg","hash":"sdk-hash"},{"name":"dotnet-sdk-osx-OTHER_ARCH.pkg","url":"https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.100/dotnet-sdk-osx-OTHER_ARCH.pkg","hash":"other-hash"}]},"runtime":{"version-display":"10.0.0","version":"10.0.0","files":[{"name":"dotnet-runtime-win-ARCH.exe","url":"https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.0/dotnet-runtime-win-ARCH.exe","hash":"win-hash"},{"name":"dotnet-runtime-osx-ARCH.pkg","url":"https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.0/dotnet-runtime-osx-ARCH.pkg","hash":"runtime-hash"}]}}]}
                 """
                 .Replace("OTHER_ARCH", otherArchitecture, StringComparison.Ordinal)
                 .Replace("ARCH", architecture, StringComparison.Ordinal);
