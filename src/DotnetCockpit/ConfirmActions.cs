@@ -31,16 +31,16 @@ internal static class ConfirmActions
         ? "Windows will ask for administrator approval."
         : "macOS will ask for your administrator password.";
 
-    public static string RemovalCommand(string version, string kind) =>
-        $"{UninstallPrefix} remove {version} \\\n  --{(kind == "sdk" ? "sdk" : "runtime")} \\\n  --yes";
+    public static string RemovalCommand(string version, string filter) =>
+        $"{UninstallPrefix} remove {version} \\\n  {filter} \\\n  --yes";
 
-    public const string YesFlagNote = "The --yes flag skips the tool's own prompt, because you confirm here.";
+    public const string YesFlagNote = "The --yes flag skips the tool's own prompt, because you confirm here. You approve once, however many items are selected.";
 
     public static ConfirmSpec VersionRemove(InstallationPage.Row row, InstallationViewOptions? view = null) => new(
         "version-remove",
         $"Remove {row.Name} {row.DisplayVersion}?",
         $"Projects targeting net{row.Channel}.0 may stop building or running unless another compatible version is installed. {YesFlagNote}",
-        RemovalCommand(row.Version, row.Kind),
+        row.EquivalentCommand ?? "",
         $"Remove {row.DisplayVersion}",
         $"Removing {row.DisplayVersion}…",
         "/installation/remove",
@@ -56,7 +56,7 @@ internal static class ConfirmActions
             "channel-remove",
             $"Remove .NET {channel}?",
             $"Projects targeting net{channel}.0 will no longer build on this machine. {YesFlagNote}",
-            string.Join("\n\n", rows.Select(row => RemovalCommand(row.Version, row.Kind))),
+            string.Join("\n\n", rows.Select(row => row.EquivalentCommand)),
             $"Remove {count} {(count == 1 ? "item" : "items")}",
             $"Removing .NET {channel}…",
             "/installation/remove",

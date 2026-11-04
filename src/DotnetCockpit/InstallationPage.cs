@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using DotnetCockpit.Installation;
 using DotnetCockpit.SdkDownloads;
+using DotnetCockpit.Setup;
 using static DotnetCockpit.PageLayout;
 using static DotnetCockpit.SdkDownloadsSection;
 
@@ -419,7 +420,7 @@ internal static class InstallationPage
               """
             : "";
 
-        var command = ConfirmActions.RemovalCommand(row.Version, row.Kind);
+        var command = row.EquivalentCommand ?? "";
         var needsPatchDownload = row.HasPatch && !row.LatestPatchInstalled;
         var downloadBtn = string.IsNullOrEmpty(row.PackageUrl)
             ? ""
@@ -809,7 +810,7 @@ internal static class InstallationPage
             var targetPkg = (hasNewerPatch ? patchTarget : null) ?? catalogEntry ?? latest;
             var inclRt = ShortDisplayVersion(catalogEntry?.IncludedRuntimeVersion ?? InferRuntimeVersion(shortVer, snapshot.Runtimes, major));
 
-            var cmd = ConfirmActions.RemovalCommand(sdk.Version, "sdk");
+            var cmd = ConfirmActions.RemovalCommand(sdk.Version, "--sdk");
 
             return new Row(
                 Kind: "sdk",
@@ -859,7 +860,7 @@ internal static class InstallationPage
                     (installedRuntimeSet.Contains(latest.Version) || installedRuntimeSet.Contains(latest.InstallationVersion));
                 var targetPkg = (hasNewerPatch ? latest : null) ?? catalogEntry ?? latest;
 
-                var cmd = ConfirmActions.RemovalCommand(sample.Version, "runtime");
+                var cmd = string.Join("\n\n", runtimes.Select(runtime => DotnetUninstallToolService.RuntimeFilter(runtime.Name)).Distinct(StringComparer.Ordinal).Select(filter => ConfirmActions.RemovalCommand(sample.Version, filter)));
                 var description = string.Join(" · ", runtimes.Select(runtime => runtime.Name));
 
                 return new Row(
@@ -1000,7 +1001,7 @@ internal static class InstallationPage
     {
         "removed" => SuccessToast("The selected .NET installation was removed."),
         "detected" => SuccessToast("Installed .NET versions changed. This view is up to date."),
-        "remove-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The selected .NET installation could not be removed. The administrator approval may have been declined. Try again, or run the command yourself.</div>",
+        "remove-failed" => "<div class=\"action-notice error-state\" role=\"alert\">Not everything selected could be removed. The administrator approval may have been declined. Try again, or run the command yourself.</div>",
         _ => ""
     };
 
