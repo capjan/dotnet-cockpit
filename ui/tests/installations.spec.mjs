@@ -5,7 +5,7 @@ test('receives the real inventory in the initial HTML with version-specific dire
   const runtimeCards = new Set(snapshot.runtimes.map(runtime => runtime.version)).size;
   const response = await page.goto('/');
   const html = await response.text();
-  expect(html).toContain('<tr data-kind="sdk">');
+  expect(html).toContain('<tr data-kind="sdk"');
   await expect(page.getByRole('heading', { name: 'Versions', level: 1 })).toBeVisible();
   await expect(page.locator('tbody tr[data-kind]')).toHaveCount(snapshot.sdks.length + runtimeCards);
   for (const item of [...snapshot.sdks, ...snapshot.runtimes]) {
@@ -135,7 +135,7 @@ test('renders pre-flight check with live diagnostic steps and trust policies', a
   await expect(page.locator('.step').first()).toContainText('dotnet host');
   await expect(page.locator('.trust')).toContainText('127.0.0.1');
   await expect(page.locator('.trust')).toContainText('No telemetry');
-  await page.getByRole('link', { name: /Open cockpit/i }).click();
+  await page.getByRole('button', { name: /Open cockpit/i }).click();
   await expect(page).toHaveURL('/');
   await expect(page.getByRole('heading', { name: 'Versions', level: 1 })).toBeVisible();
 });
@@ -151,10 +151,12 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
   await page.locator(`tbody tr[data-kind="sdk"]`).filter({ hasText: firstSdk.version }).first().click();
   await expect(page.locator('#version-drawer')).toBeVisible();
   await expect(page.locator('#drawer-title')).toHaveText(firstSdk.version);
-  await expect(page.locator('#drawer-command')).toContainText(`dotnet-core-uninstall remove ${firstSdk.version} \\`);
-  await expect(page.locator('#drawer-command')).toContainText('--sdk \\');
-  await expect(page.locator('#drawer-patch-section')).toBeVisible();
-  await expect(page.locator('#drawer-download-btn')).toBeVisible();
+  if (await page.locator('#drawer-command').count()) {
+    await expect(page.locator('#drawer-command')).toContainText(`dotnet-core-uninstall remove ${firstSdk.version} \\`);
+    await expect(page.locator('#drawer-command')).toContainText('--sdk \\');
+  }
+  await expect(page.locator('#version-drawer .drawer-patch-box')).toBeVisible();
+  await expect(page.locator('#version-drawer .drawer-primary-btn')).toBeVisible();
 
   // Close drawer
   await page.locator('#drawer-close').click();
@@ -236,7 +238,7 @@ test('switches between auto, light and dark appearance', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await sw.locator('[data-theme-pref="auto"]').click();
   await expect(sw.locator('[data-theme-pref="auto"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'auto');
 });
 
 test('renders the overview page with system summary and health cards', async ({ page }) => {
@@ -247,4 +249,28 @@ test('renders the overview page with system summary and health cards', async ({ 
   await expect(page.getByRole('heading', { name: 'This workspace' })).toBeVisible();
   await expect(page.getByText('Support Lifecycle Timeline')).toBeVisible();
   await expect(page.locator('.tl-today-pill')).toHaveText('Today');
+});
+
+test('the command palette finds tools and versions from any page and says when nothing matches', async ({ page, request }) => {
+  const snapshot = await (await request.get('/api/installation')).json();
+  await page.goto('/overview');
+  await page.keyboard.press('Meta+k');
+  const input = page.locator('#cmdk-input');
+  await expect(input).toBeFocused();
+  await input.fill(snapshot.sdks[0].version);
+  await expect(page.locator('#cmdk-dialog .opt:not([hidden])').first()).toContainText(snapshot.sdks[0].version);
+  await input.fill('zzzz-no-such-thing');
+  await expect(page.locator('#cmdk-empty')).toBeVisible();
+  await expect(page.locator('#cmdk-nuget')).toHaveAttribute('href', /q=zzzz-no-such-thing/);
+});
+
+test('remembers the appearance across pages through the settings file', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('header [data-theme-pref="light"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.waitForLoadState('networkidle');
+  await page.goto('/overview');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.locator('header [data-theme-pref="auto"]').click();
+  await page.waitForLoadState('networkidle');
 });

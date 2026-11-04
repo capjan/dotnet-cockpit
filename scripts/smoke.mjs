@@ -146,7 +146,7 @@ await runWithoutRepositoryFiles(process.env, async (data, html, get, url) => {
   const setupPage = await get('setup');
   assert.equal(setupPage.status, 200);
   const setupHtml = await setupPage.text();
-  assert.ok(setupHtml.includes('<h1>Setup</h1>'));
+  assert.ok(setupHtml.includes('<h1>Settings</h1>'));
   assert.ok(setupHtml.includes('.NET Uninstall Tool'));
   assert.ok(setupHtml.includes('learn.microsoft.com/en-us/dotnet/core/additional-tools/uninstall-tool-overview'));
   const invalidAction = await fetch(new URL('tools/install', url), {

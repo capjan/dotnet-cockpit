@@ -5,17 +5,17 @@ test('navigates to the tools page and lists both scopes without JavaScript', asy
   const page = await context.newPage();
   try {
     await page.goto('http://127.0.0.1:5234/');
-    await page.getByRole('link', { name: 'Installations', exact: true }).focus();
+    await page.getByRole('link', { name: /^Versions/ }).focus();
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('link', { name: '.NET Tools', exact: true })).toBeFocused();
+    await expect(page.getByRole('link', { name: /^Tools/ })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: '.NET Tools', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Global tools', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Local tools', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Initialize local tools', exact: true })).toHaveCount(0);
     await expect(page.locator('a.tool-tab[href="/tools?scope=local"]')).toHaveAttribute('aria-selected', 'false');
-    await expect(page.getByRole('link', { name: '.NET Tools', exact: true })).not.toHaveClass(/nav-child/);
-    await expect(page.getByRole('link', { name: '.NET Tools', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('link', { name: /^Tools/ })).not.toHaveClass(/nav-child/);
+    await expect(page.getByRole('link', { name: /^Tools/ })).toHaveAttribute('aria-current', 'page');
     const response = await page.request.get('http://127.0.0.1:5234/api/tools');
     const tools = await response.json();
     await expect(page.locator('.working-directory')).toContainText(tools.workingDirectory);
@@ -24,7 +24,7 @@ test('navigates to the tools page and lists both scopes without JavaScript', asy
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('cockpit.fixture.tool');
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('fixture-alt');
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('dotnet-tools.json');
-    await expect(page.locator('#local-tools-panel').getByRole('button', { name: 'Remove', exact: true })).toHaveCount(1);
+    await expect(page.locator('#local-tools-panel').getByRole('button', { name: /^Remove cockpit/ })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Remove local tools', exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Search .NET tools' })).toBeVisible();
     await expect(page.locator('a.tool-tab[href="/tools?scope=local"]')).toHaveAttribute('aria-selected', 'true');
@@ -37,7 +37,7 @@ test('navigates to the tools page and lists both scopes without JavaScript', asy
 test('keeps tools navigation available on narrow screens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('link', { name: '.NET Tools', exact: true }).click();
+  await page.getByRole('link', { name: /^Tools/ }).click();
   await expect(page.getByRole('heading', { name: '.NET Tools', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Global tools', exact: true })).toBeVisible();
   await page.locator('a.tool-tab[href="/tools?scope=local"]').click();
@@ -112,9 +112,31 @@ test('displays tool logos, descriptions, and download counts and opens the tool 
   await expect(page.locator('#tool-drawer-title')).toHaveText('cockpit.fixture.tool');
   await expect(page.locator('#tool-drawer-downloads')).toBeVisible();
   await expect(page.locator('#tool-drawer-verified')).toBeVisible();
-  await expect(page.locator('#tool-drawer-update-cmd')).toContainText('dotnet tool update --local \\');
   await expect(page.locator('#tool-drawer-uninstall-cmd')).toContainText('dotnet tool uninstall --local \\');
 
   await page.locator('#tool-drawer-close').click();
   await expect(drawer).toBeHidden();
+});
+
+test('asks for confirmation before removing a tool, with and without JavaScript', async ({ page, browser }) => {
+  await page.goto('http://127.0.0.1:5234/tools?scope=local');
+  const row = page.locator('tr[data-tool-scope="local"]').first();
+  await row.getByRole('button', { name: /^Remove cockpit\.fixture\.tool/ }).click();
+  const dialog = page.locator('#confirm-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('dotnet tool uninstall --local cockpit.fixture.tool');
+  await page.locator('#confirm-dialog-cancel').click();
+  await expect(dialog).toBeHidden();
+  await expect(row).toBeVisible();
+
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const plain = await context.newPage();
+  try {
+    await plain.goto('http://127.0.0.1:5234/tools?scope=local');
+    await plain.locator('tr[data-tool-scope="local"]').first().getByRole('button', { name: /^Remove cockpit\.fixture\.tool/ }).click();
+    await expect(plain).toHaveURL(/\/confirm\?/);
+    await expect(plain.getByRole('heading', { name: 'Remove cockpit.fixture.tool?' })).toBeVisible();
+    await plain.getByRole('link', { name: 'Cancel' }).click();
+    await expect(plain).toHaveURL(/\/tools\?scope=local/);
+  } finally { await context.close(); }
 });

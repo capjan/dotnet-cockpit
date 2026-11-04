@@ -40,8 +40,11 @@ builder.Services.AddSingleton<HttpClient>(_ =>
 });
 builder.Services.AddSingleton<DotnetUninstallToolService>();
 builder.Services.AddSingleton<WebAssets>();
+builder.Services.AddSingleton<SettingsStore>();
 
 var app = builder.Build();
+var settingsStore = app.Services.GetRequiredService<SettingsStore>();
+PageLayout.CurrentSettings = () => settingsStore.Current;
 app.Use(async (context, next) =>
 {
     if (context.Request.Host.Host != "127.0.0.1")
@@ -62,8 +65,9 @@ app.MapGet("/overview", async (DotnetInstallationService installationService, Do
     var toolsTask = ReadTools(toolsService, context, logger);
     var setupTask = setupService.ReadAsync(context.RequestAborted);
     var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
-    await Task.WhenAll(installationTask, toolsTask, setupTask, sdkTask);
-    return Results.Content(OverviewPage.Render(installationTask.Result, toolsTask.Result, setupTask.Result, sdkTask.Result), "text/html; charset=utf-8");
+    var activeSdkTask = installationService.ReadActiveSdkAsync(context.RequestAborted);
+    await Task.WhenAll(installationTask, toolsTask, setupTask, sdkTask, activeSdkTask);
+    return Results.Content(OverviewPage.Render(installationTask.Result, toolsTask.Result, setupTask.Result, sdkTask.Result, activeSdkTask.Result), "text/html; charset=utf-8");
 });
 app.MapGet("/", async (DotnetInstallationService service, SdkDownloadCatalog sdkCatalog, HttpContext context, ILogger<Program> logger) =>
 {
@@ -112,18 +116,68 @@ app.MapGet("/preflight", async (DotnetInstallationService installationService, D
     var setupTask = setupService.ReadAsync(context.RequestAborted);
     var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
     await Task.WhenAll(installationTask, toolsTask, setupTask, sdkTask);
-    return Results.Content(PreflightPage.Render(installationTask.Result, toolsTask.Result, setupTask.Result, sdkTask.Result), "text/html; charset=utf-8");
+    return Results.Content(PreflightPage.Render(installationTask.Result, toolsTask.Result, setupTask.Result, sdkTask.Result, settingsStore.Current.PreflightOnLaunch), "text/html; charset=utf-8");
 });
-app.MapGet("/setup", async (DotnetUninstallToolService service, SdkDownloadCatalog sdkCatalog, DotnetInstallationService installationService, HttpContext context, ILogger<Program> logger) =>
+app.MapGet("/setup", async (DotnetUninstallToolService service, SdkDownloadCatalog sdkCatalog, DotnetInstallationService installationService, DotnetToolsService toolsService, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
     var setupTask = service.ReadAsync(context.RequestAborted);
     var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
     var installationTask = ReadInstallation(installationService, context, logger);
-    await Task.WhenAll(setupTask, sdkTask, installationTask);
-    return Results.Content(SetupPage.Render(setupTask.Result, sdkTask.Result, installationTask.Result, SetupViewOptions.From(context.Request.Query)), "text/html; charset=utf-8");
+    var toolsTask = ReadTools(toolsService, context, logger);
+    await Task.WhenAll(setupTask, sdkTask, installationTask, toolsTask);
+    int? toolsCount = toolsTask.Result.Status == "ready" ? toolsTask.Result.Global.Tools.Length + toolsTask.Result.Local.Tools.Length : null;
+    return Results.Content(SetupPage.Render(setupTask.Result, sdkTask.Result, installationTask.Result, SetupViewOptions.From(context.Request.Query), toolsCount), "text/html; charset=utf-8");
 });
 app.MapGet("/settings", () => Results.Redirect("/setup"));
+app.MapPost("/settings/theme", async (HttpContext context) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var theme = SettingsStore.NormalizeTheme(form["theme"].ToString());
+    settingsStore.Update(settings => settings with { Theme = theme });
+    return Results.Redirect(LocalReferer(context));
+});
+app.MapPost("/settings/preflight", async (HttpContext context) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var fromSettings = form["return"].ToString() == "settings";
+    var show = fromSettings ? form["show"].ToString() == "true" : form["skip"].ToString() != "true";
+    settingsStore.Update(settings => settings with { PreflightOnLaunch = show });
+    return Results.Redirect(fromSettings ? "/setup" : "/");
+});
+app.MapGet("/confirm", async (DotnetInstallationService installationService, DotnetToolsService toolsService, DotnetUninstallToolService setupService, SdkDownloadCatalog sdkCatalog, HttpContext context, ILogger<Program> logger) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var query = context.Request.Query;
+    var installationTask = ReadInstallation(installationService, context, logger);
+    var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
+    var toolsTask = ReadTools(toolsService, context, logger);
+    var setupTask = setupService.ReadAsync(context.RequestAborted);
+    await Task.WhenAll(installationTask, sdkTask, toolsTask, setupTask);
+    var rows = InstallationPage.BuildRows(installationTask.Result, sdkTask.Result, SupportLifecycle.Today);
+    var scope = query["scope"].ToString();
+    var packageId = query["packageId"].ToString();
+    var isListedTool = toolsTask.Result.Global.Tools.Concat(toolsTask.Result.Local.Tools).Any(tool => string.Equals(tool.PackageId, packageId, StringComparison.OrdinalIgnoreCase));
+    var viewOptions = InstallationViewOptions.From(query) with { Kind = query["viewKind"].ToString() is "sdks" or "runtimes" or "previews" ? query["viewKind"].ToString() : "all" };
+    ConfirmSpec? spec = query["action"].ToString() switch
+    {
+        "version-remove" when rows.FirstOrDefault(row => row.CanRemove && row.Version == query["version"].ToString() && row.Kind == query["kind"].ToString()) is { } row => ConfirmActions.VersionRemove(row, viewOptions),
+        "channel-remove" when rows.Where(row => row.CanRemove && row.Channel == query["channel"].ToString()).ToArray() is { Length: > 0 } channelRows => ConfirmActions.ChannelRemove(query["channel"].ToString(), channelRows),
+        "tool-uninstall" when isListedTool => ConfirmActions.ToolUninstall(packageId, scope),
+        "tool-update" when isListedTool => ConfirmActions.ToolUpdate(packageId, scope, null),
+        "tools-update-all" when query["items"].Count > 0 => ConfirmActions.ToolsUpdateAll(scope is "local" or "all" ? scope : "global", query["q"].ToString(), query["items"].Select(item => item ?? "").ToArray()),
+        "manifest-init" => ConfirmActions.ManifestInit(query["q"].ToString()),
+        "manifest-remove" => ConfirmActions.ManifestRemove(query["q"].ToString()),
+        "setup-install" => ConfirmActions.SetupInstall(query["version"].ToString(), setupTask.Result.GlobalInstallPath),
+        "setup-update" => ConfirmActions.SetupUpdate(setupTask.Result.LatestVersion),
+        "setup-uninstall" => ConfirmActions.SetupUninstall(),
+        _ => null
+    };
+    if (spec is null) return Results.Redirect("/");
+    var health = EnvironmentHealth.Evaluate(installationTask.Result, sdkTask.Result);
+    int? toolsCount = toolsTask.Result.Status == "ready" ? toolsTask.Result.Global.Tools.Length + toolsTask.Result.Local.Tools.Length : null;
+    return Results.Content(ConfirmActions.RenderPage(spec, health.Count, installationTask.Result.InstallationCount, toolsCount), "text/html; charset=utf-8");
+});
 app.MapPost("/setup/install", async (HttpContext context, DotnetUninstallToolService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
@@ -140,10 +194,15 @@ app.MapPost("/setup/uninstall", async (HttpContext context, DotnetUninstallToolS
     var result = await service.UninstallAsync(context.RequestAborted);
     return Results.Redirect($"/setup?notice={(result.Success ? "uninstalled" : "uninstall-failed")}");
 });
-app.MapGet("/tools", async (DotnetToolsService service, HttpClient httpClient, HttpContext context, ILogger<Program> logger) =>
+app.MapGet("/tools", async (DotnetToolsService service, DotnetInstallationService installationService, SdkDownloadCatalog sdkCatalog, HttpClient httpClient, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
-    var snapshot = await ReadTools(service, context, logger);
+    var toolsTask = ReadTools(service, context, logger);
+    var installationTask = ReadInstallation(installationService, context, logger);
+    var sdkTask = sdkCatalog.ReadAsync(context.RequestAborted);
+    await Task.WhenAll(toolsTask, installationTask, sdkTask);
+    var snapshot = toolsTask.Result;
+    var health = EnvironmentHealth.Evaluate(installationTask.Result, sdkTask.Result);
     if (snapshot.Status == "ready")
     {
         await ToolMetadataCatalog.WarmCacheAsync(snapshot, httpClient, context.RequestAborted);
@@ -152,7 +211,7 @@ app.MapGet("/tools", async (DotnetToolsService service, HttpClient httpClient, H
     var search = snapshot.Status == "ready" && options.SearchQuery.Length > 0
         ? await service.SearchAsync(options.SearchQuery, context.RequestAborted)
         : new ToolSearch(options.SearchQuery, []);
-    return Results.Content(ToolsPage.Render(snapshot, options, search), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
+    return Results.Content(ToolsPage.Render(snapshot, options, search, health.Count, installationTask.Result.InstallationCount), "text/html; charset=utf-8", statusCode: snapshot.Status == "error" ? 503 : 200);
 });
 app.MapPost("/tools/install", async (HttpContext context, DotnetToolsService service) =>
 {
@@ -229,6 +288,11 @@ app.MapGet("/api/tools/icon", async (HttpContext context, HttpClient httpClient)
 });
 app.MapGet("/{**path}", (HttpContext context, WebAssets assets, string? path) => assets.Get(context, path));
 
+static string LocalReferer(HttpContext context) =>
+    Uri.TryCreate(context.Request.Headers.Referer.ToString(), UriKind.Absolute, out var referer) && referer.Host == context.Request.Host.Host
+        ? referer.PathAndQuery
+        : "/";
+
 static async Task<InstallationSnapshot> ReadInstallation(DotnetInstallationService service, HttpContext context, ILogger<Program> logger)
 {
     try { return await service.ReadAsync(context.RequestAborted); }
@@ -276,7 +340,10 @@ var url = app.Urls.Single().TrimEnd('/') + "/";
 Console.WriteLine($".NET Cockpit: {url}");
 if (options.OpenBrowser)
 {
-    try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+    var launchSettings = settingsStore.Current;
+    var startUrl = launchSettings.PreflightOnLaunch || !launchSettings.FirstLaunchCompleted ? url + "preflight" : url;
+    settingsStore.Update(settings => settings with { FirstLaunchCompleted = true });
+    try { Process.Start(new ProcessStartInfo(startUrl) { UseShellExecute = true }); }
     catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
     {
         Console.Error.WriteLine($"Open {url} in your browser.");

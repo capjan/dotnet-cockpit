@@ -8,8 +8,12 @@ namespace DotnetCockpit;
 
 internal static class PreflightPage
 {
-    public static string Render(InstallationSnapshot installation, ToolsSnapshot tools, SetupSnapshot setup, SdkDownloadSnapshot sdkDownloads)
+    public static string Render(InstallationSnapshot installation, ToolsSnapshot tools, SetupSnapshot setup, SdkDownloadSnapshot sdkDownloads, bool showOnLaunch = false, DateOnly? today = null)
     {
+        var currentDate = today ?? SupportLifecycle.Today;
+        var rows = InstallationPage.BuildRows(installation, sdkDownloads, currentDate);
+        var health = EnvironmentHealth.Evaluate(installation, sdkDownloads, currentDate);
+
         var hostOk = installation.Status != "notFound" && !string.IsNullOrWhiteSpace(installation.ExecutablePath);
         var hostTitle = hostOk ? "dotnet host found" : "No dotnet host found";
         var hostDetail = hostOk
@@ -17,10 +21,10 @@ internal static class PreflightPage
             : Encode("The dotnet executable was not found on PATH. Install an SDK or configure PATH.");
         var hostAction = hostOk
             ? "<span class=\"badge ok\">Ready</span>"
-            : "<a class=\"button sm\" href=\"/setup#sdk-downloads-title\">Set up now</a>";
+            : "<a class=\"button sm\" href=\"/?install=1\">Install .NET</a>";
 
         var sdks = installation.Sdks;
-        var eolSdks = sdks.Where(s => InstallationSnapshot.IsEol(s.Version)).ToArray();
+        var eolSdks = rows.Where(row => row.Kind == "sdk" && row.IsEol).ToArray();
         var sdkChannels = sdks.Select(s => s.Version.Split('.')[0]).Distinct().OrderByDescending(c => int.TryParse(c, out var v) ? v : 0).ToArray();
         var sdkOk = sdks.Length > 0;
         var sdkStepState = !sdkOk || eolSdks.Length > 0 ? "warn" : "ok";
@@ -31,14 +35,14 @@ internal static class PreflightPage
             ? $"Installed: {string.Join(", ", sdks.Select(s => s.Version))} ({string.Join(", ", sdkChannels.Select(c => $".NET {c}"))})"
             : "Required to build projects and use dotnet CLI tools.";
         var sdkAction = !sdkOk
-            ? "<a class=\"button sm\" href=\"/setup#sdk-downloads-title\">Set up now</a>"
+            ? "<a class=\"button sm\" href=\"/?install=1\">Install .NET</a>"
             : eolSdks.Length > 0
                 ? $"<span class=\"badge warn\">{eolSdks.Length} EOL</span>"
                 : "<span class=\"badge ok\">Ready</span>";
 
         var runtimes = installation.Runtimes;
         var distinctRuntimeVersions = runtimes.Select(r => r.Version).Distinct().ToArray();
-        var eolRuntimes = runtimes.Where(r => InstallationSnapshot.IsEol(r.Version)).Select(r => r.Version).Distinct().ToArray();
+        var eolRuntimes = rows.Where(row => row.Kind == "runtime" && row.IsEol).ToArray();
         var runtimeOk = runtimes.Length > 0;
         var runtimeStepState = !runtimeOk || eolRuntimes.Length > 0 ? "warn" : "ok";
         var runtimeTitle = runtimeOk
@@ -48,7 +52,7 @@ internal static class PreflightPage
             ? $"Installed: {string.Join(", ", distinctRuntimeVersions)} (ASP.NET Core & .NET Runtime)"
             : "Required to execute compiled .NET applications.";
         var runtimeAction = !runtimeOk
-            ? "<a class=\"button sm\" href=\"/setup?product=runtime#sdk-downloads-title\">Set up now</a>"
+            ? "<a class=\"button sm\" href=\"/?install=1\">Install .NET</a>"
             : eolRuntimes.Length > 0
                 ? $"<span class=\"badge warn\">{eolRuntimes.Length} EOL</span>"
                 : "<span class=\"badge ok\">Ready</span>";
@@ -57,7 +61,7 @@ internal static class PreflightPage
         var catalogTitle = catalogOk ? "Official release catalog loaded" : "Release catalog offline";
         var catalogDetail = catalogOk
             ? "Microsoft release metadata · support dates, patches, security fixes"
-            : Encode(sdkDownloads.Error ?? "Could not reach Microsoft release servers. Offline mode active.");
+            : Encode(sdkDownloads.Error ?? "Could not reach Microsoft release servers. Support status cannot be checked.");
         var catalogBadge = catalogOk
             ? "<span class=\"badge ok\">Ready</span>"
             : "<span class=\"badge warn\">Offline</span>";
@@ -80,42 +84,24 @@ internal static class PreflightPage
             ? "<span class=\"badge ok\">Ready</span>"
             : "<a class=\"button sm\" href=\"/setup\">Set up now</a>";
 
-        var issues = installation.IssueCount;
-        var eolCount = eolSdks.Length + eolRuntimes.Length;
-
-        string attentionTitle;
-        string attentionSubtitle;
-        string attentionBadgeClass;
-        if (issues > 0)
+        var issues = health.Count;
+        var attentionBadgeClass = issues > 0 || !health.SupportKnown ? "warn" : "ok";
+        var attentionTitle = issues switch
         {
-            attentionBadgeClass = "warn";
-            attentionTitle = $"First result: {issues} {(issues == 1 ? "thing needs" : "things need")} your attention";
-            if (eolCount > 0)
-            {
-                attentionSubtitle = $"{eolCount} outdated version{(eolCount == 1 ? " is" : "s are")} out of support (EOL) and no longer receive security fixes.";
-            }
-            else if (!hostOk || !sdkOk || !runtimeOk)
-            {
-                attentionSubtitle = "A .NET SDK or runtime installation is required to execute .NET applications.";
-            }
-            else
-            {
-                attentionSubtitle = "Review the highlighted items above to complete your .NET setup.";
-            }
-        }
-        else
-        {
-            attentionBadgeClass = "ok";
-            attentionTitle = "First result: All systems look healthy";
-            attentionSubtitle = "Your active .NET host, SDKs, runtimes, and workspace are ready.";
-        }
+            0 when health.SupportKnown => "All systems look healthy",
+            0 => "Support status could not be checked",
+            1 => "1 thing needs your attention",
+            _ => $"{issues} things need your attention"
+        };
+        var attentionSubtitle = Encode(health.Headline);
 
         return $$"""
             <!doctype html>
-            <html lang="en" data-theme="dark">
+            <html lang="en" data-theme="{{SettingsTheme}}">
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
+              <meta name="color-scheme" content="light dark">
               <title>Pre-flight Check | .NET Cockpit</title>
               <link rel="icon" type="image/png" sizes="32x32" href="/assets/logo-32.png">
               <link rel="stylesheet" href="/assets/app.css">
@@ -129,7 +115,7 @@ internal static class PreflightPage
                   <div class="pf-brand">
                     <img src="/assets/logo.png" alt=".NET Cockpit logo">
                     <div>
-                      <div class="muted pf-kicker">.NET Cockpit · first launch</div>
+                      <div class="muted pf-kicker">.NET Cockpit</div>
                       <h1 class="pf-title">Pre-flight <span class="grad-text">check</span></h1>
                     </div>
                   </div>
@@ -181,14 +167,14 @@ internal static class PreflightPage
                     </div>
                   </div>
 
-                  <div class="pf-foot">
-                    <a class="button primary lg pf-open-btn" href="/">Open cockpit {{Icon("chevron-right", "sm")}}</a>
+                  <form method="post" action="/settings/preflight" class="pf-foot">
+                    <button class="button primary lg pf-open-btn" type="submit">Open cockpit {{Icon("chevron-right", "sm")}}</button>
                     <span class="spacer"></span>
                     <label class="pf-skip-label">
-                      <input type="checkbox" id="skip-preflight-checkbox" checked>
+                      <input type="checkbox" id="skip-preflight-checkbox" name="skip" value="true"{{(showOnLaunch ? "" : " checked")}}>
                       <span>Don’t show on next launch</span>
                     </label>
-                  </div>
+                  </form>
 
                   <div class="trust">
                     <span>{{Icon("lock", "xs")}} Runs only on 127.0.0.1</span>
@@ -202,6 +188,8 @@ internal static class PreflightPage
             </html>
             """;
     }
+
+    private static string SettingsTheme => PageLayout.CurrentSettings().Theme;
 
     private static string ShortenPath(string path)
     {

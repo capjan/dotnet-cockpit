@@ -29,26 +29,9 @@ internal sealed record InstallationSnapshot(
     RuntimeInstallation[] Runtimes,
     string? Error = null)
 {
+    /// <summary>One row per SDK and one per runtime version, because frameworks sharing a version are grouped.</summary>
     [JsonIgnore]
-    public int IssueCount
-    {
-        get
-        {
-            var issues = 0;
-            if (Status is "notFound" or "error") issues++;
-            if (Sdks.Length == 0) issues++;
-            if (Runtimes.Length == 0) issues++;
-            issues += Sdks.Count(s => IsEol(s.Version));
-            issues += Runtimes.Where(r => IsEol(r.Version)).Select(r => r.Version).Distinct().Count();
-            return issues;
-        }
-    }
-
-    public static bool IsEol(string version)
-    {
-        var major = version.Split('.')[0];
-        return major is "7" or "6" or "5" or "3" or "2" or "1";
-    }
+    public int InstallationCount => Sdks.Length + Runtimes.Select(runtime => runtime.Version).Distinct().Count();
 
     public static InstallationSnapshot Create(
         string status, string? executablePath,

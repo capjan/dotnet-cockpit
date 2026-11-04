@@ -7,13 +7,13 @@ internal sealed record SdkCve(string Id, string? Url);
 
 internal sealed record SdkDownload(string Product, string Version, string InstallationVersion, string? IncludedRuntimeVersion, string Channel, string ReleaseType, string SupportPhase, string? EndOfSupportDate, string ReleaseDate, SdkCve[] Cves, string Url, string Sha512);
 
-internal sealed record SdkDownloadSnapshot(string Status, SdkDownload[] Downloads, string? Error = null);
+internal sealed record SdkDownloadSnapshot(string Status, SdkDownload[] Downloads, string? Error = null, ChannelLifecycle[]? Channels = null);
 
 internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, HttpClient httpClient)
 {
     private const string IndexUrl = "https://builds.dotnet.microsoft.com/dotnet/release-metadata/releases-index.json";
     private static readonly Uri OfficialHost = new("https://builds.dotnet.microsoft.com/");
-    private SdkDownload[]? cachedDownloads;
+    private (SdkDownload[] Downloads, ChannelLifecycle[] Channels)? cachedCatalog;
     private DateTimeOffset cacheExpiresAt;
     private readonly SemaphoreSlim cacheLock = new(1, 1);
 
@@ -21,8 +21,8 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
     {
         try
         {
-            var downloads = await ReadCatalogAsync(cancellationToken);
-            return new("ready", downloads);
+            var catalog = await ReadCatalogAsync(cancellationToken);
+            return new("ready", catalog.Downloads, Channels: catalog.Channels);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -36,19 +36,20 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
         }
     }
 
-    private async Task<SdkDownload[]> ReadCatalogAsync(CancellationToken cancellationToken)
+    private async Task<(SdkDownload[] Downloads, ChannelLifecycle[] Channels)> ReadCatalogAsync(CancellationToken cancellationToken)
     {
-        if (cachedDownloads is not null && cacheExpiresAt > DateTimeOffset.UtcNow) return cachedDownloads;
+        if (cachedCatalog is { } current && cacheExpiresAt > DateTimeOffset.UtcNow) return current;
 
         await cacheLock.WaitAsync(cancellationToken);
         try
         {
-            if (cachedDownloads is not null && cacheExpiresAt > DateTimeOffset.UtcNow) return cachedDownloads;
+            if (cachedCatalog is { } fresh && cacheExpiresAt > DateTimeOffset.UtcNow) return fresh;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(5));
-            cachedDownloads = await FetchCatalogAsync(timeout.Token);
+            var catalog = await FetchCatalogAsync(timeout.Token);
+            cachedCatalog = catalog;
             cacheExpiresAt = DateTimeOffset.UtcNow.AddHours(1);
-            return cachedDownloads;
+            return catalog;
         }
         finally
         {
@@ -56,7 +57,7 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
         }
     }
 
-    private async Task<SdkDownload[]> FetchCatalogAsync(CancellationToken cancellationToken)
+    private async Task<(SdkDownload[] Downloads, ChannelLifecycle[] Channels)> FetchCatalogAsync(CancellationToken cancellationToken)
     {
         using var indexDocument = await GetJsonAsync(IndexUrl, cancellationToken);
         if (!indexDocument.RootElement.TryGetProperty("releases-index", out var channels) || channels.ValueKind != JsonValueKind.Array)
@@ -75,24 +76,33 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
         }).ToArray();
 
         var results = await Task.WhenAll(channelTasks);
-        return results.SelectMany(downloads => downloads)
+        var downloads = results.SelectMany(result => result.Downloads)
             .DistinctBy(download => (download.Product, download.Version), ProductTupleComparer.Instance)
             .OrderByDescending(download => download.ReleaseDate, StringComparer.Ordinal)
             .ThenByDescending(download => download.Version, StringComparer.Ordinal)
             .ToArray();
+        return (downloads, results.Select(result => result.Lifecycle).ToArray());
     }
 
-    private async Task<SdkDownload[]> ReadChannelAsync(string channel, string releaseType, string supportPhase, string? endOfSupportDate, string releaseUrl, CancellationToken cancellationToken)
+    private async Task<(SdkDownload[] Downloads, ChannelLifecycle Lifecycle)> ReadChannelAsync(string channel, string releaseType, string supportPhase, string? endOfSupportDate, string releaseUrl, CancellationToken cancellationToken)
     {
         using var document = await GetJsonAsync(releaseUrl, cancellationToken);
         if (!document.RootElement.TryGetProperty("releases", out var releases) || releases.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException($"The .NET {channel} release metadata did not contain releases.");
 
         var downloads = new List<SdkDownload>();
+        DateOnly? firstRelease = null;
+        DateOnly? generalAvailability = null;
         foreach (var release in releases.EnumerateArray())
         {
             var releaseDate = GetString(release, "release-date");
             if (string.IsNullOrWhiteSpace(releaseDate)) continue;
+            if (SupportLifecycle.ParseDate(releaseDate) is { } parsedDate)
+            {
+                if (firstRelease is null || parsedDate < firstRelease) firstRelease = parsedDate;
+                var isStable = GetString(release, "release-version") is { } releaseVersion && !releaseVersion.Contains('-');
+                if (isStable && (generalAvailability is null || parsedDate < generalAvailability)) generalAvailability = parsedDate;
+            }
             var cves = ReadCves(release);
             AddPackages(release, "sdk", "SDK", "dotnet-sdk", channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, downloads);
             if (release.TryGetProperty("sdks", out var sdksArray) && sdksArray.ValueKind == JsonValueKind.Array)
@@ -106,7 +116,8 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
             AddPackages(release, "runtime", ".NET Runtime", "dotnet-runtime", channel, releaseType, supportPhase, endOfSupportDate, releaseDate, cves, downloads);
         }
 
-        return downloads.ToArray();
+        var lifecycle = new ChannelLifecycle(channel, releaseType, supportPhase, SupportLifecycle.ParseDate(endOfSupportDate), firstRelease, generalAvailability);
+        return (downloads.ToArray(), lifecycle);
     }
 
     private static void AddPackages(JsonElement release, string productProperty, string productName, string packagePrefix,

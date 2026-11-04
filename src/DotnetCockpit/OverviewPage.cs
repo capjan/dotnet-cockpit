@@ -9,161 +9,58 @@ namespace DotnetCockpit;
 
 internal static class OverviewPage
 {
-    public static string Render(InstallationSnapshot snapshot, ToolsSnapshot tools, SetupSnapshot setup, SdkDownloadSnapshot sdkSnapshot)
+    public static string Render(InstallationSnapshot snapshot, ToolsSnapshot tools, SetupSnapshot setup, SdkDownloadSnapshot sdkSnapshot, ActiveSdk? activeSdk = null, DateOnly? today = null)
     {
+        var currentDate = today ?? SupportLifecycle.Today;
+        var health = EnvironmentHealth.Evaluate(snapshot, sdkSnapshot, currentDate);
+        var rows = InstallationPage.BuildRows(snapshot, sdkSnapshot, currentDate);
         var runtimeCount = snapshot.Runtimes.Select(r => r.Version).Distinct().Count();
-        var issues = snapshot.IssueCount;
-        var eolSdks = snapshot.Sdks.Where(s => InstallationSnapshot.IsEol(s.Version)).ToArray();
-        var eolRuntimes = snapshot.Runtimes.Where(r => InstallationSnapshot.IsEol(r.Version)).Select(r => r.Version).Distinct().ToArray();
-        var eolCount = eolSdks.Length + eolRuntimes.Length;
-        var hasEol = eolCount > 0;
+        var issues = health.Count;
+        var eolRuntimes = rows.Count(row => row.Kind == "runtime" && row.IsEol);
+        var patchableSdks = rows.Count(row => row.Kind == "sdk" && row.HasPatch && !row.LatestPatchInstalled);
+        var isHealthy = issues == 0 && health.SupportKnown;
 
-        var downloads = sdkSnapshot.Downloads ?? [];
-        var patchableSdks = snapshot.Sdks.Where(sdk =>
-        {
-            if (InstallationSnapshot.IsEol(sdk.Version)) return false;
-            var major = sdk.Version.Split('.')[0];
-            var isPre = sdk.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) || sdk.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
-            var shortVer = InstallationPage.ShortDisplayVersion(sdk.Version);
-            var catalogEntry = downloads.FirstOrDefault(d => d.Product == "SDK" && (d.Version == sdk.Version || d.InstallationVersion == sdk.Version || d.Version == shortVer));
-            var channelDownloads = downloads
-                .Where(d => d.Product == "SDK" && (d.Channel == major || d.Channel == $"{major}.0") && (isPre || (!d.Version.Contains("-preview") && !d.Version.Contains("-rc"))))
-                .OrderByDescending(d => d.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
-                .ToArray();
-            var latest = channelDownloads.FirstOrDefault();
-            var bandPrefix = InstallationPage.GetSdkFeatureBandPrefix(shortVer);
-            var latestInBand = !string.IsNullOrEmpty(bandPrefix)
-                ? channelDownloads.FirstOrDefault(d => InstallationPage.GetSdkFeatureBandPrefix(d.Version) == bandPrefix)
-                : null;
-            var isCurrentFeatureBandLatest = latestInBand != null &&
-                (latestInBand.Version == sdk.Version || latestInBand.Version == shortVer) &&
-                !string.IsNullOrEmpty(catalogEntry?.IncludedRuntimeVersion) &&
-                catalogEntry.IncludedRuntimeVersion == latest?.IncludedRuntimeVersion;
-            var patchTarget = (latestInBand != null && latestInBand.IncludedRuntimeVersion == latest?.IncludedRuntimeVersion)
-                ? latestInBand
-                : latest;
-            return !isCurrentFeatureBandLatest && patchTarget != null &&
-                patchTarget.Version != sdk.Version && patchTarget.InstallationVersion != sdk.Version &&
-                SdkDownloadsSection.SdkVersionComparer.Instance.Compare(patchTarget.Version, shortVer) > 0;
-        }).ToArray();
-
-        var latestInstalledSdk = snapshot.Sdks
-            .OrderByDescending(s => s.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
+        var newestStableSdk = snapshot.Sdks
+            .Where(sdk => !sdk.Version.Contains('-'))
+            .OrderByDescending(sdk => sdk.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
             .FirstOrDefault()?.Version;
 
-        var installedChannels = snapshot.Sdks.Select(s => s.Version.Split('.')[0])
-            .Concat(snapshot.Runtimes.Select(r => r.Version.Split('.')[0]))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var healthBadgeClass = isHealthy ? "ok" : "warn";
+        var healthStatus = snapshot.Status == "error"
+            ? "Not available"
+            : isHealthy ? "Healthy" : issues == 0 ? "Partly checked" : "Attention needed";
 
-        var healthBadgeClass = issues == 0 ? "ok" : "warn";
-        var healthStatus = issues == 0 ? "Healthy" : "Attention needed";
-        var healthHeadline = issues == 0
-            ? "All installed versions are supported and up to date."
-            : hasEol
-                ? $"{(eolCount == 1 ? "One version is" : $"{eolCount} versions are")} out of support{(patchableSdks.Length > 0 ? $", {patchableSdks.Length} {(patchableSdks.Length == 1 ? "patch" : "patches")} available" : "")}."
-                : "Your .NET environment needs attention.";
-
-        var actions = new List<string>();
-        if (hasEol)
-        {
-            var eolChannelNums = snapshot.Sdks.Where(s => InstallationSnapshot.IsEol(s.Version)).Select(s => s.Version.Split('.')[0])
-                .Concat(snapshot.Runtimes.Where(r => InstallationSnapshot.IsEol(r.Version)).Select(r => r.Version.Split('.')[0]))
-                .Distinct()
-                .OrderBy(c => c)
-                .ToArray();
-            var channelLabel = string.Join(", ", eolChannelNums.Select(c => $".NET {c}"));
-            var firstEolVer = eolSdks.FirstOrDefault()?.Version ?? eolRuntimes.FirstOrDefault() ?? "";
-            var firstEolChannel = eolChannelNums.FirstOrDefault() ?? "7";
-            actions.Add($"""
-                <div class="overview-action-item">
-                  <div class="action-icon bad">{Icon("shield", "sm")}</div>
-                  <div class="action-text">
-                    <strong>{Encode(channelLabel)} is out of support since May 14, 2024</strong>
-                    <p class="muted">{eolCount} installed {(eolCount == 1 ? "item no longer receives" : "items no longer receive")} security fixes.</p>
-                  </div>
-                  <div class="action-buttons">
-                    <a class="button sm ghost" href="/?selected={Uri.EscapeDataString(firstEolVer)}#inventory">Details</a>
-                    <a class="button sm danger-outline" href="/?removeChannel={Uri.EscapeDataString(firstEolChannel)}#inventory">{Icon("trash", "xs")} Remove {eolCount} {(eolCount == 1 ? "item" : "items")}</a>
-                  </div>
-                </div>
-                """);
-        }
-
-        if (patchableSdks.Length > 0)
-        {
-            var firstSdk = patchableSdks[0];
-            var major = firstSdk.Version.Split('.')[0];
-            var isPre = firstSdk.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) || firstSdk.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
-            var latest = downloads
-                .Where(d => d.Product == "SDK" && (d.Channel == major || d.Channel == $"{major}.0") && (isPre || (!d.Version.Contains("-preview") && !d.Version.Contains("-rc"))))
-                .OrderByDescending(d => d.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
-                .First();
-            actions.Add($"""
-                <div class="overview-action-item">
-                  <div class="action-icon info">{Icon("download", "sm")}</div>
-                  <div class="action-text">
-                    <strong>Patch available: SDK {Encode(InstallationPage.ShortDisplayVersion(firstSdk.Version))} → {Encode(latest.Version)}</strong>
-                    <p class="muted">Includes Runtime {Encode(InstallationPage.ShortDisplayVersion(latest.IncludedRuntimeVersion ?? $"{major}.0"))} and latest security fixes.</p>
-                  </div>
-                  <div class="action-buttons">
-                    <a class="button sm" href="{Encode(latest.Url)}" download>{Icon("download", "xs")} Download .pkg</a>
-                  </div>
-                </div>
-                """);
-        }
-
-        if (!setup.UninstallTool.Installed)
-        {
-            actions.Add($"""
-                <div class="overview-action-item">
-                  <div class="action-icon warn">{Icon("warn", "sm")}</div>
-                  <div class="action-text">
-                    <strong>Removal support is not installed</strong>
-                    <p class="muted">Install Microsoft's dotnet-core-uninstall to cleanly remove old SDKs and runtimes.</p>
-                  </div>
-                  <div class="action-buttons">
-                    <a class="button sm" href="/setup">Set up now</a>
-                  </div>
-                </div>
-                """);
-        }
-
-        if (snapshot.Sdks.Length == 0)
-        {
-            actions.Add($"""
-                <div class="overview-action-item">
-                  <div class="action-icon warn">{Icon("code", "sm")}</div>
-                  <div class="action-text">
-                    <strong>Install .NET SDK</strong>
-                    <p class="muted">No SDK was found on this machine. An SDK is required to build applications.</p>
-                  </div>
-                  <div class="action-buttons">
-                    <a class="button sm primary" href="/?install=1">Install SDK</a>
-                  </div>
-                </div>
-                """);
-        }
-
-        actions.Add($"""
+        var actions = health.Actions.Select(action => $"""
             <div class="overview-action-item">
-              <div class="action-icon brand">{Icon("sparkle", "sm")}</div>
+              <div class="action-icon {action.Severity}">{Icon(action.Icon, "sm")}</div>
               <div class="action-text">
-                <strong>Official .NET release catalog available</strong>
-                <p class="muted">Browse LTS, STS, and preview installers side-by-side without affecting pinned projects.</p>
+                <strong>{Encode(action.Title)}</strong>
+                <p class="muted">{Encode(action.Detail)}</p>
               </div>
               <div class="action-buttons">
-                <a class="button sm ghost" href="/?install=1">View releases</a>
+                {string.Concat(action.Links.Select(link => $"<a class=\"{link.Class}\" href=\"{Encode(link.Href)}\"{(link.Download ? " download" : "")}>{(link.Icon is null ? "" : Icon(link.Icon, "xs"))} {Encode(link.Label)}</a>"))}
               </div>
             </div>
-            """);
+            """).ToArray();
+        var actionsHtml = actions.Length > 0
+            ? string.Join("\n", actions)
+            : $"""<div class="overview-all-clear">{Icon("check", "sm")}<div><strong>{(health.SupportKnown ? "Nothing to do" : "No known actions")}</strong><p class="muted">{(health.SupportKnown ? "Every installed version is supported and fully patched." : "Support dates could not be loaded, so end-of-support risks are not listed. Refresh to try again.")}</p></div></div>""";
 
-        var sdkBadge = patchableSdks.Length > 0
-            ? $"<span class=\"badge warn sm\">{patchableSdks.Length} {(patchableSdks.Length == 1 ? "patch" : "patches")} available</span>"
-            : "<span class=\"badge ok sm\">Up to date</span>";
+        var sdkBadge = patchableSdks > 0
+            ? $"<span class=\"badge warn sm\">{patchableSdks} {(patchableSdks == 1 ? "patch" : "patches")}</span>"
+            : "";
 
-        var runtimeBadge = eolRuntimes.Length > 0
-            ? $"<span class=\"badge bad sm\">{eolRuntimes.Length} end of life</span>"
-            : "<span class=\"badge ok sm\">Supported</span>";
+        var runtimeBadge = eolRuntimes > 0
+            ? $"<span class=\"badge bad sm\">{eolRuntimes} end of life</span>"
+            : "";
+
+        var toolsAvailable = tools.Status == "ready";
+        string ToolCount(ToolList list) => toolsAvailable && list.Error is null ? list.Tools.Length.ToString(CultureInfo.InvariantCulture) : "–";
+        var toolsNote = toolsAvailable ? null : "Not available";
+
+        var sdkInUse = activeSdk?.Version is { Length: > 0 } activeVersion
+            ? $"<strong>{Encode(activeVersion)}</strong> <span class=\"muted\">· {(activeSdk.GlobalJsonPath is null ? "no global.json" : $"pinned by <code>{Encode(ShortenPath(activeSdk.GlobalJsonPath))}</code>")}</span>"
+            : "<span class=\"muted\">Not available</span>";
 
         var manifestSummary = !tools.LocalManifestInitialized
             ? "<span class=\"muted\">No local manifest</span>"
@@ -175,14 +72,6 @@ internal static class OverviewPage
             ? string.Concat(tools.Local.Tools.Select(t => $"<a class=\"ws-tool-pill-link\" href=\"/tools?scope=local&amp;selected={Uri.EscapeDataString(t.PackageId)}\" title=\"Inspect {Encode(t.PackageId)} in .NET Tools\"><code class=\"ws-tool-pill\">{Encode(t.PackageId)} {Encode(t.Version)}</code></a>"))
             : "<span class=\"muted\">None declared</span>";
 
-        var orderedSdks = snapshot.Sdks
-            .OrderByDescending(s => s.Version, SdkDownloadsSection.SdkVersionComparer.Instance)
-            .ToArray();
-        var sdk10Ver = orderedSdks.FirstOrDefault(s => s.Version.StartsWith("10."))?.Version;
-        var sdk9Ver = orderedSdks.FirstOrDefault(s => s.Version.StartsWith("9."))?.Version;
-        var sdk8Ver = orderedSdks.FirstOrDefault(s => s.Version.StartsWith("8."))?.Version;
-        var sdk7Ver = orderedSdks.FirstOrDefault(s => s.Version.StartsWith("7."))?.Version;
-
         return PageLayout.Render($$"""
             <div class="page-heading">
               <div>
@@ -190,7 +79,7 @@ internal static class OverviewPage
                 <p class="muted intro">Here's the state of .NET on this machine.</p>
               </div>
               <div class="overview-header-actions">
-                <a class="button" href="/tools#tool-search-title">{{Icon("plus", "xs")}} Add tool</a>
+                <a class="button" href="/tools?add=1">{{Icon("plus", "xs")}} Add tool</a>
                 <a class="button primary" href="/?install=1">{{Icon("download", "xs")}} Install .NET</a>
                 <a class="button icon ghost" href="/overview" title="Refresh" aria-label="Refresh">{{Icon("refresh", "sm")}}</a>
               </div>
@@ -198,10 +87,10 @@ internal static class OverviewPage
 
             <section class="overview-hero-card" aria-label="System health and summary">
               <div class="hero-health-pane">
-                <div class="hero-ring {{(issues == 0 ? "ring-ok" : "ring-warn")}}" aria-hidden="true">
+                <div class="hero-ring {{(isHealthy ? "ring-ok" : "ring-warn")}}" aria-hidden="true">
                   <div class="hero-ring-inner">
                     <strong>{{issues}}</strong>
-                    <span>{{(issues == 0 ? "issues" : "to review")}}</span>
+                    <span>to review</span>
                   </div>
                 </div>
                 <div class="hero-health-copy">
@@ -209,11 +98,11 @@ internal static class OverviewPage
                     <span class="sr-only">System Health</span>
                     <span class="badge {{healthBadgeClass}}">● {{healthStatus}}</span>
                   </div>
-                  <h2 class="hero-headline">{{Encode(healthHeadline)}}</h2>
+                  <h2 class="hero-headline">{{Encode(health.Headline)}}</h2>
                   <div class="hero-meta-row">
                     <span>{{Icon("cpu", "xs")}} {{Encode(snapshot.OperatingSystem)}} · {{Encode(snapshot.Architecture.ToLowerInvariant())}}</span>
-                    <span>{{Icon("code", "xs")}} <code>{{Encode(snapshot.ExecutablePath ?? "dotnet on PATH")}}</code></span>
-                    <span>{{Icon("shield", "xs")}} {{(latestInstalledSdk != null ? $"Latest SDK {Encode(latestInstalledSdk)} installed" : "No SDK installed")}}</span>
+                    <span>{{Icon("code", "xs")}} {{(snapshot.ExecutablePath is { } hostPath ? $"<code>{Encode(hostPath)}</code>" : "No dotnet host on PATH")}}</span>
+                    {{(newestStableSdk is null ? "" : $"<span>{Icon("shield", "xs")} Newest stable SDK {Encode(newestStableSdk)}</span>")}}
                   </div>
                 </div>
               </div>
@@ -236,15 +125,15 @@ internal static class OverviewPage
                 <div class="hero-stat-cell">
                   <div class="stat-top">{{Icon("tools", "xs")}} <span>Global tools</span></div>
                   <div class="stat-val-row">
-                    <strong class="summary-number">{{tools.Global.Tools.Length.ToString(CultureInfo.InvariantCulture)}}</strong>
-                    <span class="muted text-xs">for {{Encode(Environment.UserName)}}</span>
+                    <strong class="summary-number">{{ToolCount(tools.Global)}}</strong>
+                    <span class="muted text-xs">{{Encode(toolsNote ?? $"for {Environment.UserName}")}}</span>
                   </div>
                 </div>
                 <div class="hero-stat-cell">
                   <div class="stat-top">{{Icon("folder", "xs")}} <span>Local tools</span></div>
                   <div class="stat-val-row">
-                    <strong class="summary-number">{{tools.Local.Tools.Length.ToString(CultureInfo.InvariantCulture)}}</strong>
-                    <span class="muted text-xs">this workspace</span>
+                    <strong class="summary-number">{{ToolCount(tools.Local)}}</strong>
+                    <span class="muted text-xs">{{Encode(toolsNote ?? "this workspace")}}</span>
                   </div>
                 </div>
               </div>
@@ -255,12 +144,11 @@ internal static class OverviewPage
                 <div class="card-top">
                   <div>
                     <h2>Recommended actions</h2>
-                    <p class="muted text-xs">Sorted by risk. Every action asks for confirmation first.</p>
+                    <p class="muted text-xs">Sorted by risk. Every change asks for confirmation first.</p>
                   </div>
-                  <span class="count-box">{{actions.Count}}</span>
                 </div>
                 <div class="action-list">
-                  {{string.Join("\n", actions)}}
+                  {{actionsHtml}}
                 </div>
               </div>
 
@@ -275,7 +163,7 @@ internal static class OverviewPage
                   </div>
                   <dl class="ws-dl">
                     <dt>SDK in use</dt>
-                    <dd><strong>{{Encode(latestInstalledSdk ?? "None")}}</strong> <span class="muted">· no global.json</span></dd>
+                    <dd>{{sdkInUse}}</dd>
                     <dt>Tool manifest</dt>
                     <dd>{{manifestSummary}}</dd>
                     <dt>Local tools</dt>
@@ -287,13 +175,13 @@ internal static class OverviewPage
                   <h3>Shortcuts</h3>
                   <div class="shortcuts-list">
                     <a class="shortcut-row" href="/?install=1">
-                      <span>{{Icon("download", "xs")}} Install the latest LTS SDK</span>
-                      <span class="badge {{(installedChannels.Contains("10") ? "ok" : "brand")}} sm">{{(installedChannels.Contains("10") ? "Installed" : "Download")}}</span>
+                      <span>{{Icon("download", "xs")}} Install .NET</span>
                     </a>
-                    <a class="shortcut-row" href="/tools#tool-search-title">
+                    <a class="shortcut-row" href="/tools?add=1">
                       <span>{{Icon("plus", "xs")}} Find a .NET tool on NuGet</span>
                       <kbd>T</kbd>
                     </a>
+                    {{(setup.UninstallTool.Installed || setup.Status == "unsupported" ? "" : $"<a class=\"shortcut-row\" href=\"/setup#uninstall-tool-title\"><span>{Icon("trash", "xs")} Set up removal support</span></a>")}}
                     <a class="shortcut-row" href="/preflight">
                       <span>{{Icon("pulse", "xs")}} Pre-flight diagnostics</span>
                       <kbd>P</kbd>
@@ -307,7 +195,7 @@ internal static class OverviewPage
               <div class="inventory-heading">
                 <div>
                   <h2 id="timeline-title">Support Lifecycle Timeline</h2>
-                  <p class="muted">Official Microsoft lifecycle. Ringed bars are installed on this machine.</p>
+                  <p class="muted">Official Microsoft lifecycle dates. Ringed bars are installed on this machine.</p>
                 </div>
                 <div class="tl-legend">
                   <span class="tl-leg-item"><i class="tl-dot lts"></i> LTS</span>
@@ -315,83 +203,92 @@ internal static class OverviewPage
                   <span class="tl-leg-item"><i class="tl-dot preview"></i> Preview</span>
                 </div>
               </div>
-              <div class="timeline-chart">
-                <div class="tl-years">
-                  <span></span>
-                  <div class="tl-years-track">
-                    <span>2023</span>
-                    <span>2024</span>
-                    <span>2025</span>
-                    <span>2026</span>
-                    <span>2027</span>
-                    <span>2028</span>
-                  </div>
-                  <span></span>
-                </div>
-
-                <div class="tl-rows">
-                  <div class="tl-today-marker" style="left: calc(130px + 16px + (100% - 272px) * 0.64);">
-                    <span class="tl-today-pill">Today</span>
-                  </div>
-
-                  <div class="timeline-row">
-                    <div class="tl-channel">
-                      <b>.NET 11</b>
-                      <span class="channel-tag preview">Preview</span>
-                    </div>
-                    <div class="tl-track">
-                      <div class="tl-bar preview" style="left: 65%; width: 25%;">Preview · GA Nov 2026</div>
-                    </div>
-                    <span class="tl-status muted">GA Nov 2026</span>
-                  </div>
-
-                  <div class="timeline-row">
-                    <div class="tl-channel">
-                      <b>.NET 10</b>
-                      <span class="channel-tag lts">LTS</span>
-                    </div>
-                    <div class="tl-track">
-                      <div class="tl-bar lts {{(installedChannels.Contains("10") ? "installed" : "")}}" style="left: 48%; width: 48%;">{{(sdk10Ver != null ? $"{Encode(sdk10Ver)} installed" : "10.0 LTS")}}</div>
-                    </div>
-                    <span class="tl-status ok">until Nov 2028</span>
-                  </div>
-
-                  <div class="timeline-row">
-                    <div class="tl-channel">
-                      <b>.NET 9</b>
-                      <span class="channel-tag sts">STS</span>
-                    </div>
-                    <div class="tl-track">
-                      <div class="tl-bar sts {{(installedChannels.Contains("9") ? "installed" : "")}}" style="left: 31%; width: 34%;">{{(sdk9Ver != null ? $"{Encode(sdk9Ver)} installed" : "9.0 STS")}}</div>
-                    </div>
-                    <span class="tl-status warn">until Nov 2026</span>
-                  </div>
-
-                  <div class="timeline-row">
-                    <div class="tl-channel">
-                      <b>.NET 8</b>
-                      <span class="channel-tag lts">LTS</span>
-                    </div>
-                    <div class="tl-track">
-                      <div class="tl-bar lts {{(installedChannels.Contains("8") ? "installed" : "")}}" style="left: 15%; width: 50%;">{{(sdk8Ver != null ? $"{Encode(sdk8Ver)} installed" : "8.0 LTS")}}</div>
-                    </div>
-                    <span class="tl-status warn">until Nov 2026</span>
-                  </div>
-
-                  <div class="timeline-row">
-                    <div class="tl-channel">
-                      <b>.NET 7</b>
-                      <span class="channel-tag sts">STS</span>
-                    </div>
-                    <div class="tl-track">
-                      <div class="tl-bar eol {{(installedChannels.Contains("7") ? "installed" : "")}}" style="left: 2%; width: 24%;">{{(sdk7Ver != null ? $"{Encode(sdk7Ver)} · EOL" : "7.0 · EOL")}}</div>
-                    </div>
-                    <span class="tl-status bad">ended 2024</span>
-                  </div>
-                </div>
-              </div>
+              {{RenderTimeline(snapshot, sdkSnapshot, currentDate)}}
             </section>
-            """, "/overview", ".NET Cockpit · Overview", issues, snapshot.Sdks.Length + runtimeCount, tools.Global.Tools.Length + tools.Local.Tools.Length);
+            """, "/overview", ".NET Cockpit · Overview", issues, snapshot.InstallationCount, toolsAvailable ? tools.Global.Tools.Length + tools.Local.Tools.Length : null);
+    }
+
+    private static string RenderTimeline(InstallationSnapshot snapshot, SdkDownloadSnapshot sdkSnapshot, DateOnly today)
+    {
+        var channels = sdkSnapshot.Channels ?? [];
+        if (channels.Length == 0)
+            return """<div class="empty-state"><h3>Support dates are unavailable</h3><p class="muted">The official release metadata could not be loaded. Refresh to try again.</p></div>""";
+
+        var installedVersions = snapshot.Sdks.Select(sdk => sdk.Version)
+            .Concat(snapshot.Runtimes.Select(runtime => runtime.Version))
+            .ToArray();
+        var installed = installedVersions.Select(SupportLifecycle.ChannelVersion).ToHashSet();
+        var newestSdkByChannel = snapshot.Sdks
+            .GroupBy(sdk => SupportLifecycle.ChannelVersion(sdk.Version))
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(sdk => sdk.Version, SdkDownloadsSection.SdkVersionComparer.Instance).First().Version);
+
+        var visible = channels
+            .Select(channel => (Channel: channel, Status: SupportLifecycle.Evaluate(channel, today)))
+            .Where(entry => (!entry.Status.IsEol || installed.Contains(entry.Channel.Channel)) && entry.Channel.FirstRelease is not null)
+            .OrderByDescending(entry => entry.Channel.FirstRelease)
+            .ToArray();
+        if (visible.Length == 0)
+            return """<div class="empty-state"><h3>Support dates are unavailable</h3><p class="muted">The release metadata contains no dates for these channels.</p></div>""";
+
+        var startYear = visible.Min(entry => entry.Channel.FirstRelease!.Value.Year);
+        var endYear = Math.Max(visible.Max(entry => (entry.Channel.EndOfSupport ?? today).Year), today.Year) + 1;
+        var rangeStart = new DateOnly(startYear, 1, 1).DayNumber;
+        var rangeDays = (double)(new DateOnly(endYear, 1, 1).DayNumber - rangeStart);
+        string Percent(DateOnly date) => (Math.Clamp((date.DayNumber - rangeStart) / rangeDays, 0, 1) * 100).ToString("0.##", CultureInfo.InvariantCulture);
+        var todayFraction = ((today.DayNumber - rangeStart) / rangeDays).ToString("0.####", CultureInfo.InvariantCulture);
+
+        var years = string.Concat(Enumerable.Range(startYear, endYear - startYear).Select(year => $"<span>{year}</span>"));
+        var rows = string.Concat(visible.Select(entry =>
+        {
+            var (channel, status) = entry;
+            var major = channel.Channel.EndsWith(".0", StringComparison.Ordinal) ? channel.Channel[..^2] : channel.Channel;
+            var isPreview = status.State == SupportState.Preview;
+            var isInstalled = installed.Contains(channel.Channel);
+            var tag = isPreview ? "Preview" : channel.ReleaseType;
+            var tagClass = isPreview ? "preview" : channel.ReleaseType.ToLowerInvariant();
+            var barClass = status.IsEol ? "eol" : isPreview ? "preview" : tagClass;
+            var left = channel.FirstRelease!.Value;
+            var right = channel.EndOfSupport ?? today;
+            var width = Math.Max(Math.Clamp((right.DayNumber - left.DayNumber) / rangeDays, 0, 1) * 100, 1).ToString("0.##", CultureInfo.InvariantCulture);
+            var barLabel = newestSdkByChannel.TryGetValue(channel.Channel, out var sdk)
+                ? $"{InstallationPage.ShortDisplayVersion(sdk)} installed"
+                : isInstalled ? "Runtime installed" : "";
+            var (statusClass, statusText) = status.State switch
+            {
+                SupportState.EndOfLife => ("bad", channel.EndOfSupport is { } end ? $"ended {end.Year}" : "ended"),
+                SupportState.EndingSoon => ("warn", $"ends {SupportLifecycle.RelativeDays(status.DaysLeft ?? 0)}"),
+                SupportState.Preview => ("muted", "preview"),
+                _ => ("muted", channel.EndOfSupport is { } until ? $"until {until.ToString("MMM yyyy", CultureInfo.InvariantCulture)}" : "supported")
+            };
+            return $"""
+                <div class="timeline-row">
+                  <div class="tl-channel">
+                    <b>.NET {Encode(major)}</b>
+                    <span class="channel-tag {tagClass}">{Encode(tag)}</span>
+                  </div>
+                  <div class="tl-track">
+                    <div class="tl-bar {barClass} {(isInstalled ? "installed" : "")}" style="left: {Percent(left)}%; width: {width}%;" title="{Encode(status.Label)}">{Encode(barLabel)}</div>
+                  </div>
+                  <span class="tl-status {statusClass}">{Encode(statusText)}</span>
+                </div>
+                """;
+        }));
+
+        return $"""
+            <div class="timeline-chart">
+              <div class="tl-years">
+                <span></span>
+                <div class="tl-years-track">{years}</div>
+                <span></span>
+              </div>
+              <div class="tl-rows">
+                <div class="tl-today-marker" style="left: calc(130px + 16px + (100% - 272px) * {todayFraction});">
+                  <span class="tl-today-pill">Today</span>
+                </div>
+                {rows}
+              </div>
+            </div>
+            """;
     }
 
     private static string ShortenPath(string path)

@@ -4,9 +4,15 @@ namespace DotnetCockpit;
 
 internal static class PageLayout
 {
+    /// <summary>Set at startup from the settings file. Tests and tools that render pages directly get the defaults.</summary>
+    public static Func<AppSettings> CurrentSettings { get; set; } = () => new();
+
+    private static string WorkspaceName =>
+        Path.GetFileName(Environment.CurrentDirectory.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : Environment.CurrentDirectory;
+
     public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null) => $$"""
         <!doctype html>
-        <html lang="en" data-theme="auto">
+        <html lang="en" data-theme="{{CurrentSettings().Theme}}">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,27 +31,23 @@ internal static class PageLayout
                 <img src="/assets/logo.png" alt=".NET Cockpit logo">
                 <div>
                   <b>.NET Cockpit</b>
-                  <small>v2.0 · local</small>
+                  <small>Runs on this machine</small>
                 </div>
               </div>
 
               <div class="rail-label">Environment</div>
-              <a href="/overview" class="nav-link"{{(currentPath == "/overview" ? " aria-current=\"page\"" : "")}}>{{Icon("dashboard")}} Overview {{(issueCount > 0 ? $"<span class=\"badge warn sm\" data-nav-issues-badge style=\"margin-left:auto\" aria-hidden=\"true\">{issueCount}</span>" : "<span class=\"badge warn sm\" data-nav-issues-badge style=\"margin-left:auto\" aria-hidden=\"true\" hidden></span>")}}</a>
-              <a href="/" class="nav-link"{{(currentPath is "/" or "/versions" ? " aria-current=\"page\"" : "")}} aria-label="Installations">{{Icon("versions")}} Versions{{(versionsCount is not null ? $"<span class=\"nav-count\" data-nav-versions-count aria-hidden=\"true\">{versionsCount}</span>" : "<span class=\"nav-count\" data-nav-versions-count aria-hidden=\"true\" hidden></span>")}}</a>
-              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}} aria-label=".NET Tools">{{Icon("tools")}} Tools{{(toolsCount is not null ? $"<span class=\"nav-count\" data-nav-tools-count aria-hidden=\"true\">{toolsCount}</span>" : "<span class=\"nav-count\" data-nav-tools-count aria-hidden=\"true\" hidden></span>")}}</a>
+              <a href="/overview" class="nav-link"{{(currentPath == "/overview" ? " aria-current=\"page\"" : "")}}>{{Icon("dashboard")}} Overview {{(issueCount > 0 ? $"<span class=\"badge warn sm nav-badge\"><span class=\"sr-only\">, </span>{issueCount}<span class=\"sr-only\"> to review</span></span>" : "")}}</a>
+              <a href="/" class="nav-link"{{(currentPath is "/" or "/versions" ? " aria-current=\"page\"" : "")}} >{{Icon("versions")}} Versions{{(versionsCount is not null ? $"<span class=\"nav-count\" aria-hidden=\"true\">{versionsCount}</span>" : "")}}</a>
+              <a href="/tools" class="nav-link"{{(currentPath == "/tools" ? " aria-current=\"page\"" : "")}} >{{Icon("tools")}} Tools{{(toolsCount is not null ? $"<span class=\"nav-count\" aria-hidden=\"true\">{toolsCount}</span>" : "")}}</a>
 
               <div class="rail-label">Cockpit</div>
-              <a href="/setup" class="nav-link"{{(currentPath == "/setup" ? " aria-current=\"page\"" : "")}}>{{Icon("settings")}} Setup</a>
+              <a href="/setup" class="nav-link"{{(currentPath == "/setup" ? " aria-current=\"page\"" : "")}}>{{Icon("settings")}} Settings</a>
 
               <div class="rail-foot">
                 <div class="ws-card">
                   <div class="k">{{Icon("folder", "xs")}} Workspace</div>
-                  <b>DotnetCockpit</b>
+                  <b>{{Encode(WorkspaceName)}}</b>
                   <code>{{Encode(Environment.CurrentDirectory)}}</code>
-                </div>
-                <div class="host">
-                  <span class="status-dot"></span>
-                  <span>Running on your machine</span>
                 </div>
               </div>
             </aside>
@@ -55,15 +57,15 @@ internal static class PageLayout
                 <div class="crumbs">
                   <b>{{GetPageName(currentPath)}}</b>
                 </div>
-                <div id="cmdk-trigger" class="cmdk" role="button" tabindex="0" aria-label="Open command palette">
+                <button type="button" id="cmdk-trigger" class="cmdk" aria-label="Open command palette" hidden data-js-only>
                   {{Icon("search", "sm")}}
                   <span>Search versions, tools and actions</span>
                   <kbd>⌘K</kbd>
-                </div>
-                <div class="checked">
-                  {{Icon("clock", "xs")}}
-                  <span>Checked {{DateTime.Now.ToString("HH:mm:ss")}}</span>
-                </div>
+                </button>
+                <a class="checked" href="{{Encode(currentPath == "/confirm" ? "/overview" : currentPath)}}" title="Check again">
+                  {{Icon("refresh", "xs")}}
+                  <span>Checked {{DateTime.Now.ToString("HH:mm")}}</span>
+                </a>
                 {{ThemeSwitch()}}
               </header>
 
@@ -77,21 +79,21 @@ internal static class PageLayout
           <div id="cmdk-dialog" class="palette" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
             <div class="q">
               {{Icon("search", "sm")}}
-              <input id="cmdk-input" type="text" placeholder="Type a command, version, or tool..." autocomplete="off">
+              <input id="cmdk-input" type="text" placeholder="Search actions, versions and tools" autocomplete="off" aria-label="Search actions, versions and tools">
               <kbd>ESC</kbd>
             </div>
             <div id="cmdk-dynamic-grp" class="grp" hidden>
-              <div class="grp-k">On this page</div>
+              <div class="grp-k">Installed</div>
               <div id="cmdk-dynamic-list"></div>
             </div>
             <div class="grp">
               <div class="grp-k">Actions</div>
-              <a class="opt" href="/tools#tool-search-title">
+              <a class="opt" href="/tools?add=1">
                 {{Icon("plus", "sm")}}
                 <div><b>Add a .NET tool</b> <small>· Search and install from NuGet.org</small></div>
                 <span class="badge">NuGet</span>
               </a>
-              <a class="opt" href="/?install=1" data-cmdk-install-dotnet>
+              <a class="opt" href="/?install=1">
                 {{Icon("download", "sm")}}
                 <div><b>Install new .NET SDK or Runtime</b> <small>· Official macOS .pkg catalog</small></div>
                 <span class="badge brand">Download</span>
@@ -101,10 +103,13 @@ internal static class PageLayout
                 <div><b>Run Pre-flight Diagnostics</b> <small>· Verify .NET host, SDKs and workspace</small></div>
                 <span class="badge brand">Check</span>
               </a>
+              <a class="opt" href="/?cleanup=1">
+                {{Icon("sparkle", "sm")}}
+                <div><b>Clean up installations</b> <small>· Remove older versions, previews or unsupported releases</small></div>
+              </a>
               <a class="opt" href="/setup#uninstall-tool-title">
                 {{Icon("trash", "sm")}}
                 <div><b>Settings → Removal support</b> <small>· Manage dotnet-core-uninstall</small></div>
-                <kbd>G S</kbd>
               </a>
             </div>
             <div class="grp">
@@ -131,9 +136,13 @@ internal static class PageLayout
               </a>
               <a class="opt" href="/preflight">
                 {{Icon("pulse", "sm")}}
-                <div><b>Go to Pre-flight Check</b> <small>· First launch &amp; system diagnostics</small></div>
+                <div><b>Go to Pre-flight Check</b> <small>· System diagnostics</small></div>
                 <kbd>G P</kbd>
               </a>
+            </div>
+            <div id="cmdk-empty" class="cmdk-empty" hidden>
+              <p>No matches.</p>
+              <a class="button sm" id="cmdk-nuget" href="/tools?add=1">Search NuGet.org</a>
             </div>
             <div class="foot">
               <span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span>
@@ -141,6 +150,7 @@ internal static class PageLayout
               <span><kbd>ESC</kbd> close</span>
             </div>
           </div>
+          {{ConfirmActions.Dialog}}
         </body>
         </html>
         """;
@@ -149,22 +159,26 @@ internal static class PageLayout
     {
         "/overview" => "Overview",
         "/tools" => "Tools",
-        "/setup" => "Setup",
+        "/setup" => "Settings",
+        "/confirm" => "Confirm",
         "/preflight" => "Pre-flight Check",
         _ => "Versions"
     };
 
     public static string Encode(string value) => HtmlEncoder.Default.Encode(value);
 
-    /// <summary>Three-state appearance switch (Auto / Light / Dark). Works as a progressive enhancement; hidden until script runs.</summary>
-    public static string ThemeSwitch(bool showLabels = false, string extraClass = "") =>
-        $"""
-        <div class="theme-switch {extraClass}" role="group" aria-label="Appearance" data-theme-switch hidden>
-          <button type="button" class="theme-switch-btn" data-theme-pref="auto" aria-pressed="true" title="Automatic (follow system)">{Icon("theme-auto", "sm")}<span class="{(showLabels ? "" : "sr-only")}">Auto</span></button>
-          <button type="button" class="theme-switch-btn" data-theme-pref="light" aria-pressed="false" title="Light">{Icon("theme-light", "sm")}<span class="{(showLabels ? "" : "sr-only")}">Light</span></button>
-          <button type="button" class="theme-switch-btn" data-theme-pref="dark" aria-pressed="false" title="Dark">{Icon("theme-dark", "sm")}<span class="{(showLabels ? "" : "sr-only")}">Dark</span></button>
-        </div>
-        """;
+    /// <summary>Three-state appearance switch. A plain form, so it also works without JavaScript.</summary>
+    public static string ThemeSwitch(bool showLabels = false, string extraClass = "")
+    {
+        var current = CurrentSettings().Theme;
+        string Option(string value, string label, string title) =>
+            $"<button type=\"submit\" name=\"theme\" value=\"{value}\" class=\"theme-switch-btn{(current == value ? " active" : "")}\" data-theme-pref=\"{value}\" aria-pressed=\"{(current == value ? "true" : "false")}\" title=\"{title}\">{Icon($"theme-{value}", "sm")}<span class=\"{(showLabels ? "" : "sr-only")}\">{label}</span></button>";
+        return $"""
+            <form method="post" action="/settings/theme" class="theme-switch {extraClass}" role="group" aria-label="Appearance" data-theme-switch>
+              {Option("auto", "Auto", "Automatic (follow system)")}{Option("light", "Light", "Light")}{Option("dark", "Dark", "Dark")}
+            </form>
+            """;
+    }
 
     public static string Icon(string name, string cls = "")
     {

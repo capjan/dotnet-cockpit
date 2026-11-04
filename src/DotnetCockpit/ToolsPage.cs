@@ -1,4 +1,3 @@
-using System.Text;
 using DotnetCockpit.Tools;
 using static DotnetCockpit.PageLayout;
 
@@ -18,7 +17,7 @@ internal static class ToolsPage
     public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options) =>
         Render(snapshot, options, new(options.SearchQuery, []));
 
-    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search)
+    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search, int navIssues = 0, int? navVersions = null)
     {
         var content = snapshot.Status switch
         {
@@ -27,7 +26,6 @@ internal static class ToolsPage
             "error" => $"<section class=\"inventory empty-state error-state\" role=\"alert\"><h2>Tool information is unavailable</h2><p>{Encode(snapshot.Error ?? "The tools could not be read.")}</p><a class=\"button\" href=\"/tools\">Try again</a></section>",
             _ => RenderTabs(snapshot, options)
         };
-        var issues = snapshot.Status is "notFound" or "sdkMissing" or "error" ? 1 : 0;
 
         var manifestSubtitle = snapshot.LocalManifestInitialized
             ? $"Local tools come from {(snapshot.LocalManifestOwned ? "this workspace manifest" : "an inherited manifest")}: {Encode(snapshot.LocalManifestPath ?? ".config/dotnet-tools.json")}"
@@ -54,14 +52,10 @@ internal static class ToolsPage
                 .ToArray()
             : [];
         var updateAllHtml = updatableTools.Length > 0
-            ? $"""
-              <form method="post" action="/tools/update-all" class="inline-action-form">
-                <input type="hidden" name="scope" value="{options.Scope}">
-                <input type="hidden" name="q" value="{Encode(options.SearchQuery)}">
-                {string.Concat(updatableTools.Select(u => $"<input type=\"hidden\" name=\"items\" value=\"{Encode(u.Tool.PackageId)}|{u.Scope}\">"))}
-                <button type="submit" class="button" id="update-all-tools-btn">{Icon("refresh", "xs")} Update All <span class="summary-count">{updatableTools.Length}</span></button>
-              </form>
-              """
+            ? ConfirmActions.Trigger(
+                ConfirmActions.ToolsUpdateAll(options.Scope, options.SearchQuery, updatableTools.Select(u => $"{u.Tool.PackageId}|{u.Scope}").ToArray()),
+                $"<button type=\"submit\" class=\"button\" id=\"update-all-tools-btn\">{Icon("refresh", "xs")} Update all <span class=\"summary-count\">{updatableTools.Length}</span></button>",
+                "inline-action-form")
             : "";
 
         return PageLayout.Render($$"""
@@ -73,7 +67,7 @@ internal static class ToolsPage
               <div class="tools-header-actions">
                 <a class="button sm ghost refresh-btn" href="{{RefreshLink(options)}}">{{Icon("refresh", "xs")}} Refresh</a>
                 {{updateAllHtml}}
-                {{(snapshot.Status == "ready" ? $"<button type=\"button\" class=\"button primary\" id=\"open-add-tool-btn\">{Icon("plus", "xs")} Add tool</button>" : "")}}
+                {{(snapshot.Status == "ready" ? $"<a class=\"button primary\" id=\"open-add-tool-btn\" href=\"/tools?add=1#tool-search-section\">{Icon("plus", "xs")} Add tool</a>" : "")}}
               </div>
             </div>
             <div class="working-directory">
@@ -91,7 +85,7 @@ internal static class ToolsPage
             {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
             {{(snapshot.Status == "ready" ? RenderAddToolSheet(snapshot, options, search) : "")}}
             <p class="scope-note muted">Local tools are declared in manifests for this working directory or its parents. This view does not check whether they have been restored — run <code>dotnet tool restore</code> in the workspace.</p>
-            """, "/tools", ".NET Tools | .NET Cockpit", issues, toolsCount: snapshot.Global.Tools.Length + snapshot.Local.Tools.Length);
+            """, "/tools", ".NET Tools | .NET Cockpit", navIssues, navVersions, snapshot.Global.Tools.Length + snapshot.Local.Tools.Length);
     }
 
     private static string RenderTabs(ToolsSnapshot snapshot, ToolsViewOptions options)
@@ -145,8 +139,7 @@ internal static class ToolsPage
             ? $"<label class=\"filter-input\">{Icon("search", "xs")}<input type=\"search\" data-tools-table-filter placeholder=\"Filter {title.ToLowerInvariant()}...\" aria-label=\"Filter {title.ToLowerInvariant()}\"></label>"
             : "";
         var localAction = local ? RenderLocalManifestAction(localInitialized, localOwned, options) : "";
-        var drawerHtml = RenderToolDrawer(selectedTool ?? orderedTools.FirstOrDefault(), selectedTool is not null, local, localOwned);
-        var toolsJson = SerializeToolsJson(orderedTools, local, localOwned);
+        var drawerHtml = RenderToolDrawer(orderedTools, selectedTool, local, localOwned, options);
 
         return $$"""
             <section class="tool-panel-wrapper" role="tabpanel" aria-labelledby="{{id}}" id="{{id}}-panel">
@@ -163,9 +156,6 @@ internal static class ToolsPage
                 </div>
                 {{drawerHtml}}
               </div>
-              <script id="tools-data" type="application/json">
-              {{toolsJson}}
-              </script>
             </section>
             """;
     }
@@ -192,11 +182,11 @@ internal static class ToolsPage
                 var toolKey = $"{toolScopeStr}:{tool.PackageId}";
                 var inspectHref = $"/tools?scope={Uri.EscapeDataString(options.Scope)}&selected={Uri.EscapeDataString(tool.PackageId)}";
                 var versionCellHtml = meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion)
-                    ? $"<div class=\"version-patch-flow\"><fluent-badge appearance=\"tint\" color=\"brand\" class=\"version-badge sr-only\">{Encode(tool.Version)}</fluent-badge><span class=\"v-current\">{Encode(tool.Version)}</span><span class=\"v-arrow\" title=\"Newer version available on NuGet.org\">→</span><span class=\"v-patch\" title=\"Latest on NuGet.org: {Encode(meta.LatestVersion)}\">{Encode(meta.LatestVersion)}</span></div>"
-                    : $"<fluent-badge appearance=\"tint\" color=\"brand\" class=\"version-badge sr-only\">{Encode(tool.Version)}</fluent-badge><span class=\"v-current\">{Encode(tool.Version)}</span>";
+                    ? $"<div class=\"version-patch-flow\"><span class=\"v-current\">{Encode(tool.Version)}</span><span class=\"v-arrow\" title=\"Newer version available on NuGet.org\">→</span><span class=\"v-patch\" title=\"Latest on NuGet.org: {Encode(meta.LatestVersion)}\">{Encode(meta.LatestVersion)}</span></div>"
+                    : $"<span class=\"v-current\">{Encode(tool.Version)}</span>";
 
                 return $"""
-                  <tr data-tool-scope="{toolScopeStr}" data-tool-row data-tool-id="{Encode(tool.PackageId)}" data-tool-key="{Encode(toolKey)}" data-search="{Encode($"{tool.PackageId} {tool.Version} {string.Join(' ', tool.Commands)} {tool.Manifest} {meta.Summary} {meta.Authors}")}"{(isSelected ? " class=\"row-selected\"" : "")}>
+                  <tr data-tool-scope="{toolScopeStr}" data-tool-row data-drawer-key="{Encode(toolKey)}" data-search="{Encode($"{tool.PackageId} {tool.Version} {string.Join(' ', tool.Commands)} {tool.Manifest} {meta.Summary} {meta.Authors}")}"{(isSelected ? " class=\"row-selected\"" : "")}>
                     <td class="tool-cell-main">
                       <div class="tool-name">
                         {logoHtml}
@@ -227,17 +217,13 @@ internal static class ToolsPage
                     </td>
                     <td class="tool-cell-actions">
                       <div class="tool-row-actions">
-                        <a class="button sm ghost tool-inspect-btn" href="{inspectHref}" data-tool-inspect="{Encode(toolKey)}" aria-label="Inspect {Encode(tool.PackageId)}">Inspect</a>
-                        {(meta.HasUpdate ? $"<form method=\"post\" action=\"/tools/update\" class=\"tool-action tool-update-form\"><input type=\"hidden\" name=\"packageId\" value=\"{Encode(tool.PackageId)}\"><input type=\"hidden\" name=\"scope\" value=\"{toolScopeStr}\"><button class=\"button primary sm\" type=\"submit\" title=\"Update {Encode(tool.PackageId)} to {Encode(meta.LatestVersion ?? "latest")}\">Update</button></form>" : "<span class=\"tool-update-slot\" aria-hidden=\"true\"></span>")}
-                        <form method="post" action="/tools/uninstall" class="tool-action tool-uninstall-form">
-                          <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
-                          <input type="hidden" name="scope" value="{toolScopeStr}">
-                          <button class="button danger sm" type="submit">Remove</button>
-                        </form>
+                        <a class="button sm ghost tool-inspect-btn" href="{inspectHref}" data-inspect="{Encode(toolKey)}" aria-label="Inspect {Encode(tool.PackageId)}">Inspect</a>
+                        {(meta.HasUpdate ? ConfirmActions.Trigger(ConfirmActions.ToolUpdate(tool.PackageId, toolScopeStr, meta.LatestVersion), $"<button class=\"button sm\" type=\"submit\" aria-label=\"Update {Encode(tool.PackageId)}\">Update</button>", "tool-action tool-update-form") : "<span class=\"tool-update-slot\" aria-hidden=\"true\"></span>")}
+                        {ConfirmActions.Trigger(ConfirmActions.ToolUninstall(tool.PackageId, toolScopeStr), $"<button class=\"button danger sm\" type=\"submit\" aria-label=\"Remove {Encode(tool.PackageId)}\">Remove</button>", "tool-action tool-uninstall-form")}
                         <div class="tool-more-wrap">
-                          <button type="button" class="button icon sm ghost tool-menu-trigger" data-tool-menu-btn aria-label="More actions for {Encode(tool.PackageId)}" aria-expanded="false">{Icon("more", "sm")}</button>
+                          <button type="button" class="button icon sm ghost tool-menu-trigger" hidden data-js-only data-tool-menu-btn aria-label="More actions for {Encode(tool.PackageId)}" aria-expanded="false">{Icon("more", "sm")}</button>
                           <div class="tool-context-menu" hidden>
-                            <button type="button" class="tool-menu-item" data-tool-inspect="{Encode(toolKey)}">{Icon("search", "sm")} <span>Inspect tool details</span></button>
+                            <button type="button" class="tool-menu-item" data-inspect="{Encode(toolKey)}">{Icon("search", "sm")} <span>Inspect tool details</span></button>
                             {(meta.HasUpdate ? $"<button type=\"button\" class=\"tool-menu-item\" data-tool-menu-update>{Icon("refresh", "sm")} <span>Update to {Encode(meta.LatestVersion ?? "latest")}</span></button>" : "")}
                             <button type="button" class="tool-menu-item copy-btn" data-copy="{Encode(copyCmd)}">{Icon("copy", "sm")} <span>Copy command</span> <kbd>C</kbd></button>
                             <a class="tool-menu-item" href="https://www.nuget.org/packages/{Encode(tool.PackageId)}" target="_blank" rel="noopener">{Icon("external", "sm")} <span>Open on NuGet.org</span></a>
@@ -252,26 +238,28 @@ internal static class ToolsPage
                   """;
             }))}}</tbody>
           </table>
+          <div class="empty-state client-tools-empty" data-tools-empty hidden><h3>No matching tools</h3><p class="muted">No tools match your filter.</p></div>
         </div>
         """;
 
-    private static string RenderToolDrawer(DotnetTool? tool, bool isOpen, bool local, bool localOwned)
+    private static string RenderToolDrawer(DotnetTool[] tools, DotnetTool? selected, bool local, bool localOwned, ToolsViewOptions options)
     {
-        var hiddenAttr = isOpen ? "" : "hidden";
-        if (tool is null)
+        var templates = string.Concat(tools.Select(tool =>
         {
-            return $"""
-                <aside id="tool-drawer" class="detail-drawer" {hiddenAttr} aria-label="Tool details">
-                  <div class="drawer-header">
-                    <div class="drawer-eyebrow-row"><span id="tool-drawer-eyebrow">.NET Tool Details</span><button id="tool-drawer-close" class="button icon ghost drawer-close-btn" type="button" aria-label="Close tool details">✕</button></div>
-                    <div class="drawer-title-row"><h3 id="tool-drawer-title" class="drawer-title">Select a tool</h3></div>
-                  </div>
-                  <div class="drawer-body"><p class="muted">Click any tool in the table to inspect its commands, package details, and CLI equivalents.</p></div>
-                </aside>
-                """;
-        }
+            var isToolLocal = local || tool.Manifest is not null;
+            var key = $"{(isToolLocal ? "local" : "global")}:{tool.PackageId}";
+            return $"<template data-drawer-content=\"{Encode(key)}\">{RenderToolDrawerContent(tool, local, localOwned, options)}</template>";
+        }));
+        return $"""
+            <aside id="tool-drawer" class="detail-drawer tool-detail-drawer" {(selected is null ? "hidden" : "")} aria-label="Tool details">{(selected is null ? "" : RenderToolDrawerContent(selected, local, localOwned, options))}</aside>
+            {templates}
+            """;
+    }
 
+    private static string RenderToolDrawerContent(DotnetTool tool, bool local, bool localOwned, ToolsViewOptions options)
+    {
         var isToolLocal = local || tool.Manifest is not null;
+        var scope = isToolLocal ? "local" : "global";
         var monogram = GetMonogram(tool.PackageId);
         var colorIdx = GetColorIndex(tool.PackageId);
         var meta = ToolMetadataCatalog.Resolve(tool.PackageId, tool.Version, isToolLocal, tool.Manifest);
@@ -279,9 +267,9 @@ internal static class ToolsPage
         var scopeLabel = isToolLocal
             ? (localOwned ? "Local workspace manifest" : "Inherited workspace manifest")
             : "Global user tool (~/.dotnet/tools)";
-        var eyebrow = isToolLocal ? "LOCAL WORKSPACE TOOL" : "GLOBAL .NET TOOL";
-        var updateCmd = $"dotnet tool update {(isToolLocal ? "--local" : "--global")} \\\n  {tool.PackageId}";
-        var uninstallCmd = $"dotnet tool uninstall {(isToolLocal ? "--local" : "--global")} \\\n  {tool.PackageId}";
+        var eyebrow = isToolLocal ? "Local workspace tool" : "Global .NET tool";
+        var updateCmd = $"dotnet tool update --{scope} \\\n  {tool.PackageId}";
+        var uninstallCmd = $"dotnet tool uninstall --{scope} \\\n  {tool.PackageId}";
         var nugetUrl = $"https://www.nuget.org/packages/{Encode(tool.PackageId)}";
 
         var commandsHtml = string.Concat(tool.Commands.Select(cmd =>
@@ -289,159 +277,93 @@ internal static class ToolsPage
             var invoke = isToolLocal ? $"dotnet {cmd}" : cmd;
             return $"""
                 <div class="drawer-code-box tool-drawer-cmd-item">
-                  <div class="tool-drawer-cmd-main">
-                    <code>{Encode(invoke)}</code>
-                    <span class="muted text-xs">CLI command</span>
-                  </div>
-                  <button class="button icon ghost copy-btn" data-copy="{Encode(invoke)}" type="button" title="Copy command">{Icon("clipboard")}</button>
+                  <code>{Encode(invoke)}</code>
+                  <button class="button icon ghost copy-btn" data-copy="{Encode(invoke)}" type="button" title="Copy command" aria-label="Copy command {Encode(invoke)}">{Icon("clipboard")}</button>
                 </div>
                 """;
         }));
 
         var tagsHtml = string.Concat(meta.Tags.Select(t => $"<span class=\"tool-tag-pill\">{Encode(t)}</span>"));
+        var closeHref = $"/tools?scope={Uri.EscapeDataString(options.Scope)}";
 
         return $"""
-            <aside id="tool-drawer" class="detail-drawer tool-detail-drawer" {hiddenAttr} aria-label="Tool details">
               <div class="drawer-header">
                 <div class="drawer-eyebrow-row">
-                  <span id="tool-drawer-eyebrow">{eyebrow}</span>
-                  <button id="tool-drawer-close" class="button icon ghost drawer-close-btn" type="button" aria-label="Close tool details">✕</button>
+                  <span>{eyebrow}</span>
+                  <a id="tool-drawer-close" data-drawer-close class="button icon ghost drawer-close-btn" href="{closeHref}" aria-label="Close tool details">{Icon("x", "sm")}</a>
                 </div>
                 <div class="tool-drawer-hero">
-                  <div id="tool-drawer-logo">{logoHtml}</div>
+                  <div>{logoHtml}</div>
                   <div class="tool-drawer-hero-text">
                     <h3 id="tool-drawer-title" class="drawer-title">{Encode(tool.PackageId)}</h3>
-                    <div id="tool-drawer-badges" class="tool-drawer-badges">
+                    <div class="tool-drawer-badges">
                       <span class="v-current">{Encode(tool.Version)}</span>
-                      <span class="badge {(isToolLocal ? "" : "ok")} sm">{(isToolLocal ? "Local" : "Global")}</span>
-                      {(meta.IsVerified ? "<span class=\"badge ok sm\">✓ Verified</span>" : "")}
-                      {(meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion) ? $"<span class=\"badge warn sm\">↑ {Encode(meta.LatestVersion)} available</span>" : "")}
+                      {(meta.IsVerified ? $"<span class=\"tool-verified\">{Icon("check", "xs")} Verified</span>" : "")}
+                      {(meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion) ? $"<span class=\"badge warn sm\">{Encode(meta.LatestVersion)} available</span>" : "")}
                     </div>
                   </div>
                 </div>
               </div>
               <div class="drawer-body">
                 <div class="tool-drawer-about">
-                  <p id="tool-drawer-description" class="tool-drawer-desc">{Encode(meta.FullDescription)}</p>
-                  <div id="tool-drawer-tags" class="tool-drawer-tags">{tagsHtml}</div>
+                  <p class="tool-drawer-desc">{Encode(meta.FullDescription)}</p>
+                  {(tagsHtml.Length > 0 ? $"<div class=\"tool-drawer-tags\">{tagsHtml}</div>" : "")}
                 </div>
 
                 <div class="drawer-section">
                   <h4 class="drawer-section-title">Exposed commands</h4>
-                  <div id="tool-drawer-commands" class="tool-drawer-cmd-list">
-                    {commandsHtml}
-                  </div>
+                  <div class="tool-drawer-cmd-list">{commandsHtml}</div>
                 </div>
 
                 <div class="drawer-section">
                   <h4 class="drawer-section-title">Package &amp; installation</h4>
                   <dl class="drawer-dl">
-                    <dt>Package ID</dt><dd><code id="tool-drawer-pkg">{Encode(tool.PackageId)}</code></dd>
-                    <dt>Version</dt><dd><code id="tool-drawer-ver">{Encode(tool.Version)}</code>{(meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion) ? $" <span class=\"muted text-xs\">(latest: <code>{Encode(meta.LatestVersion)}</code>)</span>" : "")}</dd>
-                    <dt>Downloads</dt><dd id="tool-drawer-downloads">{Encode(meta.DownloadsFullDisplay)}</dd>
-                    <dt>Author</dt><dd id="tool-drawer-authors">{Encode(meta.Authors)}</dd>
-                    <dt>Publisher</dt><dd id="tool-drawer-verified">{(meta.IsVerified ? "✓ Verified prefix on NuGet.org" : "Standard NuGet package")}</dd>
-                    <dt>License</dt><dd id="tool-drawer-license">{Encode(meta.License)}</dd>
-                    <dt>Scope</dt><dd id="tool-drawer-scope">{Encode(scopeLabel)}</dd>
-                    <dt>Project</dt><dd id="tool-drawer-project"><a href="{Encode(meta.ProjectUrl)}" target="_blank" rel="noopener">{Encode(ShortUrlDisplay(meta.ProjectUrl))} ↗</a></dd>
+                    <dt>Package ID</dt><dd><code>{Encode(tool.PackageId)}</code></dd>
+                    <dt>Version</dt><dd><code>{Encode(tool.Version)}</code>{(meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion) ? $" <span class=\"muted text-xs\">(latest: <code>{Encode(meta.LatestVersion)}</code>)</span>" : "")}</dd>
+                    {(string.IsNullOrEmpty(meta.DownloadsFullDisplay) ? "" : $"<dt>Downloads</dt><dd id=\"tool-drawer-downloads\">{Encode(meta.DownloadsFullDisplay)}</dd>")}
+                    <dt>Author</dt><dd>{Encode(meta.Authors)}</dd>
+                    <dt>Publisher</dt><dd id="tool-drawer-verified">{(meta.IsVerified ? "Verified prefix on NuGet.org" : "Standard NuGet package")}</dd>
+                    <dt>License</dt><dd>{Encode(meta.License)}</dd>
+                    <dt>Scope</dt><dd>{Encode(scopeLabel)}</dd>
+                    <dt>Project</dt><dd><a href="{Encode(meta.ProjectUrl)}" target="_blank" rel="noopener">{Encode(ShortUrlDisplay(meta.ProjectUrl))} {Icon("external", "xs")}</a></dd>
                   </dl>
                 </div>
 
                 <div class="drawer-section">
-                  <h4 id="tool-drawer-path-title" class="drawer-section-title">{(isToolLocal ? "Manifest file" : "Package store location")}</h4>
+                  <h4 class="drawer-section-title">{(isToolLocal ? "Manifest file" : "Package store location")}</h4>
                   <div class="drawer-code-box">
-                    <code id="tool-drawer-path">{Encode(meta.StorePath)}</code>
-                    <button class="button icon ghost copy-btn" id="tool-drawer-path-copy" data-copy="{Encode(meta.StorePath)}" type="button" title="Copy path">{Icon("clipboard")}</button>
+                    <code class="drawer-path">{Encode(meta.StorePath)}</code>
+                    <button class="button icon ghost copy-btn" data-copy="{Encode(meta.StorePath)}" type="button" title="Copy path" aria-label="Copy path">{Icon("clipboard")}</button>
                   </div>
                 </div>
 
+                {(meta.HasUpdate ? $"""
                 <div class="drawer-section">
                   <h4 class="drawer-section-title">Update command</h4>
                   <div class="drawer-command-box">
                     <span class="cmd-prompt">$</span>
                     <code id="tool-drawer-update-cmd">{Encode(updateCmd)}</code>
-                    <button class="button icon ghost copy-btn" id="tool-drawer-update-copy" data-copy="{Encode(updateCmd)}" type="button" title="Copy update command">{Icon("clipboard")}</button>
+                    <button class="button icon ghost copy-btn" data-copy="{Encode(updateCmd)}" type="button" title="Copy update command" aria-label="Copy update command">{Icon("clipboard")}</button>
                   </div>
                 </div>
+                """ : "")}
 
                 <div class="drawer-section">
                   <h4 class="drawer-section-title">Remove command</h4>
                   <div class="drawer-command-box">
                     <span class="cmd-prompt">$</span>
                     <code id="tool-drawer-uninstall-cmd">{Encode(uninstallCmd)}</code>
-                    <button class="button icon ghost copy-btn" id="tool-drawer-uninstall-copy" data-copy="{Encode(uninstallCmd)}" type="button" title="Copy remove command">{Icon("clipboard")}</button>
+                    <button class="button icon ghost copy-btn" data-copy="{Encode(uninstallCmd)}" type="button" title="Copy remove command" aria-label="Copy remove command">{Icon("clipboard")}</button>
                   </div>
                 </div>
               </div>
               <div class="drawer-footer">
-                <a id="tool-drawer-nuget-btn" class="button drawer-download-btn" href="{nugetUrl}" target="_blank" rel="noopener">{Icon("external", "xs")} <span id="tool-drawer-nuget-label">Open on NuGet.org</span></a>
-                <div id="tool-drawer-update-form">
-                  {(meta.HasUpdate ? $"<form method=\"post\" action=\"/tools/update\"><input type=\"hidden\" name=\"packageId\" value=\"{Encode(tool.PackageId)}\"><input type=\"hidden\" name=\"scope\" value=\"{(isToolLocal ? "local" : "global")}\"><button class=\"button primary\" type=\"submit\">{Icon("refresh", "xs")} Update to {Encode(meta.LatestVersion ?? "latest")}</button></form>" : "")}
-                </div>
-                <div id="tool-drawer-remove-form">
-                  <form method="post" action="/tools/uninstall">
-                    <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
-                    <input type="hidden" name="scope" value="{(isToolLocal ? "local" : "global")}">
-                    <button class="button danger drawer-remove-btn" type="submit">{Icon("trash", "xs")} Remove</button>
-                  </form>
-                </div>
+                <a class="button ghost" href="{nugetUrl}" target="_blank" rel="noopener">{Icon("external", "xs")} NuGet.org</a>
+                <span class="spacer"></span>
+                {(meta.HasUpdate ? ConfirmActions.Trigger(ConfirmActions.ToolUpdate(tool.PackageId, scope, meta.LatestVersion), $"<button class=\"button primary\" type=\"submit\">{Icon("refresh", "xs")} Update to {Encode(meta.LatestVersion ?? "latest")}</button>") : "")}
+                {ConfirmActions.Trigger(ConfirmActions.ToolUninstall(tool.PackageId, scope), $"<button class=\"button danger drawer-remove-btn\" type=\"submit\">{Icon("trash", "xs")} Remove</button>")}
               </div>
-            </aside>
             """;
-    }
-
-    private static string SerializeToolsJson(DotnetTool[] tools, bool local, bool localOwned)
-    {
-        var sb = new StringBuilder();
-        sb.Append('{');
-        var first = true;
-        foreach (var tool in tools)
-        {
-            if (!first) sb.Append(',');
-            first = false;
-            var isToolLocal = local || tool.Manifest is not null;
-            var monogram = GetMonogram(tool.PackageId);
-            var colorIdx = GetColorIndex(tool.PackageId);
-            var meta = ToolMetadataCatalog.Resolve(tool.PackageId, tool.Version, isToolLocal, tool.Manifest);
-            var logoHtml = ToolMetadataCatalog.RenderLogo(meta, colorIdx, monogram, "drawer-logo-lg");
-            var scopeLabel = isToolLocal
-                ? (localOwned ? "Local workspace manifest" : "Inherited workspace manifest")
-                : "Global user tool (~/.dotnet/tools)";
-            var eyebrow = isToolLocal ? "LOCAL WORKSPACE TOOL" : "GLOBAL .NET TOOL";
-            var updateCmd = $"dotnet tool update {(isToolLocal ? "--local" : "--global")} \\\n  {tool.PackageId}";
-            var uninstallCmd = $"dotnet tool uninstall {(isToolLocal ? "--local" : "--global")} \\\n  {tool.PackageId}";
-            var toolKey = $"{(isToolLocal ? "local" : "global")}:{tool.PackageId}";
-
-            sb.Append($"\"{JsonEscape(toolKey)}\":{{");
-            sb.Append($"\"key\":\"{JsonEscape(toolKey)}\",");
-            sb.Append($"\"packageId\":\"{JsonEscape(tool.PackageId)}\",");
-            sb.Append($"\"version\":\"{JsonEscape(tool.Version)}\",");
-            sb.Append($"\"scope\":\"{(isToolLocal ? "local" : "global")}\",");
-            sb.Append($"\"eyebrow\":\"{JsonEscape(eyebrow)}\",");
-            sb.Append($"\"scopeLabel\":\"{JsonEscape(scopeLabel)}\",");
-            sb.Append($"\"authors\":\"{JsonEscape(meta.Authors)}\",");
-            sb.Append($"\"license\":\"{JsonEscape(meta.License)}\",");
-            sb.Append($"\"summary\":\"{JsonEscape(meta.Summary)}\",");
-            sb.Append($"\"fullDescription\":\"{JsonEscape(meta.FullDescription)}\",");
-            sb.Append($"\"storePath\":\"{JsonEscape(meta.StorePath)}\",");
-            sb.Append($"\"pathTitle\":\"{(isToolLocal ? "Manifest file" : "Package store location")}\",");
-            sb.Append($"\"projectUrl\":\"{JsonEscape(meta.ProjectUrl)}\",");
-            sb.Append($"\"projectLabel\":\"{JsonEscape(ShortUrlDisplay(meta.ProjectUrl))}\",");
-            sb.Append($"\"nugetUrl\":\"https://www.nuget.org/packages/{JsonEscape(tool.PackageId)}\",");
-            sb.Append($"\"updateCmd\":\"{JsonEscape(updateCmd)}\",");
-            sb.Append($"\"uninstallCmd\":\"{JsonEscape(uninstallCmd)}\",");
-            sb.Append($"\"isVerified\":{(meta.IsVerified ? "true" : "false")},");
-            sb.Append($"\"hasUpdate\":{(meta.HasUpdate ? "true" : "false")},");
-            sb.Append($"\"latestVersion\":\"{JsonEscape(meta.LatestVersion)}\",");
-            sb.Append($"\"downloads\":\"{JsonEscape(meta.DownloadsDisplay)}\",");
-            sb.Append($"\"downloadsFull\":\"{JsonEscape(meta.DownloadsFullDisplay)}\",");
-            sb.Append($"\"logoHtml\":\"{JsonEscape(logoHtml)}\",");
-            sb.Append($"\"commands\":[{string.Join(',', tool.Commands.Select(c => $"\"{JsonEscape(isToolLocal ? $"dotnet {c}" : c)}\""))}],");
-            sb.Append($"\"tags\":[{string.Join(',', meta.Tags.Select(t => $"\"{JsonEscape(t)}\""))}]");
-            sb.Append('}');
-        }
-        sb.Append('}');
-        return sb.ToString();
     }
 
     private static string ShortUrlDisplay(string url)
@@ -453,34 +375,15 @@ internal static class ToolsPage
         return trimmed.Length <= 38 ? trimmed : trimmed[..35] + "…";
     }
 
-    private static string JsonEscape(string? value)
-    {
-        if (string.IsNullOrEmpty(value)) return "";
-        return value
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n")
-            .Replace("<", "\\u003c")
-            .Replace(">", "\\u003e")
-            .Replace("&", "\\u0026");
-    }
-
     private static string RenderLocalManifestAction(bool initialized, bool owned, ToolsViewOptions options)
     {
         if (!initialized)
-            return $$"""
-                <form method="post" action="/tools/init" class="manifest-action"><input type="hidden" name="scope" value="local"><input type="hidden" name="q" value="{{Encode(options.SearchQuery)}}"><button class="button" type="submit">Initialize local tools</button></form>
-                """;
+            return ConfirmActions.Trigger(ConfirmActions.ManifestInit(options.SearchQuery), "<button class=\"button\" type=\"submit\">Initialize local tools</button>", "manifest-action");
 
         if (!owned)
-            return $$"""
-                <span class="manifest-status muted">Using an inherited manifest</span>
-                """;
+            return "<span class=\"manifest-status muted\">Using an inherited manifest</span>";
 
-        return $$"""
-            <form method="post" action="/tools/remove-manifest" class="manifest-action"><input type="hidden" name="scope" value="local"><input type="hidden" name="q" value="{{Encode(options.SearchQuery)}}"><button class="button danger" type="submit">Remove local tools</button></form>
-            """;
+        return ConfirmActions.Trigger(ConfirmActions.ManifestRemove(options.SearchQuery), "<button class=\"button danger\" type=\"submit\">Remove local tools</button>", "manifest-action");
     }
 
     private static string RenderSearch(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search)
@@ -572,7 +475,6 @@ internal static class ToolsPage
             var meta = ToolMetadataCatalog.Resolve(item.Id, item.DefaultVer, false);
             var ver = !string.IsNullOrWhiteSpace(meta.LatestVersion) ? meta.LatestVersion : item.DefaultVer;
             var logoHtml = ToolMetadataCatalog.RenderLogo(meta);
-            var downloads = !string.IsNullOrWhiteSpace(meta.DownloadsDisplay) ? meta.DownloadsDisplay : "10K+";
             return $"""
                 <div class="sheet-result-item {(idx == 0 ? "active" : "")}" data-pkg-id="{Encode(item.Id)}" data-pkg-ver="{Encode(ver)}">
                   {logoHtml}
@@ -584,16 +486,16 @@ internal static class ToolsPage
                     </div>
                     <span class="muted text-xs">{Encode(meta.Summary)}</span>
                     <div class="sheet-result-meta muted text-xs">
-                      <span>👤 {Encode(meta.Authors)}</span>
-                      <span>↓ {Encode(downloads)}</span>
-                      <span>⌘ {Encode(item.Cmd)}</span>
+                      <span>by {Encode(meta.Authors)}</span>
+                      {(string.IsNullOrWhiteSpace(meta.DownloadsDisplay) ? "" : $"<span>{Encode(meta.DownloadsDisplay)} downloads</span>")}
+                      <span><code>{Encode(item.Cmd)}</code></span>
                     </div>
                   </div>
                   <form method="post" action="/tools/install">
                     <input type="hidden" name="packageId" value="{Encode(item.Id)}">
                     <input type="hidden" name="version" value="{Encode(ver)}">
                     <input type="hidden" name="scope" value="global" data-sheet-form-scope>
-                    <button type="submit" class="button {(idx == 0 ? "primary" : "")} sm">+ Install</button>
+                    <button type="submit" class="button {(idx == 0 ? "primary" : "")} sm">Install</button>
                   </form>
                 </div>
                 """;
@@ -607,7 +509,7 @@ internal static class ToolsPage
                     <h2 id="add-tool-sheet-title">Add a .NET tool</h2>
                     <span class="search-source">NuGet.org</span>
                   </div>
-                  <button type="button" class="button icon ghost" id="close-add-tool-btn" aria-label="Close add tool panel">✕</button>
+                  <button type="button" class="button icon ghost" id="close-add-tool-btn" aria-label="Close add tool panel">{{Icon("x", "sm")}}</button>
                 </div>
 
                 <div class="sheet-controls">

@@ -35,8 +35,9 @@ internal static class SetupPage
     public static string Render(SetupSnapshot snapshot, SetupViewOptions options)
         => Render(snapshot, new SdkDownloadSnapshot("ready", []), InstallationSnapshot.Create("notFound", null), options);
 
-    public static string Render(SetupSnapshot snapshot, SdkDownloadSnapshot sdkDownloads, InstallationSnapshot installation, SetupViewOptions options)
+    public static string Render(SetupSnapshot snapshot, SdkDownloadSnapshot sdkDownloads, InstallationSnapshot installation, SetupViewOptions options, int? toolsCount = null)
     {
+        var settings = PageLayout.CurrentSettings();
         var content = snapshot.Status switch
         {
             "unsupported" => """
@@ -47,31 +48,31 @@ internal static class SetupPage
                 """,
             "error" => $"""
                 <section class="setup-card empty-state error-state" role="alert">
-                  <h2>Setup information is unavailable</h2>
+                  <h2>Removal support information is unavailable</h2>
                   <p>{Encode(snapshot.Error ?? "The setup information could not be read.")}</p>
                   <a class="button" href="/setup">Try again</a>
                 </section>
                 """,
             _ => RenderToolCard(snapshot)
         };
-        var issues = installation.IssueCount;
+        var issues = EnvironmentHealth.Evaluate(installation, sdkDownloads).Count;
 
         return PageLayout.Render($"""
             <div class="page-heading">
               <div>
-                <h1>Setup</h1>
-                <p class="muted intro">How Cockpit behaves on this machine. Nothing here leaves your computer.</p>
+                <h1>Settings</h1>
+                <p class="muted intro">How Cockpit behaves on this machine.</p>
               </div>
               <div class="inventory-heading-actions">
                 <a class="button sm ghost refresh-btn" href="/setup">{Icon("refresh", "xs")} Refresh</a>
-                <a class="button primary" href="/?install=1">{Icon("download", "xs")} Install SDK or runtime</a>
+                <a class="button primary" href="/?install=1">{Icon("download", "xs")} Install .NET</a>
               </div>
             </div>
             {RenderNotice(options.Notice)}
             <div class="settings-layout">
               <nav class="settings-rail" aria-label="Settings sections">
-                <a class="settings-nav-item" href="#settings-general">General</a>
-                <a class="settings-nav-item active" href="#uninstall-tool-title">Removal support</a>
+                <a class="settings-nav-item active" href="#settings-general">General</a>
+                <a class="settings-nav-item" href="#uninstall-tool-title">Removal support</a>
                 <a class="settings-nav-item" href="#settings-environment">Environment</a>
                 <a class="settings-nav-item" href="#settings-privacy">Privacy &amp; network</a>
                 <a class="settings-nav-item" href="#settings-about">About</a>
@@ -94,20 +95,14 @@ internal static class SetupPage
                       <strong>Show pre-flight check on launch</strong>
                       <p class="muted">A short health summary before the dashboard opens.</p>
                     </div>
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="settings-preflight-toggle" aria-label="Show pre-flight check on launch">
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                  <div class="settings-row">
-                    <div>
-                      <strong>Include previews and release candidates</strong>
-                      <p class="muted">Show upcoming .NET releases in the catalog and timeline.</p>
-                    </div>
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="settings-previews-toggle" checked aria-label="Include previews and release candidates">
-                      <span class="toggle-slider"></span>
-                    </label>
+                    <form method="post" action="/settings/preflight" class="settings-toggle-form" data-settings-toggle>
+                      <input type="hidden" name="return" value="settings">
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="settings-preflight-toggle" name="show" value="true"{(settings.PreflightOnLaunch ? " checked" : "")} aria-label="Show pre-flight check on launch">
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <noscript><button class="button sm" type="submit">Save</button></noscript>
+                    </form>
                   </div>
                 </section>
 
@@ -186,7 +181,7 @@ internal static class SetupPage
                 </section>
               </div>
             </div>
-            """, "/setup", "Setup | .NET Cockpit", issues, installation.Sdks.Length + installation.Runtimes.Select(r => r.Version).Distinct().Count());
+            """, "/setup", "Settings | .NET Cockpit", issues, installation.InstallationCount, toolsCount);
     }
 
     private static string RenderToolCard(SetupSnapshot snapshot)
@@ -205,7 +200,7 @@ internal static class SetupPage
                   <div>
                     <div class="removal-support-title-row">
                       <h2 id="uninstall-tool-title">Removal support · .NET Uninstall Tool</h2>
-                      {(installed ? "<span class=\"badge ok sm\">✓ Installed · up to date</span>" : "")}
+                      {(installed ? $"<span class=\"badge ok sm\">{(IsUpdateAvailable(snapshot.UninstallTool.Version, snapshot.LatestVersion) ? "Installed" : "Up to date")}</span>" : "")}
                     </div>
                     <p class="muted">Microsoft's <code>dotnet-core-uninstall</code> lets Cockpit remove SDKs and runtimes that were installed by supported installers.</p>
                   </div>
@@ -232,12 +227,12 @@ internal static class SetupPage
         {
             if (snapshot.UninstallTool.Scope != "global") return "";
             var update = IsUpdateAvailable(snapshot.UninstallTool.Version, snapshot.LatestVersion)
-                ? $"<form method=\"post\" action=\"/setup/update\"><button class=\"button primary\" type=\"submit\">Update to {Encode(snapshot.LatestVersion!)}</button></form>"
+                ? ConfirmActions.Trigger(ConfirmActions.SetupUpdate(snapshot.LatestVersion), $"<button class=\"button primary\" type=\"submit\">Update to {Encode(snapshot.LatestVersion!)}</button>")
                 : "";
-            return $"<div class=\"setup-card-actions\">{update}<form method=\"post\" action=\"/setup/uninstall\"><button class=\"button danger\" type=\"submit\" aria-label=\"Remove .NET Uninstall Tool\" title=\"Remove .NET Uninstall Tool\">Remove</button></form></div>";
+            return $"<div class=\"setup-card-actions\">{update}{ConfirmActions.Trigger(ConfirmActions.SetupUninstall(), "<button class=\"button danger\" type=\"submit\" aria-label=\"Remove .NET Uninstall Tool\" title=\"Remove .NET Uninstall Tool\">Remove</button>")}</div>";
         }
 
-        return $"<div class=\"setup-card-actions\"><fluent-badge appearance=\"outline\" color=\"neutral\">Not installed</fluent-badge>{RenderInstallControl(snapshot)}</div>";
+        return $"<div class=\"setup-card-actions\"><span class=\"badge sm\">Not installed</span>{RenderInstallControl(snapshot)}</div>";
     }
 
     private static string RenderInstallControl(SetupSnapshot snapshot)
@@ -247,7 +242,7 @@ internal static class SetupPage
         var options = $"<option value=\"latest\">{latestLabel}</option>" + string.Join("", snapshot.AvailableReleases
             .Where(release => !string.Equals(release.Version, snapshot.LatestVersion, StringComparison.OrdinalIgnoreCase))
             .Select(release => $"<option value=\"{Encode(release.Version)}\">{Encode(release.Version)}</option>"));
-        return $"<form class=\"setup-version-form\" method=\"post\" action=\"/setup/install\"><label class=\"setup-version-picker\" for=\"setup-version\"><span class=\"visually-hidden\">Version</span><select id=\"setup-version\" name=\"version\">{options}</select></label><button class=\"button primary setup-install-button\" type=\"submit\" aria-label=\"Install selected version\" title=\"Install selected version\">{Icon("download")}</button></form>";
+        return ConfirmActions.Trigger(ConfirmActions.SetupInstall(null, snapshot.GlobalInstallPath), $"<label class=\"setup-version-picker\" for=\"setup-version\"><span class=\"visually-hidden\">Version</span><select id=\"setup-version\" name=\"version\">{options}</select></label><button class=\"button primary setup-install-button\" type=\"submit\">{Icon("download", "xs")} Install</button>", "setup-version-form");
     }
 
     private static string RenderInstallDetails(SetupSnapshot snapshot)
@@ -283,7 +278,7 @@ internal static class SetupPage
                     <dt>Source</dt>
                     <dd><a href="https://github.com/dotnet/cli-lab/releases" target="_blank" rel="noopener">github.com/dotnet/cli-lab/releases ↗</a></dd>
                     <dt>Status</dt>
-                    <dd><label class="setup-ready"><input type="checkbox" checked disabled><span>Ready to list and remove .NET Installations</span></label></dd>
+                    <dd><span class="setup-ready">{Icon("check", "xs")} Ready to list and remove .NET Installations</span></dd>
                   </dl>
                   {actions}
                 </div>
