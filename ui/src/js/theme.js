@@ -16,7 +16,19 @@ function applyPalette(palette) {
   }
 }
 
+/** System Settings is another window, so coming back is the moment a new accent color can appear. */
+function followSystemAccent() {
+  window.addEventListener('focus', async () => {
+    if (document.documentElement.dataset.accent === undefined) return;
+    try {
+      const { accent } = await (await fetch('/api/accent')).json();
+      if (accent) document.documentElement.dataset.accent = accent;
+    } catch { /* The current accent stays. */ }
+  });
+}
+
 export function setupTheme() {
+  followSystemAccent();
   document.addEventListener('submit', event => {
     const form = event.target.closest('[data-palette-switch]');
     const palette = event.submitter?.dataset.palettePref;

@@ -10,6 +10,8 @@ namespace DotnetCockpit;
 [JsonSerializable(typeof(ToolsSnapshot))]
 [JsonSerializable(typeof(ToolSearch))]
 [JsonSerializable(typeof(AppSettings))]
+[JsonSerializable(typeof(SystemAccentStatus))]
 internal partial class AppJsonContext : JsonSerializerContext;
 
 internal sealed record HealthStatus(string Status);
+internal sealed record SystemAccentStatus(string? Accent);

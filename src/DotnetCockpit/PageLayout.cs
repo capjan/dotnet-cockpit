@@ -7,12 +7,17 @@ internal static class PageLayout
     /// <summary>Set at startup from the settings file. Tests and tools that render pages directly get the defaults.</summary>
     public static Func<AppSettings> CurrentSettings { get; set; } = () => new();
 
+    /// <summary>Set at startup. Rendered as an attribute only where the system has an accent color.</summary>
+    public static Func<string?> CurrentAccent { get; set; } = () => null;
+
+    public static string AccentAttribute => CurrentAccent() is { } accent ? $" data-accent=\"{accent}\"" : "";
+
     private static string WorkspaceName =>
         Path.GetFileName(Environment.CurrentDirectory.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : Environment.CurrentDirectory;
 
     public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null, string? refreshHref = null, string? inventorySignature = null) => $$"""
         <!doctype html>
-        <html lang="en" data-theme="{{CurrentSettings().Theme}}" data-palette="{{CurrentSettings().Palette}}">
+        <html lang="en" data-theme="{{CurrentSettings().Theme}}" data-palette="{{CurrentSettings().Palette}}"{{AccentAttribute}}>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">

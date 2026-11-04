@@ -45,6 +45,7 @@ builder.Services.AddSingleton<SettingsStore>();
 var app = builder.Build();
 var settingsStore = app.Services.GetRequiredService<SettingsStore>();
 PageLayout.CurrentSettings = () => settingsStore.Current;
+PageLayout.CurrentAccent = () => SystemAccent.Current;
 app.Use(async (context, next) =>
 {
     if (context.Request.Host.Host != "127.0.0.1")
@@ -58,6 +59,11 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/api/health", () => new HealthStatus("ok"));
+app.MapGet("/api/accent", (HttpContext context) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    return Results.Json(new SystemAccentStatus(SystemAccent.Current), AppJsonContext.Default.SystemAccentStatus);
+});
 app.MapGet("/overview", async (DotnetInstallationService installationService, DotnetToolsService toolsService, DotnetUninstallToolService setupService, SdkDownloadCatalog sdkCatalog, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";

@@ -92,7 +92,7 @@ internal static class SetupPage
                   <div class="settings-row">
                     <div>
                       <strong>Colors</strong>
-                      <p class="muted">Applies to light and dark. Status colors keep their meaning.</p>
+                      <p class="muted">Applies to light and dark. Status colors keep their meaning.{(OperatingSystem.IsMacOS() ? " macOS style follows your system accent color." : "")}</p>
                     </div>
                     {PageLayout.PaletteSwitch()}
                   </div>

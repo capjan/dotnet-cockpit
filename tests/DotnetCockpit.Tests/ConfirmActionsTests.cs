@@ -59,4 +59,17 @@ public sealed class ConfirmActionsTests
             directory.Delete(recursive: true);
         }
     }
+
+    [Theory]
+    [InlineData("-1\n", "graphite")]
+    [InlineData("0", "red")]
+    [InlineData("1", "orange")]
+    [InlineData("2", "yellow")]
+    [InlineData("3", "green")]
+    [InlineData("4", "blue")]
+    [InlineData("5", "purple")]
+    [InlineData("6", "pink")]
+    [InlineData(null, "blue")]
+    public void MapsTheMacOsAccentSetting(string? value, string expected) =>
+        Assert.Equal(expected, SystemAccent.Parse(value));
 }

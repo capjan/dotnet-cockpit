@@ -60,6 +60,63 @@
   --code-text:    light-dark(#1f2328, #e6edf3);
 }
 
+/* macOS style follows the system accent. Fill and text differ so each stays readable; blue is the default above. */
+:root[data-accent="red"][data-palette="macos"],
+:root[data-accent="red"] [data-palette="macos"] {
+  --brand:      light-dark(#c41c13, #ff7a70);
+  --brand-fill: light-dark(#d70015, #d70015);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#fde7e5, #4a2422);
+}
+
+:root[data-accent="orange"][data-palette="macos"],
+:root[data-accent="orange"] [data-palette="macos"] {
+  --brand:      light-dark(#9c4a00, #ffb340);
+  --brand-fill: light-dark(#ff9500, #ff9f0a);
+  --on-brand:   light-dark(#1d1d1f, #1d1d1f);
+  --brand-soft: light-dark(#fdeed8, #43321a);
+}
+
+:root[data-accent="yellow"][data-palette="macos"],
+:root[data-accent="yellow"] [data-palette="macos"] {
+  --brand:      light-dark(#7f6200, #ffd60a);
+  --brand-fill: light-dark(#ffcc00, #ffd60a);
+  --on-brand:   light-dark(#1d1d1f, #1d1d1f);
+  --brand-soft: light-dark(#fbf3cf, #3f3717);
+}
+
+:root[data-accent="green"][data-palette="macos"],
+:root[data-accent="green"] [data-palette="macos"] {
+  --brand:      light-dark(#1b7a35, #4cd964);
+  --brand-fill: light-dark(#1f7a35, #1f7a35);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#e0f4e5, #1d3a25);
+}
+
+:root[data-accent="purple"][data-palette="macos"],
+:root[data-accent="purple"] [data-palette="macos"] {
+  --brand:      light-dark(#8338b0, #d18cf5);
+  --brand-fill: light-dark(#8944ab, #8944ab);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#f3e6fa, #3a2547);
+}
+
+:root[data-accent="pink"][data-palette="macos"],
+:root[data-accent="pink"] [data-palette="macos"] {
+  --brand:      light-dark(#c4104a, #ff7096);
+  --brand-fill: light-dark(#d30f45, #d30f45);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#fde4ec, #4a2030);
+}
+
+:root[data-accent="graphite"][data-palette="macos"],
+:root[data-accent="graphite"] [data-palette="macos"] {
+  --brand:      light-dark(#58585c, #c4c4ca);
+  --brand-fill: light-dark(#636366, #636366);
+  --on-brand:   light-dark(#ffffff, #ffffff);
+  --brand-soft: light-dark(#e8e8ec, #3e3e40);
+}
+
 /* Neutral grays with an inverted primary button, blue only for links and selection accents. */
 [data-palette="codex"] {
   --bg:           light-dark(#f7f7f7, #171717);

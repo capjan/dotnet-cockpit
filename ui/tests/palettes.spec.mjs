@@ -64,6 +64,31 @@ for (const palette of palettes) {
   }
 }
 
+for (const accent of ['blue', 'red', 'orange', 'yellow', 'green', 'purple', 'pink', 'graphite']) {
+  for (const theme of themes) {
+    test(`macOS accent ${accent} ${theme} meets 4.5:1`, async ({ page }) => {
+      for (const path of ['/', '/setup']) {
+        await page.goto(path);
+        await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
+        await page.evaluate(([a, t]) => {
+          document.documentElement.dataset.palette = 'macos';
+          document.documentElement.dataset.accent = a;
+          document.documentElement.dataset.theme = t;
+        }, [accent, theme]);
+        expect(await page.evaluate(lowContrast), path).toEqual([]);
+      }
+    });
+  }
+}
+
+test('the macOS style picks up a changed accent color when the window regains focus', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => { document.documentElement.dataset.accent = 'blue'; });
+  await page.route('**/api/accent', route => route.fulfill({ json: { accent: 'pink' } }));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.locator('html')).toHaveAttribute('data-accent', 'pink');
+});
+
 test('the palette switch applies at once and the choice survives a reload', async ({ page }) => {
   await page.goto('/setup');
   await page.locator('[data-palette-pref="github"]').click();
