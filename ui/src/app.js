@@ -5,30 +5,38 @@ import { webDarkTheme, webLightTheme } from '@fluentui/tokens';
 import './styles.css';
 
 const root = document.documentElement;
-const button = document.getElementById('theme-toggle');
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 let preference = null;
 try { preference = localStorage.getItem('cockpit-theme'); } catch { /* Storage can be unavailable. */ }
+if (preference !== 'light' && preference !== 'dark') preference = null;
+const themeSwitches = [...document.querySelectorAll('[data-theme-switch]')];
 
 function updateTheme() {
   const dark = preference === 'dark' || preference !== 'light' && systemDark.matches;
   root.dataset.theme = dark ? 'dark' : 'light';
   setTheme(dark ? webDarkTheme : webLightTheme);
-  button.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
-  button.title = button.getAttribute('aria-label');
-  button.firstElementChild.innerHTML = dark
-    ? '<svg class="i sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.1-14.1 1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>'
-    : '<svg class="i sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>';
+  const current = preference || 'auto';
+  for (const btn of document.querySelectorAll('[data-theme-pref]')) {
+    const active = btn.dataset.themePref === current;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
 }
 
-button.addEventListener('click', () => {
-  preference = root.dataset.theme === 'dark' ? 'light' : 'dark';
-  try { localStorage.setItem('cockpit-theme', preference); } catch { /* Keep the current page usable. */ }
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-theme-pref]');
+  if (!btn) return;
+  const val = btn.dataset.themePref;
+  preference = val === 'light' || val === 'dark' ? val : null;
+  try {
+    if (preference) localStorage.setItem('cockpit-theme', preference);
+    else localStorage.removeItem('cockpit-theme');
+  } catch { /* Keep the current page usable. */ }
   updateTheme();
 });
 systemDark.addEventListener('change', updateTheme);
 updateTheme();
-button.hidden = false;
+for (const sw of themeSwitches) sw.hidden = false;
 
 const sdkFilter = document.querySelector('[data-sdk-filter]');
 if (sdkFilter) {
@@ -465,8 +473,12 @@ function openVersionDrawer(version) {
       alert.className = 'drawer-alert drawer-alert-warn';
       alert.innerHTML = `<strong>⏱ Newer release ${data.patchVersion} is already installed</strong><p class="muted">You already have ${data.patchVersion} installed side-by-side in the .NET ${data.channel} channel. You can remove ${data.displayVersion || data.version} if no global.json pins it.</p>`;
     } else if (data.hasPatch) {
+      const hasSdkInCh = Object.values(versionsData).some(v => v.channel === data.channel && v.kind === 'sdk');
+      const patchNote = data.kind === 'runtime' && hasSdkInCh
+        ? `A newer update in the .NET ${data.channel} channel includes security and reliability fixes. Tip: Installing the latest .NET ${data.channel} SDK package automatically includes and updates the matching .NET Runtime — you do not need to download both.`
+        : `A newer update in the .NET ${data.channel} channel includes security and reliability fixes.`;
       alert.className = 'drawer-alert drawer-alert-warn';
-      alert.innerHTML = `<strong>⏱ Newer release ${data.patchVersion} available</strong><p class="muted">A newer update in the .NET ${data.channel} channel includes security and reliability fixes.</p>`;
+      alert.innerHTML = `<strong>⏱ Newer release ${data.patchVersion} available</strong><p class="muted">${patchNote}</p>`;
     } else if (data.channel === '9' || data.channel === '8') {
       alert.className = 'drawer-alert drawer-alert-warn';
       alert.innerHTML = `<strong>⏱ .NET ${data.channel} support ends Nov 10, 2026</strong><p class="muted">After Nov 10, 2026 there are no more security fixes. .NET 10 (LTS) is already installed.</p>`;
@@ -819,6 +831,8 @@ if (removeDialog) {
         cb.checked = !isLatest;
       } else if (mode === 'all-previews') {
         cb.checked = Boolean(item.isPreview);
+      } else if (mode === 'eol') {
+        cb.checked = Boolean(item.isEol);
       } else {
         cb.checked = true;
       }
@@ -877,7 +891,9 @@ if (removeDialog) {
           ? `${selectedItems.length} superseded ${selectedItems.length === 1 ? 'version' : 'versions'} selected (--all-but-latest keeps the newest in each channel).`
           : activeRemoveMode === 'all-previews'
             ? `${selectedItems.length} preview/RC ${selectedItems.length === 1 ? 'installation' : 'installations'} selected (--all-previews).`
-            : `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'} selected for removal.`;
+            : activeRemoveMode === 'eol'
+              ? `${selectedItems.length} end-of-life ${selectedItems.length === 1 ? 'installation' : 'installations'} selected for removal.`
+              : `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'} selected for removal.`;
       } else {
         const ch = activeChannelItems[0].channel;
         const isEolCh = activeChannelItems.some(i => i.isEol);
@@ -942,22 +958,36 @@ if (removeDialog) {
 
     if (titleEl) {
       titleEl.textContent = isAllChannels
-        ? (initialMode === 'all-but-latest'
-            ? 'Clean up superseded .NET versions?'
-            : initialMode === 'all-previews'
-              ? 'Remove all .NET preview & RC versions?'
-              : 'Remove selected .NET versions?')
+        ? 'Clean up .NET installations'
         : `Remove .NET ${channel} from this Mac?`;
     }
 
     if (modesContainer) {
       const hasSupersededInScope = chItems.some(item => !latestSet.has(`${item.version}|${item.kind}`));
       const hasPreviewsInScope = chItems.some(item => item.isPreview);
-      modesContainer.hidden = !(hasSupersededInScope || hasPreviewsInScope);
+      const hasEolInScope = chItems.some(item => item.isEol);
       const keepLatestBtn = modesContainer.querySelector('[data-remove-mode="all-but-latest"]');
       const previewsBtn = modesContainer.querySelector('[data-remove-mode="all-previews"]');
-      if (keepLatestBtn) keepLatestBtn.hidden = !hasSupersededInScope;
-      if (previewsBtn) previewsBtn.hidden = !hasPreviewsInScope;
+      const eolBtn = modesContainer.querySelector('[data-remove-mode="eol"]');
+      const selectedBtn = modesContainer.querySelector('[data-remove-mode="selected"]');
+
+      if (isAllChannels) {
+        modesContainer.hidden = !(hasSupersededInScope || hasPreviewsInScope || hasEolInScope);
+        if (keepLatestBtn) keepLatestBtn.hidden = !hasSupersededInScope;
+        if (previewsBtn) previewsBtn.hidden = !hasPreviewsInScope;
+        if (eolBtn) eolBtn.hidden = !hasEolInScope;
+        if (selectedBtn) selectedBtn.hidden = true;
+      } else {
+        modesContainer.hidden = !(hasSupersededInScope || hasPreviewsInScope);
+        if (keepLatestBtn) keepLatestBtn.hidden = !hasSupersededInScope;
+        if (previewsBtn) previewsBtn.hidden = !hasPreviewsInScope;
+        if (eolBtn) eolBtn.hidden = true;
+        if (selectedBtn) {
+          selectedBtn.hidden = false;
+          const strong = selectedBtn.querySelector('strong');
+          if (strong) strong.textContent = `All in .NET ${channel}`;
+        }
+      }
     }
 
     populateRemoveDialogItems(chItems, latestSet);
@@ -1066,135 +1096,6 @@ if (removeDialog) {
     initialUrl.searchParams.delete('removeChannel');
     history.replaceState(null, '', initialUrl);
     openChannelRemoveDialog(removeChannelParam);
-  }
-}
-
-// Channel & Page-level "Update All" Dialog (<dialog id="update-dialog" closedby="any">)
-const updateDialog = document.getElementById('update-dialog');
-if (updateDialog) {
-  let activeUpdatePackages = [];
-  const cancelBtn = document.getElementById('update-dialog-cancel');
-  const confirmBtn = document.getElementById('update-dialog-confirm');
-
-  function formatVerifyInstallPkgCmd(pkg) {
-    const fileName = `dotnet-${pkg.kind === 'sdk' ? 'sdk' : 'runtime'}-${pkg.pkgVersion}-osx-arm64.pkg`;
-    if (pkg.pkgSha) {
-      return `echo "${pkg.pkgSha}  ${fileName}" \\\n  | shasum -a 512 -c - \\\n  && sudo installer -pkg ${fileName} \\\n    -target /`;
-    }
-    return `sudo installer -pkg ${fileName} \\\n  -target /`;
-  }
-
-  function syncUpdateDialogState() {
-    const itemsEl = document.getElementById('update-dialog-items');
-    const cmdEl = document.getElementById('update-dialog-cmd');
-    const copyEl = document.getElementById('update-dialog-copy');
-    const confirmTextEl = document.getElementById('update-dialog-confirm-text');
-    const checkedBoxes = itemsEl ? [...itemsEl.querySelectorAll('input[type="checkbox"][data-update-idx]:checked')] : [];
-    const selectedPkgs = checkedBoxes.map(cb => activeUpdatePackages[Number(cb.dataset.updateIdx)]).filter(Boolean);
-
-    const combinedCmd = selectedPkgs.length
-      ? selectedPkgs.map(formatVerifyInstallPkgCmd).join('\n\n')
-      : '# Select at least one update package';
-    if (cmdEl) cmdEl.textContent = combinedCmd;
-    if (copyEl) copyEl.dataset.copy = combinedCmd;
-    if (confirmTextEl) {
-      confirmTextEl.textContent = selectedPkgs.length <= 1
-        ? 'Download & update'
-        : `Download ${selectedPkgs.length} installers`;
-    }
-    if (confirmBtn) confirmBtn.disabled = selectedPkgs.length === 0;
-  }
-
-  function openUpdateChannelDialog(channel) {
-    const isAll = channel === 'all';
-    const rowsWithPatches = Object.values(versionsData).filter(v => v.hasPatch && (isAll || v.channel === channel));
-    if (!rowsWithPatches.length) return;
-
-    const pkgMap = new Map();
-    for (const row of rowsWithPatches) {
-      const targetVer = row.patchVersion || row.pkgVersion || row.displayVersion;
-      const key = `${row.kind}:${targetVer}`;
-      if (!pkgMap.has(key)) {
-        pkgMap.set(key, {
-          kind: row.kind,
-          name: row.name,
-          channel: row.channel,
-          pkgVersion: targetVer,
-          pkgUrl: row.pkgUrl || '',
-          pkgSha: row.pkgSha || '',
-          pkgSize: row.pkgSize || (row.kind === 'sdk' ? '214 MB' : '45 MB'),
-          fromVersions: []
-        });
-      }
-      pkgMap.get(key).fromVersions.push(row.displayVersion || row.version);
-    }
-
-    activeUpdatePackages = [...pkgMap.values()];
-    const titleEl = document.getElementById('update-dialog-title');
-    const subEl = document.getElementById('update-dialog-subtitle');
-    const itemsEl = document.getElementById('update-dialog-items');
-
-    if (titleEl) {
-      titleEl.textContent = isAll
-        ? 'Update all .NET channels'
-        : `Update .NET ${channel} channel`;
-    }
-    if (subEl) {
-      subEl.textContent = `${rowsWithPatches.length} installed ${rowsWithPatches.length === 1 ? 'version has a' : 'versions have'} newer security/reliability patch.`;
-    }
-    if (itemsEl) {
-      itemsEl.innerHTML = activeUpdatePackages.map((pkg, idx) => {
-        const fromList = pkg.fromVersions.join(', ');
-        return `
-        <label class="remove-item-row">
-          <input type="checkbox" checked data-update-idx="${idx}" aria-label="Select ${pkg.name} ${pkg.pkgVersion} update">
-          <div class="remove-item-copy">
-            <strong>${pkg.name} <code>${fromList}</code> → <code>${pkg.pkgVersion}</code></strong>
-            <code>dotnet-${pkg.kind === 'sdk' ? 'sdk' : 'runtime'}-${pkg.pkgVersion}-osx-arm64.pkg · ${pkg.pkgSize}</code>
-          </div>
-          <span class="badge warn sm">.NET ${pkg.channel}</span>
-        </label>`;
-      }).join('');
-      itemsEl.querySelectorAll('input[type="checkbox"][data-update-idx]').forEach(cb => {
-        cb.addEventListener('change', syncUpdateDialogState);
-      });
-    }
-    syncUpdateDialogState();
-    updateDialog.showModal();
-  }
-
-  document.addEventListener('click', (e) => {
-    const updateBtn = e.target.closest('[data-update-channel]');
-    if (!updateBtn) return;
-    e.preventDefault();
-    openUpdateChannelDialog(updateBtn.dataset.updateChannel || 'all');
-  });
-
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      activeUpdatePackages = [];
-      updateDialog.close();
-    });
-  }
-
-  if (confirmBtn) {
-    confirmBtn.addEventListener('click', () => {
-      const itemsEl = document.getElementById('update-dialog-items');
-      const checkedBoxes = itemsEl ? [...itemsEl.querySelectorAll('input[type="checkbox"][data-update-idx]:checked')] : [];
-      const selectedPkgs = checkedBoxes.map(cb => activeUpdatePackages[Number(cb.dataset.updateIdx)]).filter(Boolean);
-      updateDialog.close();
-      for (const pkg of selectedPkgs) {
-        if (pkg.pkgUrl) {
-          const a = document.createElement('a');
-          a.href = pkg.pkgUrl;
-          a.download = '';
-          a.rel = 'noopener';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        }
-      }
-    });
   }
 }
 
@@ -1516,31 +1417,7 @@ if (installDotnetDialog) {
   }
 }
 
-// Settings Page Controls (Appearance segmented control & Pre-flight launch toggle)
-const themeSegBtns = [...document.querySelectorAll('[data-theme-pref]')];
-if (themeSegBtns.length) {
-  function syncThemeSegButtons() {
-    const current = preference || 'system';
-    for (const btn of themeSegBtns) {
-      btn.classList.toggle('active', btn.dataset.themePref === current);
-    }
-  }
-  syncThemeSegButtons();
-  for (const btn of themeSegBtns) {
-    btn.addEventListener('click', () => {
-      const val = btn.dataset.themePref;
-      if (val === 'system') {
-        preference = null;
-        try { localStorage.removeItem('cockpit-theme'); } catch {}
-      } else {
-        preference = val;
-        try { localStorage.setItem('cockpit-theme', val); } catch {}
-      }
-      updateTheme();
-      syncThemeSegButtons();
-    });
-  }
-}
+// Settings Page Controls (Pre-flight launch toggle); theme switch is handled globally above.
 
 const settingsPreflightToggle = document.getElementById('settings-preflight-toggle');
 if (settingsPreflightToggle) {

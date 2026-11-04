@@ -122,9 +122,7 @@ internal static class PreflightPage
               <script type="module" src="/assets/app.js"></script>
             </head>
             <body class="app-body preflight-body">
-              <button id="theme-toggle" class="button icon ghost pf-theme-btn" type="button" aria-label="Switch theme" title="Switch theme" hidden>
-                <span aria-hidden="true">◐</span>
-              </button>
+              {{PageLayout.ThemeSwitch(extraClass: "pf-theme-btn")}}
 
               <div class="preflight">
                 <div class="pf">

@@ -43,7 +43,7 @@ test('switches Fluent themes with the keyboard and retains the choice across nav
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  const theme = page.getByRole('button', { name: 'Switch to dark mode' });
+  const theme = page.locator('header [data-theme-pref="dark"]');
   await theme.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -211,16 +211,32 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
   await page.locator('#remove-dialog-cancel').click();
   await expect(removeDialog).toBeHidden();
 
-  // If Update All is present on any channel, verify it opens the Update All dialog
-  const updateBtns = page.locator('[data-update-channel]');
-  if (await updateBtns.count() > 0) {
-    await updateBtns.first().click();
-    const updateDialog = page.locator('#update-dialog');
-    await expect(updateDialog).toBeVisible();
-    await expect(page.locator('#update-dialog-cmd')).toContainText('sudo installer -pkg');
-    await page.locator('#update-dialog-cancel').click();
-    await expect(updateDialog).toBeHidden();
+  // Smart cleanup: a single "Clean up…" action opens the removal dialog with strategy cards
+  const cleanupBtn = page.locator('#open-cleanup-btn');
+  if (await cleanupBtn.count() > 0) {
+    await cleanupBtn.click();
+    await expect(removeDialog).toBeVisible();
+    await expect(page.locator('#remove-dialog-title')).toHaveText('Clean up .NET installations');
+    await expect(page.locator('#remove-dialog-modes')).toBeVisible();
+    await expect(page.locator('.cleanup-strategy-card:not([hidden])').first()).toBeVisible();
+    await page.locator('#remove-dialog-cancel').click();
+    await expect(removeDialog).toBeHidden();
   }
+  await expect(page.locator('[data-update-channel]')).toHaveCount(0);
+});
+
+test('switches between auto, light and dark appearance', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/');
+  const sw = page.locator('header [data-theme-switch]');
+  await expect(sw).toBeVisible();
+  await sw.locator('[data-theme-pref="light"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await sw.locator('[data-theme-pref="dark"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await sw.locator('[data-theme-pref="auto"]').click();
+  await expect(sw.locator('[data-theme-pref="auto"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
 test('renders the overview page with system summary and health cards', async ({ page }) => {

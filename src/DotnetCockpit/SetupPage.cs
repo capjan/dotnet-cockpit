@@ -87,11 +87,7 @@ internal static class SetupPage
                       <strong>Appearance</strong>
                       <p class="muted">Follows your operating system by default.</p>
                     </div>
-                    <div class="theme-segmented" role="group" aria-label="Theme preference">
-                      <button type="button" class="seg-btn active" data-theme-pref="system">System</button>
-                      <button type="button" class="seg-btn" data-theme-pref="light">Light</button>
-                      <button type="button" class="seg-btn" data-theme-pref="dark">Dark</button>
-                    </div>
+                    {PageLayout.ThemeSwitch(showLabels: true)}
                   </div>
                   <div class="settings-row">
                     <div>

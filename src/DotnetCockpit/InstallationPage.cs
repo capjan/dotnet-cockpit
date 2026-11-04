@@ -94,20 +94,18 @@ internal static class InstallationPage
             {TypeLink("Previews", "previews", options)}
             """;
 
-        var totalPatches = allRows.Count(r => r.HasPatch);
         var hasSuperseded = allRows
             .Where(r => r.CanRemove)
             .GroupBy(r => (r.Channel, r.Kind))
             .Any(g => g.Count() > 1);
         var hasRemovablePreviews = allRows.Any(r => r.CanRemove && r.IsPreview);
-        var cleanupNavHtml = (hasSuperseded || hasRemovablePreviews)
-            ? $"""
-              <div class="version-cleanup-pills" role="group" aria-label="Smart cleanup">
-                {(hasSuperseded ? $"<button type=\"button\" class=\"filter-pill cleanup-pill\" data-cleanup-action=\"all-but-latest\" title=\"Remove superseded versions in each channel (--all-but-latest)\">{Icon("sparkle", "xs")} Keep only latest</button>" : "")}
-                {(hasRemovablePreviews ? $"<button type=\"button\" class=\"filter-pill cleanup-pill\" data-cleanup-action=\"all-previews\" title=\"Remove all preview and RC installations (--all-previews)\">{Icon("trash", "xs")} Remove previews</button>" : "")}
-              </div>
-              """
-            : "";
+        var hasRemovableEol = allRows.Any(r => r.CanRemove && r.IsEol);
+        var canSmartCleanup = hasSuperseded || hasRemovablePreviews || hasRemovableEol;
+        var defaultCleanupMode = hasSuperseded
+            ? "all-but-latest"
+            : hasRemovablePreviews
+                ? "all-previews"
+                : "eol";
 
         return PageLayout.Render($$"""
                   <div class="page-heading">
@@ -117,7 +115,7 @@ internal static class InstallationPage
                     </div>
                     <div class="overview-header-actions">
                       <a class="button sm ghost refresh-btn" href="{{RefreshLink(options, snapshot.CheckedAt)}}">{{Icon("refresh", "xs")}} Refresh</a>
-                      {{(totalPatches > 0 ? $"<button type=\"button\" class=\"button\" id=\"update-all-versions-btn\" data-update-channel=\"all\">{Icon("download", "xs")} Update All <span class=\"summary-count\">{totalPatches}</span></button>" : "")}}
+                      {{(canSmartCleanup ? $"<button type=\"button\" class=\"button\" id=\"open-cleanup-btn\" data-cleanup-action=\"{defaultCleanupMode}\">{Icon("sparkle", "xs")} Clean up…</button>" : "")}}
                       <button type="button" class="button primary" id="open-install-dotnet-btn">{{Icon("download", "xs")}} Install .NET</button>
                     </div>
                   </div>
@@ -133,12 +131,9 @@ internal static class InstallationPage
                       <p class="muted">{{inventoryDescription}}</p>
                     </div>
                     <div class="inventory-scope-bar">
-                      <div class="inventory-scope-left">
-                        <nav class="tool-tabs version-scope-pills" aria-label="Installation type">
-                          {{filterNavHtml}}
-                        </nav>
-                        {{cleanupNavHtml}}
-                      </div>
+                      <nav class="tool-tabs version-scope-pills" aria-label="Installation type">
+                        {{filterNavHtml}}
+                      </nav>
                       <form method="get" action="/" class="filter-form version-search-compact" role="search" data-versions-filter>
                         <label class="filter-input-compact">
                           {{Icon("search", "xs")}}
@@ -234,7 +229,6 @@ internal static class InstallationPage
                         </div>
                         <div class="channel-life-bar {lifeState}"><i style="width:{lifeWidth}"></i></div>
                       </div>
-                      {(patchCount > 0 ? $"<button type=\"button\" class=\"button sm primary\" data-update-channel=\"{channel}\">{Icon("download", "xs")} Update All</button>" : "")}
                       {(group.Any(r => r.CanRemove) ? $"<button type=\"button\" class=\"button sm danger\" data-remove-channel=\"{channel}\">{Icon("trash", "xs")} Remove channel</button>" : "")}
                       <button type="button" class="button icon sm ghost channel-collapse-btn" data-collapse-channel="{channel}" aria-label="Toggle .NET {channel} channel">{Icon("chevd", "sm")}</button>
                     </div>
@@ -276,7 +270,7 @@ internal static class InstallationPage
 
         var emptyRow = $"""<tr class="empty-row" {(rows.Length == 0 ? "" : "hidden")}><td colspan="{columnCount}"><div class="empty-state"><h3>No matching versions</h3><p class="muted">Try another filter or switch to All versions.</p><a class="button" href="/">Clear filters</a></div></td></tr>""";
 
-        var drawerHtml = RenderDrawer(selectedRow ?? allRows.FirstOrDefault(), selectedRow != null, options);
+        var drawerHtml = RenderDrawer(selectedRow ?? allRows.FirstOrDefault(), selectedRow != null, options, allRows);
         var jsonDictionary = SerializeRowsJson(allRows);
         var multiRemoveForm = showActions
             ? $"""
@@ -308,16 +302,41 @@ internal static class InstallationPage
             <dialog id="remove-dialog" class="remove-modal" closedby="any" aria-labelledby="remove-dialog-title">
               <div class="remove-modal-inner">
                 <div class="remove-modal-head">
-                  <div class="remove-modal-icon">{{Icon("trash", "sm")}}</div>
+                  <div class="remove-modal-icon" id="remove-dialog-icon">{{Icon("trash", "sm")}}</div>
                   <div>
                     <h2 id="remove-dialog-title">Remove .NET version from this machine?</h2>
                     <p id="remove-dialog-subtitle" class="muted">1 item selected for removal.</p>
                   </div>
                 </div>
-                <div id="remove-dialog-modes" class="remove-modal-modes" role="group" aria-label="Uninstall strategy" hidden>
-                  <button type="button" class="pill-badge active" data-remove-mode="selected">All selected</button>
-                  <button type="button" class="pill-badge" data-remove-mode="all-but-latest">Keep latest <code>--all-but-latest</code></button>
-                  <button type="button" class="pill-badge" data-remove-mode="all-previews">Previews only <code>--all-previews</code></button>
+                <div id="remove-dialog-modes" class="cleanup-strategy-grid" role="group" aria-label="Cleanup strategy" hidden>
+                  <button type="button" class="cleanup-strategy-card active" data-remove-mode="all-but-latest">
+                    <div class="cleanup-strategy-top">
+                      <strong>Keep only latest</strong>
+                      <code>--all-but-latest</code>
+                    </div>
+                    <span class="muted text-xs">Keeps the newest SDK and runtime in each channel and removes older side-by-side versions.</span>
+                  </button>
+                  <button type="button" class="cleanup-strategy-card" data-remove-mode="all-previews">
+                    <div class="cleanup-strategy-top">
+                      <strong>Remove previews</strong>
+                      <code>--all-previews</code>
+                    </div>
+                    <span class="muted text-xs">Removes all preview and RC installations while keeping stable releases untouched.</span>
+                  </button>
+                  <button type="button" class="cleanup-strategy-card" data-remove-mode="eol">
+                    <div class="cleanup-strategy-top">
+                      <strong>End-of-life channels</strong>
+                      <span class="badge bad sm">EOL</span>
+                    </div>
+                    <span class="muted text-xs">Removes versions from unsupported channels that no longer receive security fixes.</span>
+                  </button>
+                  <button type="button" class="cleanup-strategy-card" data-remove-mode="selected" hidden>
+                    <div class="cleanup-strategy-top">
+                      <strong>All in channel</strong>
+                      <span class="badge sm">Channel</span>
+                    </div>
+                    <span class="muted text-xs">Selects every SDK and runtime installed in this release channel.</span>
+                  </button>
                 </div>
                 <div id="remove-dialog-items" class="remove-modal-items"></div>
                 <div class="remove-modal-notice">
@@ -339,41 +358,13 @@ internal static class InstallationPage
                 </div>
               </div>
             </dialog>
-            <dialog id="update-dialog" class="remove-modal update-modal" closedby="any" aria-labelledby="update-dialog-title">
-              <div class="remove-modal-inner">
-                <div class="remove-modal-head">
-                  <div class="remove-modal-icon update-modal-icon">{{Icon("download", "sm")}}</div>
-                  <div>
-                    <h2 id="update-dialog-title">Update .NET channel</h2>
-                    <p id="update-dialog-subtitle" class="muted">1 patch update available.</p>
-                  </div>
-                </div>
-                <div id="update-dialog-items" class="remove-modal-items"></div>
-                <div class="remove-modal-notice update-modal-notice">
-                  <span class="notice-lock">{{Icon("shield", "sm")}}</span>
-                  <div>
-                    <strong>Official Microsoft installer packages (.pkg)</strong>
-                    <p id="update-dialog-warn" class="muted">Downloads the latest signed patch installers from builds.dotnet.microsoft.com or run the SHA-512 verified command below.</p>
-                  </div>
-                </div>
-                <div class="drawer-command-box">
-                  <span class="cmd-prompt">$</span>
-                  <code id="update-dialog-cmd">sudo installer -pkg dotnet-sdk.pkg -target /</code>
-                  <button class="button icon ghost copy-btn" id="update-dialog-copy" type="button" title="Copy command">{{Icon("clipboard")}}</button>
-                </div>
-                <div class="remove-modal-foot">
-                  <button type="button" class="button" id="update-dialog-cancel" autofocus>Cancel</button>
-                  <button type="button" class="button primary" id="update-dialog-confirm">{{Icon("download", "xs")}} <span id="update-dialog-confirm-text">Download &amp; update</span></button>
-                </div>
-              </div>
-            </dialog>
             <script id="versions-data" type="application/json">
             {{jsonDictionary}}
             </script>
             """;
     }
 
-    private static string RenderDrawer(Row? row, bool isOpen, InstallationViewOptions options)
+    private static string RenderDrawer(Row? row, bool isOpen, InstallationViewOptions options, Row[] allRows)
     {
         var hiddenAttr = isOpen ? "" : "hidden";
         if (row == null)
@@ -401,6 +392,11 @@ internal static class InstallationPage
                 ? "<span class=\"badge bad\">End of life</span>"
                 : "<span class=\"badge ok\">Up to date</span>";
 
+        var hasSdkInChannel = allRows.Any(r => r.Channel == row.Channel && r.Kind == "sdk");
+        var patchAlertText = row.Kind == "runtime" && hasSdkInChannel
+            ? $"A newer update in the .NET {row.Channel} channel includes security and reliability fixes. Tip: Installing the latest .NET {row.Channel} SDK package automatically includes and updates the matching .NET Runtime — you do not need to download both."
+            : $"A newer update in the .NET {row.Channel} channel includes security and reliability fixes.";
+
         var alertHtml = row.IsEol
             ? $"""
               <div class="drawer-alert drawer-alert-bad">
@@ -419,7 +415,7 @@ internal static class InstallationPage
                     ? $"""
                       <div class="drawer-alert drawer-alert-warn">
                         <strong>⏱ Newer release {Encode(row.LatestPatchVersion!)} available</strong>
-                        <p class="muted">A newer update in the .NET {row.Channel} channel includes security and reliability fixes.</p>
+                        <p class="muted">{Encode(patchAlertText)}</p>
                       </div>
                       """
                     : row.Channel is "9" or "8"

@@ -64,9 +64,7 @@ internal static class PageLayout
                   {{Icon("clock", "xs")}}
                   <span>Checked {{DateTime.Now.ToString("HH:mm:ss")}}</span>
                 </div>
-                <fluent-button id="theme-toggle" role="button" type="button" appearance="subtle" aria-label="Switch to dark mode" title="Switch to dark mode" hidden>
-                  <span aria-hidden="true">{{Icon("moon", "sm")}}</span>
-                </fluent-button>
+                {{ThemeSwitch()}}
               </header>
 
               <main id="main" class="content" tabindex="-1">
@@ -158,6 +156,16 @@ internal static class PageLayout
 
     public static string Encode(string value) => HtmlEncoder.Default.Encode(value);
 
+    /// <summary>Three-state appearance switch (Auto / Light / Dark). Works as a progressive enhancement; hidden until script runs.</summary>
+    public static string ThemeSwitch(bool showLabels = false, string extraClass = "") =>
+        $"""
+        <div class="theme-switch {extraClass}" role="group" aria-label="Appearance" data-theme-switch hidden>
+          <button type="button" class="theme-switch-btn" data-theme-pref="auto" aria-pressed="true" title="Automatic (follow system)">{Icon("theme-auto", "sm")}<span class="{(showLabels ? "" : "sr-only")}">Auto</span></button>
+          <button type="button" class="theme-switch-btn" data-theme-pref="light" aria-pressed="false" title="Light">{Icon("theme-light", "sm")}<span class="{(showLabels ? "" : "sr-only")}">Light</span></button>
+          <button type="button" class="theme-switch-btn" data-theme-pref="dark" aria-pressed="false" title="Dark">{Icon("theme-dark", "sm")}<span class="{(showLabels ? "" : "sr-only")}">Dark</span></button>
+        </div>
+        """;
+
     public static string Icon(string name, string cls = "")
     {
         var extraCls = string.IsNullOrEmpty(cls) ? "" : $" {cls}";
@@ -195,6 +203,9 @@ internal static class PageLayout
             "cloud" => "<path d=\"M17.5 19H9a7 7 0 1 1 6.7-9h.8a5.5 5.5 0 0 1 1 11Z\"/>",
             "plus" => "<path d=\"M12 5v14M5 12h14\"/>",
             "x" => "<path d=\"M6 6l12 12M18 6 6 18\"/>",
+            "theme-auto" => "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 3a9 9 0 0 1 0 18Z\" fill=\"currentColor\"/>",
+            "theme-light" => "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8\"/>",
+            "theme-dark" => "<path d=\"M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z\" fill=\"currentColor\"/>",
             _ => "<circle cx=\"12\" cy=\"12\" r=\"9\"/>"
         };
         return $"<svg class=\"i{extraCls}\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">{path}</svg>";
