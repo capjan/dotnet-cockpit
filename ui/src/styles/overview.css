@@ -101,11 +101,15 @@
   line-height: 18px;
   color: var(--bar-text);
 }
-.tl-bar.lts { background: var(--lts); }
-.tl-bar.sts { background: var(--sts); }
+.tl-bar.lts { --bar: var(--lts); background: var(--bar); }
+.tl-bar.sts { --bar: var(--sts); background: var(--bar); }
 .tl-bar.preview { background: var(--brand-soft); border: 1px dashed var(--brand); line-height: 16px; }
 .tl-bar.eol { background: var(--surface-3); }
-.timeline-row.not-installed .tl-bar { opacity: .4; }
+/* Not installed: a tinted fill with a solid outline, so the bar stays visible on any palette's track. */
+.timeline-row.not-installed .tl-bar.lts, .timeline-row.not-installed .tl-bar.sts {
+  background: color-mix(in srgb, var(--bar) 35%, transparent);
+  box-shadow: inset 0 0 0 1px var(--bar);
+}
 .timeline-row.not-installed .tl-channel b { font-weight: 400; color: var(--muted); }
 .tl-bar.installed { outline: 2px solid var(--text-2); outline-offset: -1px; }
 .tl-status { font-size: var(--t-xs); text-align: right; color: var(--muted); }

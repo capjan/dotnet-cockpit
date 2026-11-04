@@ -27,6 +27,7 @@ public sealed class PageFixtureTests
         new("11.0", "STS", "GO-LIVE", null, new(2026, 2, 10), null),
         new("10.0", "LTS", "ACTIVE", new(2028, 11, 14), new(2025, 2, 11), new(2025, 11, 11)),
         new("9.0", "STS", "MAINTENANCE", new(2026, 11, 10), new(2024, 2, 13), new(2024, 12, 3)),
+        new("8.0", "LTS", "MAINTENANCE", new(2026, 11, 10), new(2023, 2, 21), new(2023, 11, 14)),
         new("7.0", "STS", "EOL", new(2024, 5, 14), new(2022, 2, 17), new(2022, 11, 8)),
     ]);
 
