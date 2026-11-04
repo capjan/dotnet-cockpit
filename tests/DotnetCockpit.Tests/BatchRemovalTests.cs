@@ -18,6 +18,12 @@ public sealed class BatchRemovalTests
     }
 
     [Fact]
+    public void QuotesOnlyTheInstallerPathForMsiexec()
+    {
+        Assert.Equal("/i \"C:\\Temp dir\\tool.msi\" /qn", DotnetUninstallToolService.MsiInstallArguments("C:\\Temp dir\\tool.msi"));
+    }
+
+    [Fact]
     public async Task AttemptsEveryItemAndReportsAFailureAtTheEnd()
     {
         if (OperatingSystem.IsWindows()) return;
