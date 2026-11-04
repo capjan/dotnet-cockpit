@@ -93,11 +93,12 @@ test('opens the NuGet Add Tool sheet and updates CLI preview', async ({ page }) 
   await expect(dialog).toBeHidden();
 });
 
-test('displays tool logos and descriptions and opens the tool detail drawer', async ({ page }) => {
+test('displays tool logos, descriptions, and download counts and opens the tool detail drawer', async ({ page }) => {
   await page.goto('http://127.0.0.1:5234/tools?scope=local');
   const row = page.locator('tr[data-tool-scope="local"]').first();
   await expect(row.locator('.tool-logo')).toBeVisible();
   await expect(row.locator('.tool-desc')).toContainText('Workspace verification fixture tool');
+  await expect(row.locator('.tool-downloads-chip')).toContainText('↓');
 
   const drawer = page.locator('#tool-drawer');
   await expect(drawer).toBeHidden();
@@ -105,6 +106,8 @@ test('displays tool logos and descriptions and opens the tool detail drawer', as
   await row.click();
   await expect(drawer).toBeVisible();
   await expect(page.locator('#tool-drawer-title')).toHaveText('cockpit.fixture.tool');
+  await expect(page.locator('#tool-drawer-downloads')).toBeVisible();
+  await expect(page.locator('#tool-drawer-verified')).toBeVisible();
   await expect(page.locator('#tool-drawer-update-cmd')).toContainText('dotnet tool update --local cockpit.fixture.tool');
   await expect(page.locator('#tool-drawer-uninstall-cmd')).toContainText('dotnet tool uninstall --local cockpit.fixture.tool');
 

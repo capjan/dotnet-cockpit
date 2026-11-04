@@ -139,8 +139,9 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
   await expect(page.locator('#version-drawer')).toBeHidden();
 });
 
-test('opens the Install .NET side-drawer and filters SDK and runtime releases', async ({ page }) => {
+test('opens the Install .NET side-drawer with Latest filter active and filters SDK and runtime releases', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('.rail a[href="/preflight"]')).toHaveCount(0);
   const openBtn = page.locator('#open-install-dotnet-btn');
   await expect(openBtn).toBeVisible();
   await openBtn.click();
@@ -148,7 +149,15 @@ test('opens the Install .NET side-drawer and filters SDK and runtime releases', 
   const dialog = page.locator('#install-dotnet-dialog');
   await expect(dialog).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Install .NET SDK or runtime' })).toBeVisible();
+  await expect(page.locator('[data-install-lifecycle="latest"]')).toHaveClass(/active/);
   await expect(page.locator('#install-dotnet-cli-preview')).toContainText('sudo installer -pkg');
+
+  const latestCount = await page.locator('[data-install-row]:not([hidden])').count();
+  expect(latestCount).toBeGreaterThan(0);
+
+  await page.locator('[data-install-lifecycle="supported"]').click();
+  const supportedCount = await page.locator('[data-install-row]:not([hidden])').count();
+  expect(supportedCount).toBeGreaterThanOrEqual(latestCount);
 
   await page.locator('[data-install-product=".NET Runtime"]').click();
   await expect(page.locator('[data-install-row]:not([hidden])').first()).toContainText('.NET Runtime');

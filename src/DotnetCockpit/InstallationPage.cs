@@ -519,6 +519,11 @@ internal static class InstallationPage
             .GroupBy(d => (d.Product, d.Channel))
             .Select(g => g.OrderByDescending(d => d.Version, SdkVersionComparer.Instance).First())
             .ToHashSet();
+        var latestStableLeaders = downloads
+            .Where(d => !d.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) && !d.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(d => (d.Product, d.Channel))
+            .Select(g => g.OrderByDescending(d => d.Version, SdkVersionComparer.Instance).First())
+            .ToHashSet();
 
         var curated = downloads
             .GroupBy(d => (d.Product, d.Channel))
@@ -568,11 +573,11 @@ internal static class InstallationPage
                     ? installedSdks.Contains(d.Version) || installedSdks.Contains(d.InstallationVersion)
                     : installedRuntimes.Contains(d.Version) || installedRuntimes.Contains(d.InstallationVersion);
                 var isActive = ReferenceEquals(d, firstDefault);
-                var initiallyHidden = d.Product != "SDK" || isEol || isPreview;
+                var isLeader = channelLeaders.Contains(d) || latestStableLeaders.Contains(d);
+                var initiallyHidden = d.Product != "SDK" || isEol || isPreview || !isLeader;
 
                 var tagClass = isPreview ? "preview" : (isLts ? "lts" : "sts");
                 var tagLabel = isPreview ? "Preview" : (isLts ? "LTS" : "STS");
-                var isLeader = channelLeaders.Contains(d);
                 var statusBadge = isInstalled
                     ? "<span class=\"badge ok sm\">✓ Installed</span>"
                     : isEol
@@ -610,6 +615,7 @@ internal static class InstallationPage
                          data-lts="{(isLts ? "true" : "false")}"
                          data-preview="{(isPreview ? "true" : "false")}"
                          data-supported="{(!isEol ? "true" : "false")}"
+                         data-latest="{(isLeader ? "true" : "false")}"
                          data-cmd="{Encode(verifyCmd)}"
                          data-search="{Encode($"{d.Product} {d.Version} .NET {major} {d.Channel} {tagLabel} {inclRt} {relDate} {string.Join(' ', d.Cves.Select(c => c.Id))}")}"
                          {(initiallyHidden ? "hidden" : "")}>
@@ -673,7 +679,8 @@ internal static class InstallationPage
                     <div class="sheet-filter-group">
                       <span class="muted text-xs">Filter</span>
                       <div class="version-scope-pills" role="group" aria-label="Release filter">
-                        <button type="button" class="pill-badge active" data-install-lifecycle="supported">Supported</button>
+                        <button type="button" class="pill-badge active" data-install-lifecycle="latest">Latest</button>
+                        <button type="button" class="pill-badge" data-install-lifecycle="supported">Supported</button>
                         <button type="button" class="pill-badge" data-install-lifecycle="lts">LTS only</button>
                         <button type="button" class="pill-badge" data-install-lifecycle="previews">+ Previews</button>
                         <button type="button" class="pill-badge" data-install-lifecycle="all">All</button>

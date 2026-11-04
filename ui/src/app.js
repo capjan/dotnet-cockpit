@@ -1049,7 +1049,7 @@ const closeInstallDotnetBtn = document.getElementById('close-install-dotnet-btn'
 
 if (installDotnetDialog) {
   let activeProduct = 'SDK';
-  let activeLifecycle = 'supported';
+  let activeLifecycle = 'latest';
   let includePreviews = false;
   const searchInput = document.getElementById('install-dotnet-search-input');
   const resultsBox = document.getElementById('install-dotnet-results');
@@ -1078,9 +1078,12 @@ if (installDotnetDialog) {
       const isSupported = row.dataset.supported === 'true';
       const isLts = row.dataset.lts === 'true';
       const isPre = row.dataset.preview === 'true';
+      const isLatest = row.dataset.latest === 'true';
 
       let matchesLifecycle = true;
-      if (activeLifecycle === 'supported') {
+      if (activeLifecycle === 'latest') {
+        matchesLifecycle = isLatest && (includePreviews ? (isSupported || isPre) : (isSupported && !isPre));
+      } else if (activeLifecycle === 'supported') {
         matchesLifecycle = isSupported && (includePreviews || !isPre);
       } else if (activeLifecycle === 'lts') {
         matchesLifecycle = isSupported && isLts && (includePreviews || !isPre);
@@ -1414,7 +1417,9 @@ if (toolDrawer && toolsDataEl) {
     const commands = document.getElementById('tool-drawer-commands');
     const pkg = document.getElementById('tool-drawer-pkg');
     const ver = document.getElementById('tool-drawer-ver');
+    const downloads = document.getElementById('tool-drawer-downloads');
     const authors = document.getElementById('tool-drawer-authors');
+    const verified = document.getElementById('tool-drawer-verified');
     const license = document.getElementById('tool-drawer-license');
     const scope = document.getElementById('tool-drawer-scope');
     const project = document.getElementById('tool-drawer-project');
@@ -1435,7 +1440,8 @@ if (toolDrawer && toolsDataEl) {
       badges.innerHTML = `
         <span class="v-current">${data.version}</span>
         <span class="badge ${data.scope === 'local' ? '' : 'ok'} sm">${data.scope === 'local' ? 'Local' : 'Global'}</span>
-        ${data.isVerified ? '<span class="badge ok sm">✓ Verified</span>' : ''}`;
+        ${data.isVerified ? '<span class="badge ok sm">✓ Verified</span>' : ''}
+        ${data.hasUpdate && data.latestVersion ? `<span class="badge warn sm">↑ ${data.latestVersion} available</span>` : ''}`;
     }
     if (desc) desc.textContent = data.fullDescription || data.summary;
     if (tags) {
@@ -1453,8 +1459,16 @@ if (toolDrawer && toolsDataEl) {
         </div>`).join('');
     }
     if (pkg) pkg.textContent = data.packageId;
-    if (ver) ver.textContent = data.version;
+    if (ver) {
+      if (data.hasUpdate && data.latestVersion && ver.parentElement) {
+        ver.parentElement.innerHTML = `<code id="tool-drawer-ver">${data.version}</code> <span class="muted text-xs">(latest: <code>${data.latestVersion}</code>)</span>`;
+      } else if (ver.parentElement) {
+        ver.parentElement.innerHTML = `<code id="tool-drawer-ver">${data.version}</code>`;
+      }
+    }
+    if (downloads) downloads.textContent = data.downloadsFull || data.downloads || 'N/A';
     if (authors) authors.textContent = data.authors;
+    if (verified) verified.textContent = data.isVerified ? '✓ Verified prefix on NuGet.org' : 'Standard NuGet package';
     if (license) license.textContent = data.license;
     if (scope) scope.textContent = data.scopeLabel;
     if (project && data.projectUrl) {

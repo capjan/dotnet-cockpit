@@ -163,6 +163,9 @@ internal static class ToolsPage
                 var toolScopeStr = isToolLocal ? "local" : "global";
                 var toolKey = $"{toolScopeStr}:{tool.PackageId}";
                 var inspectHref = $"/tools?scope={Uri.EscapeDataString(options.Scope)}&selected={Uri.EscapeDataString(tool.PackageId)}";
+                var versionCellHtml = meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion)
+                    ? $"<div class=\"version-patch-flow\"><fluent-badge appearance=\"tint\" color=\"brand\" class=\"version-badge sr-only\">{Encode(tool.Version)}</fluent-badge><span class=\"v-current\">{Encode(tool.Version)}</span><span class=\"v-arrow\" title=\"Newer version available on NuGet.org\">→</span><span class=\"v-patch\" title=\"Latest on NuGet.org: {Encode(meta.LatestVersion)}\">{Encode(meta.LatestVersion)}</span></div>"
+                    : $"<fluent-badge appearance=\"tint\" color=\"brand\" class=\"version-badge sr-only\">{Encode(tool.Version)}</fluent-badge><span class=\"v-current\">{Encode(tool.Version)}</span>";
 
                 return $"""
                   <tr data-tool-scope="{toolScopeStr}" data-tool-row data-tool-id="{Encode(tool.PackageId)}" data-tool-key="{Encode(toolKey)}" data-search="{Encode($"{tool.PackageId} {tool.Version} {string.Join(' ', tool.Commands)} {tool.Manifest} {meta.Summary} {meta.Authors}")}"{(isSelected ? " class=\"row-selected\"" : "")}>
@@ -173,9 +176,10 @@ internal static class ToolsPage
                           <div class="tool-title-line">
                             <span class="tool-id-group">
                               <strong>{Encode(tool.PackageId)}</strong>
-                              {(meta.IsVerified ? "<span class=\"tool-verified-dot\" title=\"Verified package\">✓</span>" : "")}
+                              {(meta.IsVerified ? "<span class=\"tool-verified-dot\" title=\"Verified publisher on NuGet.org\">✓</span>" : "")}
                             </span>
                             <span class="tool-author-chip muted text-xs">by {Encode(meta.Authors)}</span>
+                            {(string.IsNullOrEmpty(meta.DownloadsDisplay) ? "" : $"<span class=\"tool-downloads-chip\" title=\"{Encode(meta.DownloadsFullDisplay)} total downloads on NuGet.org\">↓ {Encode(meta.DownloadsDisplay)}</span>")}
                           </div>
                           <span class="tool-desc muted text-xs">{Encode(meta.Summary)}</span>
                         </div>
@@ -186,7 +190,7 @@ internal static class ToolsPage
                         {string.Concat(tool.Commands.Select(command => $"<span class=\"tool-command-pill\" data-copy=\"{Encode(isToolLocal ? $"dotnet {command}" : command)}\" title=\"Click to copy command\"><code>{Encode(command)}</code>{Icon("clipboard", "xs")}</span>"))}
                       </div>
                     </td>
-                    <td class="tool-cell-ver"><fluent-badge appearance="tint" color="brand" class="version-badge sr-only">{Encode(tool.Version)}</fluent-badge><span class="v-current">{Encode(tool.Version)}</span></td>
+                    <td class="tool-cell-ver">{versionCellHtml}</td>
                     <td class="tool-cell-scope">
                       <div class="tool-scope-cell">
                         {scopeBadge}
@@ -281,6 +285,7 @@ internal static class ToolsPage
                       <span class="v-current">{Encode(tool.Version)}</span>
                       <span class="badge {(isToolLocal ? "" : "ok")} sm">{(isToolLocal ? "Local" : "Global")}</span>
                       {(meta.IsVerified ? "<span class=\"badge ok sm\">✓ Verified</span>" : "")}
+                      {(meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion) ? $"<span class=\"badge warn sm\">↑ {Encode(meta.LatestVersion)} available</span>" : "")}
                     </div>
                   </div>
                 </div>
@@ -302,8 +307,10 @@ internal static class ToolsPage
                   <h4 class="drawer-section-title">Package &amp; installation</h4>
                   <dl class="drawer-dl">
                     <dt>Package ID</dt><dd><code id="tool-drawer-pkg">{Encode(tool.PackageId)}</code></dd>
-                    <dt>Version</dt><dd><code id="tool-drawer-ver">{Encode(tool.Version)}</code></dd>
+                    <dt>Version</dt><dd><code id="tool-drawer-ver">{Encode(tool.Version)}</code>{(meta.HasUpdate && !string.IsNullOrEmpty(meta.LatestVersion) ? $" <span class=\"muted text-xs\">(latest: <code>{Encode(meta.LatestVersion)}</code>)</span>" : "")}</dd>
+                    <dt>Downloads</dt><dd id="tool-drawer-downloads">{Encode(meta.DownloadsFullDisplay)}</dd>
                     <dt>Author</dt><dd id="tool-drawer-authors">{Encode(meta.Authors)}</dd>
+                    <dt>Publisher</dt><dd id="tool-drawer-verified">{(meta.IsVerified ? "✓ Verified prefix on NuGet.org" : "Standard NuGet package")}</dd>
                     <dt>License</dt><dd id="tool-drawer-license">{Encode(meta.License)}</dd>
                     <dt>Scope</dt><dd id="tool-drawer-scope">{Encode(scopeLabel)}</dd>
                     <dt>Project</dt><dd id="tool-drawer-project"><a href="{Encode(meta.ProjectUrl)}" target="_blank" rel="noopener">{Encode(ShortUrlDisplay(meta.ProjectUrl))} ↗</a></dd>
@@ -391,6 +398,10 @@ internal static class ToolsPage
             sb.Append($"\"updateCmd\":\"{JsonEscape(updateCmd)}\",");
             sb.Append($"\"uninstallCmd\":\"{JsonEscape(uninstallCmd)}\",");
             sb.Append($"\"isVerified\":{(meta.IsVerified ? "true" : "false")},");
+            sb.Append($"\"hasUpdate\":{(meta.HasUpdate ? "true" : "false")},");
+            sb.Append($"\"latestVersion\":\"{JsonEscape(meta.LatestVersion)}\",");
+            sb.Append($"\"downloads\":\"{JsonEscape(meta.DownloadsDisplay)}\",");
+            sb.Append($"\"downloadsFull\":\"{JsonEscape(meta.DownloadsFullDisplay)}\",");
             sb.Append($"\"logoHtml\":\"{JsonEscape(logoHtml)}\",");
             sb.Append($"\"commands\":[{string.Join(',', tool.Commands.Select(c => $"\"{JsonEscape(isToolLocal ? $"dotnet {c}" : c)}\""))}],");
             sb.Append($"\"tags\":[{string.Join(',', meta.Tags.Select(t => $"\"{JsonEscape(t)}\""))}]");

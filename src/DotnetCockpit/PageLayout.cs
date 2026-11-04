@@ -36,7 +36,6 @@ internal static class PageLayout
 
               <div class="rail-label">Cockpit</div>
               <a href="/setup" class="nav-link"{{(currentPath == "/setup" ? " aria-current=\"page\"" : "")}}>{{Icon("settings")}} Setup</a>
-              <a href="/preflight" class="nav-link pf-nav-link">{{Icon("pulse")}} Pre-flight {{(issueCount > 0 ? $"<span class=\"badge warn pf-issue-badge\" data-nav-pf-badge>{issueCount}</span>" : "<span class=\"badge warn pf-issue-badge\" data-nav-pf-badge hidden></span>")}}</a>
 
               <div class="rail-foot">
                 <div class="ws-card">

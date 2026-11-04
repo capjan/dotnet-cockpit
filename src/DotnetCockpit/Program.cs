@@ -140,10 +140,14 @@ app.MapPost("/setup/uninstall", async (HttpContext context, DotnetUninstallToolS
     var result = await service.UninstallAsync(context.RequestAborted);
     return Results.Redirect($"/setup?notice={(result.Success ? "uninstalled" : "uninstall-failed")}");
 });
-app.MapGet("/tools", async (DotnetToolsService service, HttpContext context, ILogger<Program> logger) =>
+app.MapGet("/tools", async (DotnetToolsService service, HttpClient httpClient, HttpContext context, ILogger<Program> logger) =>
 {
     context.Response.Headers.CacheControl = "no-store";
     var snapshot = await ReadTools(service, context, logger);
+    if (snapshot.Status == "ready")
+    {
+        await ToolMetadataCatalog.WarmCacheAsync(snapshot, httpClient, context.RequestAborted);
+    }
     var options = ToolsViewOptions.From(context.Request.Query);
     var search = snapshot.Status == "ready" && options.SearchQuery.Length > 0
         ? await service.SearchAsync(options.SearchQuery, context.RequestAborted)
