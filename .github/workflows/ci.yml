@@ -73,10 +73,12 @@ jobs:
       - name: Test UI against native backend
         if: runner.os == 'Linux'
         run: npm --prefix ui run test:browser
-      - name: Install browser for screenshot comparison
-        if: matrix.os == 'macos-latest'
+      - name: Install browser
+        if: runner.os != 'Linux'
         working-directory: ui
         run: npx playwright install chromium
+      - name: Exercise the real features end to end
+        run: npm --prefix ui run test:e2e
       - name: Compare screenshots
         if: matrix.os == 'macos-latest'
         run: npm --prefix ui run test:visual
@@ -96,10 +98,10 @@ jobs:
           path: artifacts/dotnet-cockpit-${{ matrix.rid }}.*
           if-no-files-found: error
       - name: Upload browser failure traces
-        if: failure() && runner.os == 'Linux'
+        if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-test-results
+          name: browser-test-results-${{ matrix.rid }}
           path: ui/test-results/
           if-no-files-found: ignore
 

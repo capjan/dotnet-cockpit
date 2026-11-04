@@ -18,6 +18,21 @@ public sealed class BatchRemovalTests
     }
 
     [Fact]
+    public void QuotesOnlyTheInstallerPathForMsiexec()
+    {
+        Assert.Equal("/i \"C:\\Temp dir\\tool.msi\" /qn", DotnetUninstallToolService.MsiInstallArguments("C:\\Temp dir\\tool.msi"));
+    }
+
+    [Fact]
+    public void RetriesRemovingAToolThatIsStillRunningWithinOneElevatedCommand()
+    {
+        const string directory = @"C:\Program Files (x86)\dotnet-core-uninstall";
+        Assert.Equal(
+            $"/d /c for /l %i in (1,1,15) do @if exist \"{directory}\" (rmdir /s /q \"{directory}\" & if exist \"{directory}\" ping -n 2 127.0.0.1 > nul)",
+            DotnetUninstallToolService.WindowsRemovalArguments(directory, $"rmdir /s /q \"{directory}\""));
+    }
+
+    [Fact]
     public async Task AttemptsEveryItemAndReportsAFailureAtTheEnd()
     {
         if (OperatingSystem.IsWindows()) return;

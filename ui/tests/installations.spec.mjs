@@ -156,8 +156,10 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
     await expect(page.locator('#drawer-command')).toContainText(`dotnet-core-uninstall remove ${firstSdk.version} \\`);
     await expect(page.locator('#drawer-command')).toContainText('--sdk \\');
   }
-  await expect(page.locator('#version-drawer .drawer-patch-box')).toBeVisible();
-  await expect(page.locator('#version-drawer .drawer-primary-btn')).toBeVisible();
+  // Linux has no installer to download, so the drawer offers none.
+  const downloads = process.platform === 'linux' ? 0 : 1;
+  await expect(page.locator('#version-drawer .drawer-patch-box')).toHaveCount(downloads);
+  await expect(page.locator('#version-drawer .drawer-primary-btn')).toHaveCount(downloads);
 
   // Close drawer
   await page.locator('#drawer-close').click();
@@ -178,7 +180,12 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
 
   const dialog = page.locator('#install-dotnet-dialog');
   await expect(dialog).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Install .NET' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Install .NET', exact: true })).toBeVisible();
+  if (process.platform === 'linux') {
+    await expect(page.locator('#linux-install-guide')).toHaveAttribute('href', /learn\.microsoft\.com/);
+    await expect(page.locator('[data-install-row]')).toHaveCount(0);
+    return;
+  }
   await expect(page.locator('[data-install-lifecycle="latest"]')).toHaveClass(/active/);
   await expect(page.locator('[data-install-lifecycle="lts"]')).toHaveText('LTS');
   const firstCommand = dialog.locator('[data-install-row]:not([hidden]) .row-command').first();
@@ -320,13 +327,15 @@ test('every control works without JavaScript', async ({ browser }) => {
       await page.goto(path);
       await expect(page.locator('button[type="button"]:visible'), path).toHaveCount(0);
     }
-    await page.goto('/?install=1');
-    await page.locator('[data-install-product=".NET Runtime"]').click();
-    await expect(page).toHaveURL(/product=runtime/);
-    await expect(page.locator('#install-dotnet-dialog')).toBeVisible();
-    await expect(page.locator('[data-install-row]:not([hidden])').first()).toContainText('.NET Runtime');
-    await page.locator('[data-install-lifecycle="all"]').click();
-    await expect(page).toHaveURL(/view=all/);
+    if (process.platform !== 'linux') {
+      await page.goto('/?install=1');
+      await page.locator('[data-install-product=".NET Runtime"]').click();
+      await expect(page).toHaveURL(/product=runtime/);
+      await expect(page.locator('#install-dotnet-dialog')).toBeVisible();
+      await expect(page.locator('[data-install-row]:not([hidden])').first()).toContainText('.NET Runtime');
+      await page.locator('[data-install-lifecycle="all"]').click();
+      await expect(page).toHaveURL(/view=all/);
+    }
     await page.goto('/');
     await page.locator('header [data-theme-pref="dark"]').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -361,7 +370,10 @@ test('overlays return focus and keep the keyboard inside', async ({ page }) => {
   const install = page.locator('#open-install-dotnet-btn');
   await install.focus();
   await page.keyboard.press('Enter');
-  await expect(page.locator('#install-dotnet-search-input')).toBeFocused();
+  // Linux has only the link to the guide, so there is no search field to start in.
+  if (process.platform === 'linux') await expect(page.locator('#install-dotnet-dialog')).toBeVisible();
+  else await expect(page.locator('#install-dotnet-search-input')).toBeFocused();
+  expect(await page.evaluate(() => Boolean(document.activeElement.closest('#install-dotnet-dialog')))).toBe(true);
   await page.keyboard.press('Escape');
   await expect(install).toBeFocused();
 

@@ -155,10 +155,7 @@ internal sealed class DotnetInstallationService
     private static string? FindUninstallTool()
     {
         var executable = OperatingSystem.IsWindows() ? "dotnet-core-uninstall.exe" : "dotnet-core-uninstall";
-        var globalDirectory = OperatingSystem.IsWindows()
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet-core-uninstall")
-            : "/usr/local/bin";
-        var candidates = new[] { Path.Combine(globalDirectory, executable) }
+        var candidates = new[] { Path.Combine(Setup.DotnetUninstallToolService.GetGlobalDirectory(), executable) }
             .Concat((Environment.GetEnvironmentVariable("PATH") ?? "")
                 .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
                 .Select(directory => Path.Combine(directory.Trim('"'), executable)));
