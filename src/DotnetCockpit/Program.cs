@@ -134,6 +134,13 @@ app.MapPost("/settings/theme", async (HttpContext context) =>
     settingsStore.Update(settings => settings with { Theme = theme });
     return Results.Redirect(LocalReferer(context));
 });
+app.MapPost("/settings/palette", async (HttpContext context) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var palette = SettingsStore.NormalizePalette(form["palette"].ToString());
+    settingsStore.Update(settings => settings with { Palette = palette });
+    return Results.Redirect(LocalReferer(context));
+});
 app.MapPost("/settings/preflight", async (HttpContext context) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);

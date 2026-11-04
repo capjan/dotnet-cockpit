@@ -97,7 +97,7 @@ internal static class PreflightPage
 
         return $$"""
             <!doctype html>
-            <html lang="en" data-theme="{{SettingsTheme}}">
+            <html lang="en" data-theme="{{SettingsTheme}}" data-palette="{{PageLayout.CurrentSettings().Palette}}">
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">

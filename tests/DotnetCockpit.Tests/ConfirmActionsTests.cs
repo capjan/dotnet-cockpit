@@ -33,4 +33,30 @@ public sealed class ConfirmActionsTests
         var html = ConfirmActions.Trigger(ConfirmActions.ToolUninstall("\"><script>", "global"), "");
         Assert.DoesNotContain("<script>", html);
     }
+
+    [Theory]
+    [InlineData("github", "github")]
+    [InlineData("codex", "codex")]
+    [InlineData("<script>", "cockpit")]
+    [InlineData(null, "cockpit")]
+    public void AcceptsOnlyKnownPalettes(string? value, string expected) =>
+        Assert.Equal(expected, SettingsStore.NormalizePalette(value));
+
+    [Fact]
+    public void ASettingsFileFromBeforePalettesKeepsItsChoicesAndGetsTheDefault()
+    {
+        var directory = Directory.CreateTempSubdirectory("cockpit-settings-");
+        try
+        {
+            File.WriteAllText(Path.Combine(directory.FullName, "settings.json"), "{\"theme\":\"dark\",\"preflightOnLaunch\":true}");
+            var settings = new SettingsStore(directory.FullName).Current;
+            Assert.Equal("dark", settings.Theme);
+            Assert.True(settings.PreflightOnLaunch);
+            Assert.Equal("cockpit", settings.Palette);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
 }

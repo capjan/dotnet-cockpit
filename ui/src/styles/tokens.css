@@ -1,7 +1,8 @@
 /* Colors are defined once per role; light-dark() follows the color-scheme set by data-theme. */
-:root {
-  color-scheme: light dark;
+:root { color-scheme: light dark; }
 
+/* The Cockpit palette is the default. The others in palettes.css override these same color roles. */
+:root, [data-palette="cockpit"] {
   --bg:           light-dark(#f5f7fb, #080b15);
   --surface:      light-dark(#ffffff, #10162a);
   --surface-2:    light-dark(#f1f4f9, #161d34);
@@ -29,6 +30,9 @@
   --code-bg:      light-dark(#f1f4f9, #0a0e1b);
   --code-text:    light-dark(#0f172a, #dfe6f5);
   --scrim:        light-dark(rgb(15 23 42 / 35%), rgb(3 5 12 / 65%));
+}
+
+:root {
   --shadow:       0 1px 2px rgb(0 0 0 / 8%), 0 16px 40px -12px rgb(0 0 0 / 30%);
 
   --t-xs: 12px;

@@ -27,3 +27,5 @@ On macOS and Windows, Cockpit can detect, install, update, and remove the offici
 On macOS, **Versions → Install .NET** lists official `.pkg` installers for the host architecture. The catalog comes from Microsoft's release metadata and includes SDKs and standalone .NET Runtimes, release channels, support status, release dates, SHA-512 checksums, and release CVEs where Microsoft provides them. Downloading a package is separate from installing it: open the downloaded package in macOS Installer to complete installation.
 
 The SDK installer includes the matching .NET Runtime and ASP.NET Core Runtime. Use the standalone Runtime package only when you do not need the SDK.
+
+The colors can be switched under **Settings** between the Cockpit, macOS, GitHub and Codex styles, each in light and dark.

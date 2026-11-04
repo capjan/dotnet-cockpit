@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace DotnetCockpit;
 
-internal sealed record AppSettings(string Theme = "auto", bool PreflightOnLaunch = false, bool FirstLaunchCompleted = false);
+internal sealed record AppSettings(string Theme = "auto", bool PreflightOnLaunch = false, bool FirstLaunchCompleted = false, string Palette = "cockpit");
 
 /// <summary>
 /// Stores preferences in the user profile. The browser's storage cannot hold them because Cockpit
@@ -43,6 +43,13 @@ internal sealed class SettingsStore
 
     public static string NormalizeTheme(string? theme) => theme is "light" or "dark" ? theme : "auto";
 
+    /// <summary>The color palettes, each defined for light and dark in ui/src/styles/palettes.css.</summary>
+    public static readonly (string Id, string Label)[] Palettes =
+        [("cockpit", "Cockpit"), ("macos", "macOS style"), ("github", "GitHub style"), ("codex", "Codex style")];
+
+    public static string NormalizePalette(string? palette) =>
+        Palettes.Any(entry => entry.Id == palette) ? palette! : "cockpit";
+
     private static string DefaultDirectory()
     {
         var configured = Environment.GetEnvironmentVariable("DOTNET_COCKPIT_CONFIG_DIR");
@@ -57,7 +64,7 @@ internal sealed class SettingsStore
         {
             if (!File.Exists(file)) return new();
             var settings = JsonSerializer.Deserialize(File.ReadAllText(file), AppJsonContext.Default.AppSettings) ?? new();
-            return settings with { Theme = NormalizeTheme(settings.Theme) };
+            return settings with { Theme = NormalizeTheme(settings.Theme), Palette = NormalizePalette(settings.Palette) };
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {

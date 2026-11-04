@@ -7,7 +7,25 @@ function apply(theme) {
   }
 }
 
+function applyPalette(palette) {
+  document.documentElement.dataset.palette = palette;
+  for (const button of document.querySelectorAll('[data-palette-pref]')) {
+    const active = button.dataset.palettePref === palette;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
+}
+
 export function setupTheme() {
+  document.addEventListener('submit', event => {
+    const form = event.target.closest('[data-palette-switch]');
+    const palette = event.submitter?.dataset.palettePref;
+    if (!form || !palette) return;
+    event.preventDefault();
+    applyPalette(palette);
+    fetch(form.action, { method: 'POST', body: new URLSearchParams({ palette }), redirect: 'manual' }).catch(() => {});
+  });
+
   document.addEventListener('submit', event => {
     const form = event.target.closest('[data-theme-switch]');
     if (!form) return;

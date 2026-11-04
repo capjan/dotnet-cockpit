@@ -91,6 +91,13 @@ internal static class SetupPage
                   </div>
                   <div class="settings-row">
                     <div>
+                      <strong>Colors</strong>
+                      <p class="muted">Applies to light and dark. Status colors keep their meaning.</p>
+                    </div>
+                    {PageLayout.PaletteSwitch()}
+                  </div>
+                  <div class="settings-row">
+                    <div>
                       <strong>Show pre-flight check on launch</strong>
                       <p class="muted">A short health summary before the dashboard opens.</p>
                     </div>

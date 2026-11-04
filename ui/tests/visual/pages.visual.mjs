@@ -52,6 +52,21 @@ test.describe('states', () => {
   });
 });
 
+for (const palette of ['macos', 'github', 'codex']) {
+  for (const colorScheme of ['dark', 'light']) {
+    test.describe(`${palette} ${colorScheme}`, () => {
+      test.use({ colorScheme, viewport: { width: 1440, height: 900 } });
+      for (const name of ['mixed-versions', 'mixed-overview']) {
+        test(name, async ({ page }) => {
+          await page.goto(`/${name}`);
+          await page.evaluate(value => { document.documentElement.dataset.palette = value; }, palette);
+          await shoot(page, `${palette}-${name}-${colorScheme}`);
+        });
+      }
+    });
+  }
+}
+
 test.describe('narrow desktop', () => {
   test.use({ colorScheme: 'dark', viewport: { width: 1024, height: 768 } });
   for (const name of ['mixed-versions', 'mixed-tools', 'mixed-overview']) {

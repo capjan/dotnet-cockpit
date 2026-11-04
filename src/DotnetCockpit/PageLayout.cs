@@ -12,7 +12,7 @@ internal static class PageLayout
 
     public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null, string? refreshHref = null, string? inventorySignature = null) => $$"""
         <!doctype html>
-        <html lang="en" data-theme="{{CurrentSettings().Theme}}">
+        <html lang="en" data-theme="{{CurrentSettings().Theme}}" data-palette="{{CurrentSettings().Palette}}">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -182,6 +182,15 @@ internal static class PageLayout
               {Option("auto", "Auto", "Automatic (follow system)")}{Option("light", "Light", "Light")}{Option("dark", "Dark", "Dark")}
             </form>
             """;
+    }
+
+    /// <summary>Palette choice with a small preview. A plain form, so it also works without JavaScript.</summary>
+    public static string PaletteSwitch()
+    {
+        var current = CurrentSettings().Palette;
+        var options = string.Concat(SettingsStore.Palettes.Select(palette =>
+            $"<button type=\"submit\" name=\"palette\" value=\"{palette.Id}\" class=\"palette-option{(current == palette.Id ? " active" : "")}\" data-palette-pref=\"{palette.Id}\" aria-pressed=\"{(current == palette.Id ? "true" : "false")}\"><span class=\"palette-swatch\" data-palette=\"{palette.Id}\" aria-hidden=\"true\"><i class=\"swatch-rail\"></i><i class=\"swatch-panel\"><i class=\"swatch-line\"></i><i class=\"swatch-accent\"></i></i></span><span>{palette.Label}</span></button>"));
+        return $"""<form method="post" action="/settings/palette" class="palette-switch" role="group" aria-label="Color palette" data-palette-switch>{options}</form>""";
     }
 
     public static string Icon(string name, string cls = "")
