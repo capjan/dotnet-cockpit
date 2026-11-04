@@ -393,3 +393,10 @@ test('digits in the navigation share one vertical line', async ({ page }) => {
   expect(centers.length).toBeGreaterThan(1);
   expect(new Set(centers).size).toBe(1);
 });
+
+test('the navigation stays compact when the window is narrow and the page is short', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 1100 });
+  await page.goto('/setup');
+  const height = await page.evaluate(() => document.querySelector('.rail').getBoundingClientRect().height);
+  expect(height).toBeLessThan(80);
+});

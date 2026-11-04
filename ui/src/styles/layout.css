@@ -125,7 +125,7 @@
 .scope-note { font-size: var(--t-sm); max-width: 80ch; }
 
 @media (max-width: 960px) {
-  .app { grid-template-columns: minmax(0, 1fr); }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }
   .brand { padding: 0 12px 0 0; }
   .rail-label, .rail-foot { display: none; }
