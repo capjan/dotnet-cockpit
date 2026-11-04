@@ -200,7 +200,8 @@ internal static class ToolsPage
                     <td class="tool-cell-actions">
                       <div class="tool-row-actions">
                         <a class="button sm ghost tool-inspect-btn" href="{inspectHref}" data-tool-inspect="{Encode(toolKey)}" aria-label="Inspect {Encode(tool.PackageId)}">Inspect</a>
-                        <form method="post" action="/tools/uninstall" class="tool-action">
+                        {(meta.HasUpdate ? $"<form method=\"post\" action=\"/tools/update\" class=\"tool-action tool-update-form\"><input type=\"hidden\" name=\"packageId\" value=\"{Encode(tool.PackageId)}\"><input type=\"hidden\" name=\"scope\" value=\"{toolScopeStr}\"><button class=\"button primary sm\" type=\"submit\" title=\"Update {Encode(tool.PackageId)} to {Encode(meta.LatestVersion ?? "latest")}\">Update</button></form>" : "")}
+                        <form method="post" action="/tools/uninstall" class="tool-action tool-uninstall-form">
                           <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
                           <input type="hidden" name="scope" value="{toolScopeStr}">
                           <button class="button danger sm" type="submit">Uninstall</button>
@@ -209,6 +210,7 @@ internal static class ToolsPage
                           <button type="button" class="button icon sm ghost tool-menu-trigger" data-tool-menu-btn aria-label="More actions for {Encode(tool.PackageId)}" aria-expanded="false">{Icon("more", "sm")}</button>
                           <div class="tool-context-menu" hidden>
                             <button type="button" class="tool-menu-item" data-tool-inspect="{Encode(toolKey)}">{Icon("search", "sm")} <span>Inspect tool details</span></button>
+                            {(meta.HasUpdate ? $"<button type=\"button\" class=\"tool-menu-item\" data-tool-menu-update>{Icon("refresh", "sm")} <span>Update to {Encode(meta.LatestVersion ?? "latest")}</span></button>" : "")}
                             <button type="button" class="tool-menu-item copy-btn" data-copy="{Encode(copyCmd)}">{Icon("copy", "sm")} <span>Copy command</span> <kbd>C</kbd></button>
                             <a class="tool-menu-item" href="https://www.nuget.org/packages/{Encode(tool.PackageId)}" target="_blank" rel="noopener">{Icon("external", "sm")} <span>Open on NuGet.org</span></a>
                             <button type="button" class="tool-menu-item copy-btn" data-copy="{Encode(cliEquiv)}">{Icon("terminal", "sm")} <span>Copy CLI update command</span></button>
@@ -345,6 +347,9 @@ internal static class ToolsPage
               </div>
               <div class="drawer-footer">
                 <a id="tool-drawer-nuget-btn" class="button drawer-download-btn" href="{nugetUrl}" target="_blank" rel="noopener">{Icon("external", "xs")} <span id="tool-drawer-nuget-label">Open on NuGet.org</span></a>
+                <div id="tool-drawer-update-form">
+                  {(meta.HasUpdate ? $"<form method=\"post\" action=\"/tools/update\"><input type=\"hidden\" name=\"packageId\" value=\"{Encode(tool.PackageId)}\"><input type=\"hidden\" name=\"scope\" value=\"{(isToolLocal ? "local" : "global")}\"><button class=\"button primary\" type=\"submit\">{Icon("refresh", "xs")} Update to {Encode(meta.LatestVersion ?? "latest")}</button></form>" : "")}
+                </div>
                 <div id="tool-drawer-remove-form">
                   <form method="post" action="/tools/uninstall">
                     <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
@@ -525,6 +530,47 @@ internal static class ToolsPage
     private static string RenderAddToolSheet(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search)
     {
         var canInstallLocal = snapshot.LocalManifestInitialized;
+        var featured = new (string Id, string DefaultVer, string Cmd)[]
+        {
+            ("dotnet-coverage", "18.1.0", "dotnet-coverage"),
+            ("dotnet-reportgenerator-globaltool", "5.4.18", "reportgenerator"),
+            ("coverlet.console", "6.0.4", "coverlet"),
+            ("dotnet-ef", "10.0.0", "dotnet-ef"),
+            ("dotnet-outdated-tool", "4.6.8", "dotnet-outdated")
+        };
+
+        var itemsHtml = string.Concat(featured.Select((item, idx) =>
+        {
+            var meta = ToolMetadataCatalog.Resolve(item.Id, item.DefaultVer, false);
+            var ver = !string.IsNullOrWhiteSpace(meta.LatestVersion) ? meta.LatestVersion : item.DefaultVer;
+            var logoHtml = ToolMetadataCatalog.RenderLogo(meta);
+            var downloads = !string.IsNullOrWhiteSpace(meta.DownloadsDisplay) ? meta.DownloadsDisplay : "10K+";
+            return $"""
+                <div class="sheet-result-item {(idx == 0 ? "active" : "")}" data-pkg-id="{Encode(item.Id)}" data-pkg-ver="{Encode(ver)}">
+                  {logoHtml}
+                  <div class="sheet-result-body">
+                    <div class="sheet-result-top">
+                      <strong>{Encode(item.Id)}</strong>
+                      <code class="muted">{Encode(ver)}</code>
+                      {(meta.IsVerified ? "<span class=\"badge ok sm\">✓ Verified</span>" : "")}
+                    </div>
+                    <span class="muted text-xs">{Encode(meta.Summary)}</span>
+                    <div class="sheet-result-meta muted text-xs">
+                      <span>👤 {Encode(meta.Authors)}</span>
+                      <span>↓ {Encode(downloads)}</span>
+                      <span>⌘ {Encode(item.Cmd)}</span>
+                    </div>
+                  </div>
+                  <form method="post" action="/tools/install">
+                    <input type="hidden" name="packageId" value="{Encode(item.Id)}">
+                    <input type="hidden" name="version" value="{Encode(ver)}">
+                    <input type="hidden" name="scope" value="global" data-sheet-form-scope>
+                    <button type="submit" class="button {(idx == 0 ? "primary" : "")} sm">+ Install</button>
+                  </form>
+                </div>
+                """;
+        }));
+
         return $$"""
             <dialog id="add-tool-dialog" class="add-tool-sheet" closedby="any" aria-labelledby="add-tool-sheet-title" data-can-local="{{canInstallLocal.ToString().ToLowerInvariant()}}">
               <div class="sheet-inner">
@@ -546,120 +592,14 @@ internal static class ToolsPage
                   <div class="sheet-scope-bar">
                     <span class="muted text-xs">Install to</span>
                     <div class="version-scope-pills" role="group" aria-label="Installation target scope">
-                      <button type="button" class="pill-badge active" data-sheet-scope="global">{{Icon("tools", "xs")}} Global · {{Encode(Environment.UserName)}}</button>
-                      {{(canInstallLocal ? $"<button type=\"button\" class=\"pill-badge\" data-sheet-scope=\"local\">{Icon("folder", "xs")} This workspace</button>" : "<button type=\"button\" class=\"pill-badge\" disabled title=\"A local manifest is required to install into this workspace\">This workspace</button>")}}
+                      <button type="button" class="pill-badge active" data-sheet-scope="global">{{Icon("tools", "xs")}} Global <span class="muted text-xs">· User</span></button>
+                      {{(canInstallLocal ? $"<button type=\"button\" class=\"pill-badge\" data-sheet-scope=\"local\">{Icon("folder", "xs")} Local <span class=\"muted text-xs\">· Workspace</span></button>" : "<button type=\"button\" class=\"pill-badge\" disabled title=\"A local manifest is required to install into this workspace\">Local <span class=\"muted text-xs\">· Workspace</span></button>")}}
                     </div>
                   </div>
                 </div>
 
                 <div id="sheet-results" class="sheet-results">
-                  <div class="sheet-result-item active" data-pkg-id="dotnet-coverage" data-pkg-ver="18.1.0">
-                    <span class="tool-monogram tool-logo monogram-0">{{ToolMetadataCatalog.RenderKindSvg("shield")}}</span>
-                    <div class="sheet-result-body">
-                      <div class="sheet-result-top">
-                        <strong>dotnet-coverage</strong>
-                        <code class="muted">18.1.0</code>
-                        <span class="badge ok sm">✓ Verified</span>
-                      </div>
-                      <span class="muted text-xs">Cross-platform CLI tool to collect code coverage data and merge coverage reports.</span>
-                      <div class="sheet-result-meta muted text-xs">
-                        <span>👤 Microsoft</span>
-                        <span>↓ 18.2M</span>
-                        <span>⌘ dotnet-coverage</span>
-                      </div>
-                    </div>
-                    <form method="post" action="/tools/install">
-                      <input type="hidden" name="packageId" value="dotnet-coverage">
-                      <input type="hidden" name="version" value="18.1.0">
-                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
-                      <button type="submit" class="button primary sm">+ Install</button>
-                    </form>
-                  </div>
-                  <div class="sheet-result-item" data-pkg-id="dotnet-reportgenerator-globaltool" data-pkg-ver="5.4.18">
-                    <span class="tool-monogram tool-logo monogram-2">{{ToolMetadataCatalog.RenderKindSvg("chart")}}</span>
-                    <div class="sheet-result-body">
-                      <div class="sheet-result-top">
-                        <strong>dotnet-reportgenerator-globaltool</strong>
-                        <code class="muted">5.4.18</code>
-                      </div>
-                      <span class="muted text-xs">Turns XML coverage reports (OpenCover, Cobertura, Coverlet) into readable HTML dashboards.</span>
-                      <div class="sheet-result-meta muted text-xs">
-                        <span>👤 danielpalme</span>
-                        <span>↓ 48.6M</span>
-                        <span>⌘ reportgenerator</span>
-                      </div>
-                    </div>
-                    <form method="post" action="/tools/install">
-                      <input type="hidden" name="packageId" value="dotnet-reportgenerator-globaltool">
-                      <input type="hidden" name="version" value="5.4.18">
-                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
-                      <button type="submit" class="button sm">+ Install</button>
-                    </form>
-                  </div>
-                  <div class="sheet-result-item" data-pkg-id="coverlet.console" data-pkg-ver="6.0.4">
-                    <span class="tool-monogram tool-logo monogram-3">{{ToolMetadataCatalog.RenderKindSvg("shield")}}</span>
-                    <div class="sheet-result-body">
-                      <div class="sheet-result-top">
-                        <strong>coverlet.console</strong>
-                        <code class="muted">6.0.4</code>
-                      </div>
-                      <span class="muted text-xs">Cross-platform code coverage framework for .NET as a global or local CLI tool.</span>
-                      <div class="sheet-result-meta muted text-xs">
-                        <span>👤 tonerdo</span>
-                        <span>↓ 12.1M</span>
-                        <span>⌘ coverlet</span>
-                      </div>
-                    </div>
-                    <form method="post" action="/tools/install">
-                      <input type="hidden" name="packageId" value="coverlet.console">
-                      <input type="hidden" name="version" value="6.0.4">
-                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
-                      <button type="submit" class="button sm">+ Install</button>
-                    </form>
-                  </div>
-                  <div class="sheet-result-item" data-pkg-id="dotnet-ef" data-pkg-ver="10.0.0">
-                    <span class="tool-monogram tool-logo monogram-1">{{ToolMetadataCatalog.RenderKindSvg("database")}}</span>
-                    <div class="sheet-result-body">
-                      <div class="sheet-result-top">
-                        <strong>dotnet-ef</strong>
-                        <code class="muted">10.0.0</code>
-                        <span class="badge ok sm">✓ Verified</span>
-                      </div>
-                      <span class="muted text-xs">Entity Framework Core CLI migrations, DbContext scaffolding, and database management tools.</span>
-                      <div class="sheet-result-meta muted text-xs">
-                        <span>👤 Microsoft</span>
-                        <span>↓ 142.5M</span>
-                        <span>⌘ dotnet-ef</span>
-                      </div>
-                    </div>
-                    <form method="post" action="/tools/install">
-                      <input type="hidden" name="packageId" value="dotnet-ef">
-                      <input type="hidden" name="version" value="10.0.0">
-                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
-                      <button type="submit" class="button sm">+ Install</button>
-                    </form>
-                  </div>
-                  <div class="sheet-result-item" data-pkg-id="dotnet-outdated-tool" data-pkg-ver="4.6.8">
-                    <span class="tool-monogram tool-logo monogram-4">{{ToolMetadataCatalog.RenderKindSvg("package")}}</span>
-                    <div class="sheet-result-body">
-                      <div class="sheet-result-top">
-                        <strong>dotnet-outdated-tool</strong>
-                        <code class="muted">4.6.8</code>
-                      </div>
-                      <span class="muted text-xs">Displays outdated NuGet packages across .NET solutions and projects with one command.</span>
-                      <div class="sheet-result-meta muted text-xs">
-                        <span>👤 jerriep</span>
-                        <span>↓ 9.4M</span>
-                        <span>⌘ dotnet-outdated</span>
-                      </div>
-                    </div>
-                    <form method="post" action="/tools/install">
-                      <input type="hidden" name="packageId" value="dotnet-outdated-tool">
-                      <input type="hidden" name="version" value="4.6.8">
-                      <input type="hidden" name="scope" value="global" data-sheet-form-scope>
-                      <button type="submit" class="button sm">+ Install</button>
-                    </form>
-                  </div>
+                  {{itemsHtml}}
                 </div>
 
                 <div class="sheet-foot">
@@ -700,6 +640,7 @@ internal static class ToolsPage
     private static string RenderNotice(string notice) => notice switch
     {
         "installed" => "<div class=\"action-notice\" role=\"status\">Tool installed successfully.</div>",
+        "updated" => "<div class=\"action-notice\" role=\"status\">Tool updated successfully.</div>",
         "uninstalled" => "<div class=\"action-notice\" role=\"status\">Tool uninstalled successfully.</div>",
         "initialized" => "<div class=\"action-notice\" role=\"status\">Local tools are now initialized in this working directory.</div>",
         "removed" => "<div class=\"action-notice\" role=\"status\">The local tool manifest was removed. Cached packages were left untouched.</div>",

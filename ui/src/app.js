@@ -729,7 +729,10 @@ if (removeDialog) {
     if (confirmBtn) confirmBtn.disabled = selectedItems.length === 0;
     if (subEl && activeChannelItems[0]) {
       const ch = activeChannelItems[0].channel;
-      subEl.textContent = `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'}, out of support since May 14, 2024.`;
+      const isEolCh = activeChannelItems.some(i => i.isEol);
+      subEl.textContent = isEolCh
+        ? `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'}, out of support since May 14, 2024.`
+        : `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'} in .NET ${ch} selected for removal.`;
     }
     if (multiFormInputs) {
       multiFormInputs.innerHTML = selectedItems
@@ -752,15 +755,20 @@ if (removeDialog) {
 
     if (titleEl) titleEl.textContent = `Remove .NET ${channel} from this Mac?`;
     if (itemsEl) {
-      itemsEl.innerHTML = chItems.map((item, idx) => `
+      itemsEl.innerHTML = chItems.map((item, idx) => {
+        const badgeHtml = item.isEol
+          ? '<span class="badge bad sm">EOL</span>'
+          : `<span class="badge sm">${(item.kind || 'sdk').toUpperCase()}</span>`;
+        return `
         <label class="remove-item-row">
           <input type="checkbox" checked data-remove-idx="${idx}" aria-label="Select ${item.name} ${item.version} for removal">
           <div class="remove-item-copy">
             <strong>${item.name} <code>${item.displayVersion || item.version}</code>${item.kind === 'runtime' ? ` <span class="muted text-xs">· ${item.description || '.NET · ASP.NET Core'}</span>` : ''}</strong>
             <code>${item.location || 'Managed global installation'}</code>
           </div>
-          <span class="badge bad sm">EOL</span>
-        </label>`).join('');
+          ${badgeHtml}
+        </label>`;
+      }).join('');
       itemsEl.querySelectorAll('input[type="checkbox"][data-remove-idx]').forEach(cb => {
         cb.addEventListener('change', syncChannelRemoveDialogState);
       });
@@ -890,40 +898,6 @@ if (addToolDialog) {
     if (cliCopy) cliCopy.dataset.copy = cmd;
   }
 
-  function getMonogram(id) {
-    if (!id) return 'TL';
-    const parts = id.split(/[.\-_]/).filter(p => p && p.toLowerCase() !== 'dotnet' && p.toLowerCase() !== 'tool');
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    if (parts.length === 1 && parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
-    return id.slice(0, 2).toUpperCase();
-  }
-
-  function getColorIdx(id) {
-    let h = 0;
-    for (const c of (id || '')) h = (h * 31) + c.toLowerCase().charCodeAt(0);
-    return Math.abs(h) % 5;
-  }
-
-  function getToolKindSvg(packageId) {
-    const id = (packageId || '').toLowerCase();
-    if (id.includes('ef') || id.includes('sql') || id.includes('db') || id.includes('data')) {
-      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>';
-    }
-    if (id.includes('cover') || id.includes('test') || id.includes('sec') || id.includes('audit')) {
-      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>';
-    }
-    if (id.includes('report') || id.includes('bench') || id.includes('metric')) {
-      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx="1"/><rect x="12" y="7" width="3" height="10" rx="1"/><rect x="17" y="4" width="3" height="13" rx="1"/></svg>';
-    }
-    if (id.includes('format') || id.includes('csharpier') || id.includes('lint') || id.includes('fantomas')) {
-      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/><path d="M5 3v4M3 5h4"/></svg>';
-    }
-    if (id.includes('trace') || id.includes('dump') || id.includes('counter') || id.includes('monitor')) {
-      return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>';
-    }
-    return '<svg class="tool-logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>';
-  }
-
   function getToolFallbackDesc(packageId, authors) {
     const id = (packageId || '').toLowerCase();
     const map = {
@@ -964,7 +938,7 @@ if (addToolDialog) {
       updateCliPreview(items[0].packageId, items[0].version);
       resultsBox.innerHTML = items.map((item, idx) => `
         <div class="sheet-result-item ${idx === 0 ? 'active' : ''}" data-pkg-id="${item.packageId}" data-pkg-ver="${item.version}">
-          <span class="tool-monogram tool-logo monogram-${getColorIdx(item.packageId)}">${getToolKindSvg(item.packageId)}</span>
+          <span class="tool-monogram tool-logo has-img"><img src="/api/tools/icon?packageId=${encodeURIComponent(item.packageId)}&version=${encodeURIComponent(item.version)}" alt="" class="tool-logo-img" width="36" height="36" loading="lazy"></span>
           <div class="sheet-result-body">
             <div class="sheet-result-top">
               <strong>${item.packageId}</strong>
@@ -1049,7 +1023,9 @@ const closeInstallDotnetBtn = document.getElementById('close-install-dotnet-btn'
 
 if (installDotnetDialog) {
   let activeProduct = 'SDK';
-  let activeLifecycle = 'latest';
+  let onlyLatest = true;
+  let onlySupported = true;
+  let onlyLts = false;
   let includePreviews = false;
   const searchInput = document.getElementById('install-dotnet-search-input');
   const resultsBox = document.getElementById('install-dotnet-results');
@@ -1058,6 +1034,7 @@ if (installDotnetDialog) {
   const cliCopy = document.getElementById('install-dotnet-cli-copy');
   const productBtns = [...installDotnetDialog.querySelectorAll('[data-install-product]')];
   const lifecycleBtns = [...installDotnetDialog.querySelectorAll('[data-install-lifecycle]')];
+  const channelGroups = [...installDotnetDialog.querySelectorAll('[data-install-channel-group]')];
   const rows = [...installDotnetDialog.querySelectorAll('[data-install-row]')];
 
   function updateInstallCliPreview(row) {
@@ -1065,6 +1042,21 @@ if (installDotnetDialog) {
     const cmd = row.dataset.cmd || '';
     if (cliPreview && cmd) cliPreview.textContent = cmd;
     if (cliCopy && cmd) cliCopy.dataset.copy = cmd;
+  }
+
+  function syncInstallFilterButtons() {
+    const isAllUnfiltered = !onlyLatest && !onlySupported && !onlyLts;
+    for (const btn of lifecycleBtns) {
+      const val = btn.dataset.installLifecycle;
+      let isActive = false;
+      if (val === 'latest') isActive = onlyLatest;
+      else if (val === 'supported') isActive = onlySupported;
+      else if (val === 'lts') isActive = onlyLts;
+      else if (val === 'previews') isActive = includePreviews;
+      else if (val === 'all') isActive = isAllUnfiltered;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    }
   }
 
   function filterInstallRows() {
@@ -1080,27 +1072,31 @@ if (installDotnetDialog) {
       const isPre = row.dataset.preview === 'true';
       const isLatest = row.dataset.latest === 'true';
 
-      let matchesLifecycle = true;
-      if (activeLifecycle === 'latest') {
-        matchesLifecycle = isLatest && (includePreviews ? (isSupported || isPre) : (isSupported && !isPre));
-      } else if (activeLifecycle === 'supported') {
-        matchesLifecycle = isSupported && (includePreviews || !isPre);
-      } else if (activeLifecycle === 'lts') {
-        matchesLifecycle = isSupported && isLts && (includePreviews || !isPre);
-      } else if (activeLifecycle === 'all') {
-        matchesLifecycle = includePreviews || !isPre;
-      }
+      const matchesLatest = !onlyLatest || isLatest;
+      const matchesSupported = !onlySupported || isSupported || (includePreviews && isPre);
+      const matchesLts = !onlyLts || isLts;
+      const matchesPreviews = includePreviews || !isPre;
 
       const searchStr = (row.dataset.search || '').toLowerCase();
       const matchesQuery = !terms.length || terms.every(t => searchStr.includes(t));
 
-      const show = matchesProduct && matchesLifecycle && matchesQuery;
+      const show = matchesProduct && matchesLatest && matchesSupported && matchesLts && matchesPreviews && matchesQuery;
       row.hidden = !show;
       if (show) {
         visibleCount++;
         if (!firstVisible) firstVisible = row;
       } else {
         row.classList.remove('active');
+      }
+    }
+
+    for (const group of channelGroups) {
+      const groupRows = [...group.querySelectorAll('[data-install-row]')];
+      const visibleInGroup = groupRows.filter(r => !r.hidden).length;
+      group.hidden = visibleInGroup === 0;
+      const countEl = group.querySelector('[data-install-channel-count]');
+      if (countEl) {
+        countEl.textContent = visibleInGroup === 1 ? '1 release' : `${visibleInGroup} releases`;
       }
     }
 
@@ -1123,15 +1119,26 @@ if (installDotnetDialog) {
   for (const btn of lifecycleBtns) {
     btn.addEventListener('click', () => {
       const val = btn.dataset.installLifecycle;
-      if (val === 'previews') {
+      if (val === 'latest') {
+        onlyLatest = !onlyLatest;
+      } else if (val === 'supported') {
+        onlySupported = !onlySupported;
+      } else if (val === 'lts') {
+        onlyLts = !onlyLts;
+      } else if (val === 'previews') {
         includePreviews = !includePreviews;
-        btn.classList.toggle('active', includePreviews);
-      } else if (val) {
-        activeLifecycle = val;
-        lifecycleBtns
-          .filter(b => b.dataset.installLifecycle !== 'previews')
-          .forEach(b => b.classList.toggle('active', b === btn));
+      } else if (val === 'all') {
+        const alreadyAll = !onlyLatest && !onlySupported && !onlyLts;
+        if (alreadyAll) {
+          onlyLatest = true;
+          onlySupported = true;
+        } else {
+          onlyLatest = false;
+          onlySupported = false;
+          onlyLts = false;
+        }
       }
+      syncInstallFilterButtons();
       filterInstallRows();
     });
   }
@@ -1350,11 +1357,21 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  const updateItem = e.target.closest('[data-tool-menu-update]');
+  if (updateItem) {
+    e.preventDefault();
+    const row = updateItem.closest('tr[data-tool-row]');
+    const form = row?.querySelector('form.tool-update-form') || row?.querySelector('form[action="/tools/update"]');
+    if (form) form.requestSubmit();
+    for (const m of openMenus) m.hidden = true;
+    return;
+  }
+
   const uninstallItem = e.target.closest('[data-tool-menu-uninstall]');
   if (uninstallItem) {
     e.preventDefault();
     const row = uninstallItem.closest('tr[data-tool-row]');
-    const form = row?.querySelector('form.tool-action');
+    const form = row?.querySelector('form.tool-uninstall-form') || row?.querySelector('form[action="/tools/uninstall"]');
     if (form) form.requestSubmit();
     for (const m of openMenus) m.hidden = true;
     return;
@@ -1431,6 +1448,7 @@ if (toolDrawer && toolsDataEl) {
     const uninstallCmd = document.getElementById('tool-drawer-uninstall-cmd');
     const uninstallCopy = document.getElementById('tool-drawer-uninstall-copy');
     const nugetBtn = document.getElementById('tool-drawer-nuget-btn');
+    const updateForm = document.getElementById('tool-drawer-update-form');
     const removeForm = document.getElementById('tool-drawer-remove-form');
 
     if (eyebrow) eyebrow.textContent = data.eyebrow;
@@ -1482,6 +1500,19 @@ if (toolDrawer && toolsDataEl) {
     if (uninstallCmd) uninstallCmd.textContent = data.uninstallCmd;
     if (uninstallCopy) uninstallCopy.dataset.copy = data.uninstallCmd;
     if (nugetBtn) nugetBtn.href = data.nugetUrl;
+    if (updateForm) {
+      if (data.hasUpdate) {
+        const refreshSvg = '<svg class="i xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>';
+        updateForm.innerHTML = `
+          <form method="post" action="/tools/update">
+            <input type="hidden" name="packageId" value="${data.packageId}">
+            <input type="hidden" name="scope" value="${data.scope}">
+            <button class="button primary" type="submit">${refreshSvg} Update to ${data.latestVersion || 'latest'}</button>
+          </form>`;
+      } else {
+        updateForm.innerHTML = '';
+      }
+    }
     if (removeForm) {
       const trashSvg = '<svg class="i xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
       removeForm.innerHTML = `

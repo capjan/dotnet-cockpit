@@ -142,6 +142,10 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
 test('opens the Install .NET side-drawer with Latest filter active and filters SDK and runtime releases', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.rail a[href="/preflight"]')).toHaveCount(0);
+  const channelCards = await page.locator('tbody.channel-card').count();
+  const removeChannelBtns = await page.locator('[data-remove-channel]').count();
+  expect(removeChannelBtns).toBe(channelCards);
+
   const openBtn = page.locator('#open-install-dotnet-btn');
   await expect(openBtn).toBeVisible();
   await openBtn.click();
@@ -150,14 +154,26 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
   await expect(dialog).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Install .NET SDK or runtime' })).toBeVisible();
   await expect(page.locator('[data-install-lifecycle="latest"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-install-lifecycle="lts"]')).toHaveText('LTS');
   await expect(page.locator('#install-dotnet-cli-preview')).toContainText('sudo installer -pkg');
+
+  const visibleGroups = page.locator('[data-install-channel-group]:not([hidden])');
+  expect(await visibleGroups.count()).toBeGreaterThan(0);
 
   const latestCount = await page.locator('[data-install-row]:not([hidden])').count();
   expect(latestCount).toBeGreaterThan(0);
 
-  await page.locator('[data-install-lifecycle="supported"]').click();
-  const supportedCount = await page.locator('[data-install-row]:not([hidden])').count();
-  expect(supportedCount).toBeGreaterThanOrEqual(latestCount);
+  // Toggle Latest off independently to reveal all supported releases per channel
+  await page.locator('[data-install-lifecycle="latest"]').click();
+  await expect(page.locator('[data-install-lifecycle="latest"]')).not.toHaveClass(/active/);
+  const allSupportedCount = await page.locator('[data-install-row]:not([hidden])').count();
+  expect(allSupportedCount).toBeGreaterThanOrEqual(latestCount);
+
+  // Toggle LTS on and Latest back on to combine Latest + LTS
+  await page.locator('[data-install-lifecycle="lts"]').click();
+  await page.locator('[data-install-lifecycle="latest"]').click();
+  await expect(page.locator('[data-install-lifecycle="lts"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-install-lifecycle="latest"]')).toHaveClass(/active/);
 
   await page.locator('[data-install-product=".NET Runtime"]').click();
   await expect(page.locator('[data-install-row]:not([hidden])').first()).toContainText('.NET Runtime');

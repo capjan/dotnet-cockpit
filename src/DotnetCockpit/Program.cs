@@ -161,6 +161,13 @@ app.MapPost("/tools/install", async (HttpContext context, DotnetToolsService ser
     var result = await service.InstallAsync(form["packageId"].ToString(), form["version"].ToString(), scope, context.RequestAborted);
     return Results.Redirect(ToolRedirect(scope, form["q"].ToString(), result.Success ? "installed" : "failed"));
 });
+app.MapPost("/tools/update", async (HttpContext context, DotnetToolsService service) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var scope = form["scope"].ToString();
+    var result = await service.UpdateAsync(form["packageId"].ToString(), scope, context.RequestAborted);
+    return Results.Redirect(ToolRedirect(scope, "", result.Success ? "updated" : "failed"));
+});
 app.MapPost("/tools/uninstall", async (HttpContext context, DotnetToolsService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
@@ -194,6 +201,14 @@ app.MapGet("/api/tools/search", async (DotnetToolsService service, HttpContext c
         return Results.Json(new ToolSearch("", []), AppJsonContext.Default.ToolSearch);
     var search = await service.SearchAsync(query, context.RequestAborted);
     return Results.Json(search, AppJsonContext.Default.ToolSearch);
+});
+app.MapGet("/api/tools/icon", async (HttpContext context, HttpClient httpClient) =>
+{
+    var packageId = context.Request.Query["packageId"].ToString().Trim();
+    var version = context.Request.Query["version"].ToString().Trim();
+    var (bytes, contentType) = await ToolMetadataCatalog.GetOrFetchIconAsync(packageId, version, httpClient, context.RequestAborted);
+    context.Response.Headers.CacheControl = "public, max-age=3600";
+    return Results.Bytes(bytes ?? [], contentType);
 });
 app.MapGet("/{**path}", (HttpContext context, WebAssets assets, string? path) => assets.Get(context, path));
 

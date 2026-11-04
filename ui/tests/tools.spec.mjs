@@ -86,6 +86,10 @@ test('opens the NuGet Add Tool sheet and updates CLI preview', async ({ page }) 
   const dialog = page.locator('#add-tool-dialog');
   await expect(dialog).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Add a .NET tool' })).toBeVisible();
+  await expect(page.locator('[data-sheet-scope="global"]')).toContainText('Global');
+  await expect(page.locator('[data-sheet-scope="global"]')).toContainText('User');
+  await expect(page.locator('[data-sheet-scope="local"]')).toContainText('Local');
+  await expect(page.locator('[data-sheet-scope="local"]')).toContainText('Workspace');
   await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --global');
   await page.locator('[data-sheet-scope="local"]').click();
   await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --local');
@@ -96,7 +100,7 @@ test('opens the NuGet Add Tool sheet and updates CLI preview', async ({ page }) 
 test('displays tool logos, descriptions, and download counts and opens the tool detail drawer', async ({ page }) => {
   await page.goto('http://127.0.0.1:5234/tools?scope=local');
   const row = page.locator('tr[data-tool-scope="local"]').first();
-  await expect(row.locator('.tool-logo')).toBeVisible();
+  await expect(row.locator('.tool-logo.nuget-default-logo svg.nuget-logo-svg')).toBeVisible();
   await expect(row.locator('.tool-desc')).toContainText('Workspace verification fixture tool');
   await expect(row.locator('.tool-downloads-chip')).toContainText('↓');
 

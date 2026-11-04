@@ -215,7 +215,7 @@ internal static class InstallationPage
                         </div>
                         <div class="channel-life-bar {lifeState}"><i style="width:{lifeWidth}"></i></div>
                       </div>
-                      {(isEol && group.Any(r => r.CanRemove) ? $"<button type=\"button\" class=\"button sm danger\" data-remove-channel=\"{channel}\">{Icon("trash", "xs")} Remove channel</button>" : "")}
+                      {(group.Any(r => r.CanRemove) ? $"<button type=\"button\" class=\"button sm danger\" data-remove-channel=\"{channel}\">{Icon("trash", "xs")} Remove channel</button>" : "")}
                       <button type="button" class="button icon sm ghost channel-collapse-btn" data-collapse-channel="{channel}" aria-label="Toggle .NET {channel} channel">{Icon("chevd", "sm")}</button>
                     </div>
                   </td>
@@ -529,9 +529,8 @@ internal static class InstallationPage
             .GroupBy(d => (d.Product, d.Channel))
             .SelectMany(g => g
                 .OrderByDescending(d => d.Version, SdkVersionComparer.Instance)
-                .Take(5))
-            .OrderByDescending(d => channelLeaders.Contains(d))
-            .ThenByDescending(d => int.TryParse(d.Channel.Split('.')[0], out var ch) ? ch : 0)
+                .Take(8))
+            .OrderByDescending(d => int.TryParse(d.Channel.Split('.')[0], out var ch) ? ch : 0)
             .ThenByDescending(d => d.Version, SdkVersionComparer.Instance)
             .ToArray();
 
@@ -563,86 +562,133 @@ internal static class InstallationPage
         }
         else
         {
-            var itemsHtml = string.Concat(curated.Select(d =>
+            var channelGroups = curated
+                .GroupBy(d => d.Channel.Split('.')[0])
+                .OrderByDescending(g => int.TryParse(g.Key, out var ch) ? ch : 0)
+                .ToArray();
+
+            var groupsHtml = string.Concat(channelGroups.Select(channelGroup =>
             {
-                var major = d.Channel.Split('.')[0];
-                var isPreview = d.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) || d.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
-                var isEol = string.Equals(d.SupportPhase, "EOL", StringComparison.OrdinalIgnoreCase) || InstallationSnapshot.IsEol(d.Version);
-                var isLts = string.Equals(d.ReleaseType, "LTS", StringComparison.OrdinalIgnoreCase);
-                var isInstalled = d.Product == "SDK"
-                    ? installedSdks.Contains(d.Version) || installedSdks.Contains(d.InstallationVersion)
-                    : installedRuntimes.Contains(d.Version) || installedRuntimes.Contains(d.InstallationVersion);
-                var isActive = ReferenceEquals(d, firstDefault);
-                var isLeader = channelLeaders.Contains(d) || latestStableLeaders.Contains(d);
-                var initiallyHidden = d.Product != "SDK" || isEol || isPreview || !isLeader;
+                var major = channelGroup.Key;
+                var orderedItems = channelGroup
+                    .OrderByDescending(d => d.Version, SdkVersionComparer.Instance)
+                    .ToArray();
+                var sample = orderedItems[0];
+                var chIsPreviewOnly = orderedItems.All(d =>
+                    d.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) ||
+                    d.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase));
+                var chIsEol = orderedItems.All(d =>
+                    string.Equals(d.SupportPhase, "EOL", StringComparison.OrdinalIgnoreCase) ||
+                    InstallationSnapshot.IsEol(d.Version));
+                var chIsLts = orderedItems.Any(d => string.Equals(d.ReleaseType, "LTS", StringComparison.OrdinalIgnoreCase));
+                var chTagClass = chIsPreviewOnly ? "preview" : (chIsLts ? "lts" : "sts");
+                var chTagLabel = chIsPreviewOnly ? "Preview" : (chIsLts ? "LTS" : "STS");
+                var chPhaseBadge = chIsEol
+                    ? "<span class=\"badge bad sm\">EOL</span>"
+                    : chIsPreviewOnly
+                        ? "<span class=\"badge warn sm\">Preview</span>"
+                        : "<span class=\"badge ok sm\">Supported</span>";
 
-                var tagClass = isPreview ? "preview" : (isLts ? "lts" : "sts");
-                var tagLabel = isPreview ? "Preview" : (isLts ? "LTS" : "STS");
-                var statusBadge = isInstalled
-                    ? "<span class=\"badge ok sm\">✓ Installed</span>"
-                    : isEol
-                        ? "<span class=\"badge bad sm\">EOL</span>"
-                        : isActive
-                            ? "<span class=\"badge brand sm\">Recommended</span>"
-                            : isLeader
-                                ? "<span class=\"badge ok sm\">Latest</span>"
-                                : "";
+                var initialVisibleCount = 0;
+                var rowsHtml = string.Concat(orderedItems.Select(d =>
+                {
+                    var isPreview = d.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) || d.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
+                    var isEol = string.Equals(d.SupportPhase, "EOL", StringComparison.OrdinalIgnoreCase) || InstallationSnapshot.IsEol(d.Version);
+                    var isLts = string.Equals(d.ReleaseType, "LTS", StringComparison.OrdinalIgnoreCase);
+                    var isInstalled = d.Product == "SDK"
+                        ? installedSdks.Contains(d.Version) || installedSdks.Contains(d.InstallationVersion)
+                        : installedRuntimes.Contains(d.Version) || installedRuntimes.Contains(d.InstallationVersion);
+                    var isActive = ReferenceEquals(d, firstDefault);
+                    var isLeader = channelLeaders.Contains(d) || latestStableLeaders.Contains(d);
+                    var initiallyHidden = d.Product != "SDK" || isEol || isPreview || !isLeader;
+                    if (!initiallyHidden) initialVisibleCount++;
 
-                var relDate = FormatReleaseDate(d.ReleaseDate) ?? d.ReleaseDate;
-                var inclRt = ShortDisplayVersion(d.IncludedRuntimeVersion ?? $"{major}.0");
-                var subtitle = d.Product == "SDK"
-                    ? $"Includes .NET Runtime {inclRt} · Released {relDate}"
-                    : $"Shared framework · Released {relDate}";
+                    var tagClass = isPreview ? "preview" : (isLts ? "lts" : "sts");
+                    var tagLabel = isPreview ? "Preview" : (isLts ? "LTS" : "STS");
+                    var statusBadge = isInstalled
+                        ? "<span class=\"badge ok sm\">✓ Installed</span>"
+                        : isEol
+                            ? "<span class=\"badge bad sm\">EOL</span>"
+                            : isActive
+                                ? "<span class=\"badge brand sm\">Recommended</span>"
+                                : isLeader
+                                    ? "<span class=\"badge ok sm\">Latest</span>"
+                                    : "";
 
-                var kindKey = d.Product == "SDK" ? "sdk" : "runtime";
-                var fileName = GetInstallerFileName(d.Url, kindKey, d.Version);
-                var size = GetEstimatedPackageSize(kindKey, major);
-                var shortSha = ShortSha(d.Sha512);
-                var verifyCmd = !string.IsNullOrEmpty(d.Sha512)
-                    ? $"echo \"{d.Sha512}  {fileName}\" | shasum -a 512 -c - && sudo installer -pkg {fileName} -target /"
-                    : $"sudo installer -pkg {fileName} -target /";
+                    var relDate = FormatReleaseDate(d.ReleaseDate) ?? d.ReleaseDate;
+                    var inclRt = ShortDisplayVersion(d.IncludedRuntimeVersion ?? $"{major}.0");
+                    var subtitle = d.Product == "SDK"
+                        ? $"Includes .NET Runtime {inclRt} · Released {relDate}"
+                        : $"Shared framework · Released {relDate}";
 
-                var cveMeta = d.Cves.Length > 0
-                    ? $"<span>🛡 {d.Cves.Length} {(d.Cves.Length == 1 ? "CVE fix" : "CVE fixes")}</span>"
-                    : "<span>✓ 0 open CVEs</span>";
+                    var kindKey = d.Product == "SDK" ? "sdk" : "runtime";
+                    var fileName = GetInstallerFileName(d.Url, kindKey, d.Version);
+                    var size = GetEstimatedPackageSize(kindKey, major);
+                    var shortSha = ShortSha(d.Sha512);
+                    var verifyCmd = !string.IsNullOrEmpty(d.Sha512)
+                        ? $"echo \"{d.Sha512}  {fileName}\" | shasum -a 512 -c - && sudo installer -pkg {fileName} -target /"
+                        : $"sudo installer -pkg {fileName} -target /";
 
+                    var cveMeta = d.Cves.Length > 0
+                        ? $"<span>🛡 {d.Cves.Length} {(d.Cves.Length == 1 ? "CVE fix" : "CVE fixes")}</span>"
+                        : "<span>✓ 0 open CVEs</span>";
+
+                    return $"""
+                        <div class="sheet-result-item {(isActive ? "active" : "")}"
+                             data-install-row
+                             data-product="{Encode(d.Product)}"
+                             data-version="{Encode(d.Version)}"
+                             data-channel="{Encode(major)}"
+                             data-lts="{(isLts ? "true" : "false")}"
+                             data-preview="{(isPreview ? "true" : "false")}"
+                             data-supported="{(!isEol ? "true" : "false")}"
+                             data-latest="{(isLeader ? "true" : "false")}"
+                             data-cmd="{Encode(verifyCmd)}"
+                             data-search="{Encode($"{d.Product} {d.Version} .NET {major} {d.Channel} {tagLabel} {inclRt} {relDate} {string.Join(' ', d.Cves.Select(c => c.Id))}")}"
+                             {(initiallyHidden ? "hidden" : "")}>
+                          <span class="channel-avatar channel-avatar-{Encode(major)}">{Encode(major)}</span>
+                          <div class="sheet-result-body">
+                            <div class="sheet-result-top">
+                              <strong>.NET {Encode(d.Product == "SDK" ? "SDK" : "Runtime")} {Encode(d.Version)}</strong>
+                              <span class="channel-tag {tagClass}">{tagLabel}</span>
+                              {statusBadge}
+                            </div>
+                            <span class="muted text-xs">{Encode(subtitle)}</span>
+                            <div class="sheet-result-meta muted text-xs">
+                              <span>📦 {size}</span>
+                              {(string.IsNullOrEmpty(shortSha) ? "" : $"<span>SHA-512 <code>{Encode(shortSha)}</code></span>")}
+                              {cveMeta}
+                            </div>
+                          </div>
+                          <div class="sheet-result-actions">
+                            {(string.IsNullOrEmpty(d.Sha512) ? "" : $"<button type=\"button\" class=\"button icon sm ghost copy-btn\" data-copy=\"{Encode(d.Sha512)}\" title=\"Copy SHA-512 checksum\">{Icon("clipboard", "xs")}</button>")}
+                            <a class="button {(isActive && !isInstalled ? "primary" : "")} sm" href="{Encode(d.Url)}" download>{Icon("download", "xs")} {(isInstalled ? "Re-download" : "Download .pkg")}</a>
+                          </div>
+                        </div>
+                        """;
+                }));
+
+                var countLabel = initialVisibleCount == 1 ? "1 release" : $"{initialVisibleCount} releases";
                 return $"""
-                    <div class="sheet-result-item {(isActive ? "active" : "")}"
-                         data-install-row
-                         data-product="{Encode(d.Product)}"
-                         data-version="{Encode(d.Version)}"
-                         data-channel="{Encode(major)}"
-                         data-lts="{(isLts ? "true" : "false")}"
-                         data-preview="{(isPreview ? "true" : "false")}"
-                         data-supported="{(!isEol ? "true" : "false")}"
-                         data-latest="{(isLeader ? "true" : "false")}"
-                         data-cmd="{Encode(verifyCmd)}"
-                         data-search="{Encode($"{d.Product} {d.Version} .NET {major} {d.Channel} {tagLabel} {inclRt} {relDate} {string.Join(' ', d.Cves.Select(c => c.Id))}")}"
-                         {(initiallyHidden ? "hidden" : "")}>
-                      <span class="channel-avatar channel-avatar-{Encode(major)}">{Encode(major)}</span>
-                      <div class="sheet-result-body">
-                        <div class="sheet-result-top">
-                          <strong>.NET {Encode(d.Product == "SDK" ? "SDK" : "Runtime")} {Encode(d.Version)}</strong>
-                          <span class="channel-tag {tagClass}">{tagLabel}</span>
-                          {statusBadge}
+                    <section class="sheet-channel-group" data-install-channel-group="{Encode(major)}" {(initialVisibleCount == 0 ? "hidden" : "")}>
+                      <div class="sheet-channel-head">
+                        <span class="channel-avatar sm channel-avatar-{Encode(major)}">{Encode(major)}</span>
+                        <div class="sheet-channel-head-main">
+                          <strong>.NET {Encode(major)}</strong>
+                          <span class="channel-tag {chTagClass}">{chTagLabel}</span>
+                          {chPhaseBadge}
                         </div>
-                        <span class="muted text-xs">{Encode(subtitle)}</span>
-                        <div class="sheet-result-meta muted text-xs">
-                          <span>📦 {size}</span>
-                          {(string.IsNullOrEmpty(shortSha) ? "" : $"<span>SHA-512 <code>{Encode(shortSha)}</code></span>")}
-                          {cveMeta}
-                        </div>
+                        <span class="sheet-channel-count muted text-xs" data-install-channel-count>{countLabel}</span>
                       </div>
-                      <div class="sheet-result-actions">
-                        {(string.IsNullOrEmpty(d.Sha512) ? "" : $"<button type=\"button\" class=\"button icon sm ghost copy-btn\" data-copy=\"{Encode(d.Sha512)}\" title=\"Copy SHA-512 checksum\">{Icon("clipboard", "xs")}</button>")}
-                        <a class="button {(isActive && !isInstalled ? "primary" : "")} sm" href="{Encode(d.Url)}" download>{Icon("download", "xs")} {(isInstalled ? "Re-download" : "Download .pkg")}</a>
+                      <div class="sheet-channel-items">
+                        {rowsHtml}
                       </div>
-                    </div>
+                    </section>
                     """;
             }));
 
             resultsHtml = $"""
-                {itemsHtml}
+                {groupsHtml}
                 <div id="install-dotnet-empty" class="empty-state" hidden>
                   <h3>No matching releases</h3>
                   <p class="muted">Try another version, channel, or toggle Previews / All releases above.</p>
@@ -679,11 +725,11 @@ internal static class InstallationPage
                     <div class="sheet-filter-group">
                       <span class="muted text-xs">Filter</span>
                       <div class="version-scope-pills" role="group" aria-label="Release filter">
-                        <button type="button" class="pill-badge active" data-install-lifecycle="latest">Latest</button>
-                        <button type="button" class="pill-badge" data-install-lifecycle="supported">Supported</button>
-                        <button type="button" class="pill-badge" data-install-lifecycle="lts">LTS only</button>
-                        <button type="button" class="pill-badge" data-install-lifecycle="previews">+ Previews</button>
-                        <button type="button" class="pill-badge" data-install-lifecycle="all">All</button>
+                        <button type="button" class="pill-badge active" data-install-lifecycle="latest" aria-pressed="true">Latest</button>
+                        <button type="button" class="pill-badge active" data-install-lifecycle="supported" aria-pressed="true">Supported</button>
+                        <button type="button" class="pill-badge" data-install-lifecycle="lts" aria-pressed="false">LTS</button>
+                        <button type="button" class="pill-badge" data-install-lifecycle="previews" aria-pressed="false">+ Previews</button>
+                        <button type="button" class="pill-badge" data-install-lifecycle="all" aria-pressed="false">All</button>
                       </div>
                     </div>
                   </div>

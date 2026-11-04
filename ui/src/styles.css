@@ -849,6 +849,9 @@ td:last-child { padding-right: 22px; }
   font-family: var(--font-mono);
   user-select: all;
   cursor: copy;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 /* Copy affordance */
@@ -1860,9 +1863,12 @@ tr[data-kind]:is(:hover, :focus-within, .row-selected) .cell-actions .inspect-bt
 .drawer-path {
   font-size: 11px;
   color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.45;
   min-width: 0;
 }
 .drawer-patch-box {
@@ -1936,13 +1942,17 @@ tr[data-kind]:is(:hover, :focus-within, .row-selected) .cell-actions .inspect-bt
   padding: 0;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.45;
 }
 #remove-dialog-cmd {
   white-space: pre-wrap;
-  word-break: break-word;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .drawer-footer {
   padding: 14px 20px;
@@ -2963,11 +2973,45 @@ dialog::backdrop {
   gap: 6px;
   flex-shrink: 0;
 }
-#install-dotnet-cli-preview {
+#install-dotnet-cli-preview,
+#sheet-cli-preview {
   display: block;
-  overflow-x: auto;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
   max-width: 100%;
+}
+.sheet-channel-group {
+  border-bottom: 1px solid var(--line);
+}
+.sheet-channel-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.sheet-channel-head-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sheet-channel-head-main strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.sheet-channel-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
 }
 .sheet-results {
   flex: 1;
@@ -3000,7 +3044,15 @@ dialog::backdrop {
 }
 .sheet-result-meta {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+.sheet-result-meta span {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .sheet-foot {
   padding: 16px 24px;
@@ -3242,6 +3294,7 @@ dialog::backdrop {
   .main:has(#tool-drawer:not([hidden])) .tool-manifest,
   .main:has(#tool-drawer:not([hidden])) .tool-more-wrap,
   .main:has(#tool-drawer:not([hidden])) .tool-inspect-btn,
+  .main:has(#tool-drawer:not([hidden])) .tool-row-actions:has(.tool-update-form) .tool-uninstall-form,
   .main:has(#tool-drawer:not([hidden])) .tools-table th:nth-child(4),
   .main:has(#tool-drawer:not([hidden])) .tools-table td:nth-child(4) {
     display: none;
@@ -3303,11 +3356,13 @@ dialog::backdrop {
 :root[data-theme="light"] .tool-monogram.tool-logo {
   border-color: rgba(15, 23, 42, 0.1);
 }
-.tool-monogram.tool-logo.has-img {
-  background: rgba(255, 255, 255, 0.07);
+.tool-monogram.tool-logo.has-img,
+.tool-monogram.tool-logo.nuget-default-logo {
+  background: rgba(255, 255, 255, 0.06);
   padding: 4px;
 }
-:root[data-theme="light"] .tool-monogram.tool-logo.has-img {
+:root[data-theme="light"] .tool-monogram.tool-logo.has-img,
+:root[data-theme="light"] .tool-monogram.tool-logo.nuget-default-logo {
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
@@ -3323,6 +3378,10 @@ dialog::backdrop {
   height: 19px;
   display: block;
 }
+.tool-logo-svg.nuget-logo-svg {
+  width: 26px;
+  height: 26px;
+}
 .tool-monogram.tool-logo.drawer-logo-lg {
   width: 48px;
   height: 48px;
@@ -3331,6 +3390,10 @@ dialog::backdrop {
 .tool-monogram.tool-logo.drawer-logo-lg .tool-logo-svg {
   width: 24px;
   height: 24px;
+}
+.tool-monogram.tool-logo.drawer-logo-lg .tool-logo-svg.nuget-logo-svg {
+  width: 34px;
+  height: 34px;
 }
 
 .tool-name {
@@ -3398,6 +3461,21 @@ dialog::backdrop {
   font-size: 16.5px;
   word-break: normal;
   overflow-wrap: anywhere;
+}
+.tool-detail-drawer .drawer-footer {
+  flex-wrap: wrap;
+}
+#tool-drawer-update-form:empty {
+  display: none;
+}
+#tool-drawer-update-form:not(:empty) {
+  flex: 1 1 100%;
+  order: -1;
+}
+#tool-drawer-update-form form,
+#tool-drawer-update-form button {
+  width: 100%;
+  justify-content: center;
 }
 .tool-desc {
   font-size: 12px;
@@ -3484,9 +3562,12 @@ dialog::backdrop {
 .drawer-command-box code {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.45;
 }
 .drawer-code-box .copy-btn,
 .drawer-command-box .copy-btn {

@@ -228,18 +228,31 @@ internal static class ToolMetadataCatalog
             9_700_000),
     };
 
+    public const string NuGetLogoSvg = """<svg class="tool-logo-svg nuget-logo-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="6" y="6" width="23" height="23" rx="5.5" fill="#004880" stroke="#1d6fb8" stroke-width="1"/><circle cx="4.2" cy="4.2" r="2.3" fill="#0078d4"/><circle cx="13.2" cy="13.2" r="2.8" fill="#ffffff"/><circle cx="21.2" cy="21.2" r="4.8" fill="#ffffff"/></svg>""";
+
+    private static readonly (string Id, string Version)[] FeaturedSheetPackages =
+    [
+        ("dotnet-coverage", "18.1.0"),
+        ("dotnet-reportgenerator-globaltool", "5.4.18"),
+        ("coverlet.console", "6.0.4"),
+        ("dotnet-ef", "10.0.0"),
+        ("dotnet-outdated-tool", "4.6.8")
+    ];
+
     public static async Task WarmCacheAsync(ToolsSnapshot snapshot, HttpClient httpClient, CancellationToken cancellationToken)
     {
         var allTools = snapshot.Global.Tools.Concat(snapshot.Local.Tools)
-            .GroupBy(t => t.PackageId, StringComparer.OrdinalIgnoreCase)
+            .Select(t => (Id: t.PackageId, Version: t.Version))
+            .Concat(FeaturedSheetPackages)
+            .GroupBy(t => t.Id, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .ToArray();
         if (allTools.Length == 0) return;
 
         var now = DateTimeOffset.UtcNow;
         var missingIds = allTools
-            .Where(t => !NuGetCache.TryGetValue(t.PackageId, out var cached) || (now - cached.FetchedAt) > TimeSpan.FromMinutes(15))
-            .Select(t => t.PackageId)
+            .Where(t => !NuGetCache.TryGetValue(t.Id, out var cached) || (now - cached.FetchedAt) > TimeSpan.FromMinutes(15))
+            .Select(t => t.Id)
             .ToArray();
 
         if (missingIds.Length > 0)
@@ -329,11 +342,11 @@ internal static class ToolMetadataCatalog
         // Fetch flatcontainer icons for packages that lack an embedded local icon file in .store
         foreach (var tool in allTools)
         {
-            if (RemoteIconCache.ContainsKey(tool.PackageId)) continue;
-            if (HasLocalStoreIcon(tool.PackageId, tool.Version)) continue;
-            if (!NuGetCache.TryGetValue(tool.PackageId, out var pkg) || string.IsNullOrWhiteSpace(pkg.IconUrl))
+            if (RemoteIconCache.ContainsKey(tool.Id)) continue;
+            if (HasLocalStoreIcon(tool.Id, tool.Version)) continue;
+            if (!NuGetCache.TryGetValue(tool.Id, out var pkg) || string.IsNullOrWhiteSpace(pkg.IconUrl))
             {
-                RemoteIconCache[tool.PackageId] = null;
+                RemoteIconCache[tool.Id] = null;
                 continue;
             }
 
@@ -341,29 +354,105 @@ internal static class ToolMetadataCatalog
             {
                 using var iconCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 iconCts.CancelAfter(TimeSpan.FromSeconds(2));
-                var lowerId = tool.PackageId.ToLowerInvariant();
-                var lowerVer = tool.Version.ToLowerInvariant();
-                var flatIconUrl = $"https://api.nuget.org/v3-flatcontainer/{Uri.EscapeDataString(lowerId)}/{Uri.EscapeDataString(lowerVer)}/icon";
+                var lowerId = tool.Id.ToLowerInvariant();
+                var targetVer = (!string.IsNullOrWhiteSpace(pkg.LatestStableVersion) ? pkg.LatestStableVersion : tool.Version).ToLowerInvariant();
+                var flatIconUrl = $"https://api.nuget.org/v3-flatcontainer/{Uri.EscapeDataString(lowerId)}/{Uri.EscapeDataString(targetVer)}/icon";
                 using var iconResp = await httpClient.GetAsync(flatIconUrl, iconCts.Token);
                 if (iconResp.IsSuccessStatusCode)
                 {
                     var bytes = await iconResp.Content.ReadAsByteArrayAsync(iconCts.Token);
-                    if (bytes.Length is > 0 and <= 150_000)
+                    var detectedMime = DetectImageMimeType(bytes, iconResp.Content.Headers.ContentType?.MediaType);
+                    if (detectedMime is not null)
                     {
-                        var mediaType = iconResp.Content.Headers.ContentType?.MediaType ?? "image/png";
-                        if (mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                        {
-                            RemoteIconCache[tool.PackageId] = $"data:{mediaType};base64,{Convert.ToBase64String(bytes)}";
-                            continue;
-                        }
+                        RemoteIconCache[tool.Id] = $"data:{detectedMime};base64,{Convert.ToBase64String(bytes)}";
+                        continue;
                     }
                 }
             }
             catch
             {
-                // Keep vector icon fallback if flatcontainer icon cannot be fetched.
+                // Fall back to standard NuGet logo if flatcontainer icon cannot be fetched.
             }
-            RemoteIconCache[tool.PackageId] = null;
+            RemoteIconCache[tool.Id] = null;
+        }
+    }
+
+    public static async Task<(byte[]? Bytes, string ContentType)> GetOrFetchIconAsync(string packageId, string version, HttpClient httpClient, CancellationToken cancellationToken)
+    {
+        var meta = Resolve(packageId, version, false);
+        if (!string.IsNullOrEmpty(meta.IconDataUri) && TryDecodeDataUri(meta.IconDataUri, out var cachedBytes, out var cachedMime))
+        {
+            return (cachedBytes, cachedMime);
+        }
+
+        if (!RemoteIconCache.ContainsKey(packageId) && !string.IsNullOrWhiteSpace(packageId) && !string.IsNullOrWhiteSpace(version))
+        {
+            try
+            {
+                using var iconCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                iconCts.CancelAfter(TimeSpan.FromSeconds(2));
+                var lowerId = packageId.ToLowerInvariant();
+                var lowerVer = version.ToLowerInvariant();
+                var flatIconUrl = $"https://api.nuget.org/v3-flatcontainer/{Uri.EscapeDataString(lowerId)}/{Uri.EscapeDataString(lowerVer)}/icon";
+                using var iconResp = await httpClient.GetAsync(flatIconUrl, iconCts.Token);
+                if (iconResp.IsSuccessStatusCode)
+                {
+                    var bytes = await iconResp.Content.ReadAsByteArrayAsync(iconCts.Token);
+                    var detectedMime = DetectImageMimeType(bytes, iconResp.Content.Headers.ContentType?.MediaType);
+                    if (detectedMime is not null)
+                    {
+                        RemoteIconCache[packageId] = $"data:{detectedMime};base64,{Convert.ToBase64String(bytes)}";
+                        return (bytes, detectedMime);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore network failure and return standard NuGet SVG.
+            }
+            RemoteIconCache[packageId] = null;
+        }
+
+        return (System.Text.Encoding.UTF8.GetBytes(NuGetLogoSvg), "image/svg+xml");
+    }
+
+    private static string? DetectImageMimeType(byte[] bytes, string? contentType)
+    {
+        if (bytes.Length is <= 8 or > 200_000) return null;
+        if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)
+            return "image/png";
+        if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
+            return "image/jpeg";
+        if (bytes.Length >= 12 && bytes[0] == (byte)'R' && bytes[1] == (byte)'I' && bytes[2] == (byte)'F' && bytes[3] == (byte)'F' &&
+            bytes[8] == (byte)'W' && bytes[9] == (byte)'E' && bytes[10] == (byte)'B' && bytes[11] == (byte)'P')
+            return "image/webp";
+        var head = System.Text.Encoding.UTF8.GetString(bytes.AsSpan(0, Math.Min(bytes.Length, 256))).TrimStart();
+        if (head.StartsWith("<svg", StringComparison.OrdinalIgnoreCase) ||
+            (head.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) && head.Contains("<svg", StringComparison.OrdinalIgnoreCase)))
+            return "image/svg+xml";
+        if (!string.IsNullOrWhiteSpace(contentType) && contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            return contentType;
+        return null;
+    }
+
+    private static bool TryDecodeDataUri(string dataUri, out byte[] bytes, out string mimeType)
+    {
+        bytes = [];
+        mimeType = "image/png";
+        if (!dataUri.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) return false;
+        var commaIdx = dataUri.IndexOf(',');
+        if (commaIdx < 0) return false;
+        var header = dataUri[5..commaIdx];
+        var semiIdx = header.IndexOf(';');
+        if (semiIdx > 0) mimeType = header[..semiIdx];
+        try
+        {
+            bytes = Convert.FromBase64String(dataUri[(commaIdx + 1)..]);
+            return bytes.Length > 0;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -377,19 +466,13 @@ internal static class ToolMetadataCatalog
         var lowerId = packageId.ToLowerInvariant();
         var lowerVer = version.ToLowerInvariant();
 
-        var globalStoreDir = Path.Combine(userProfile, ".dotnet", "tools", ".store", lowerId, lowerVer, lowerId, lowerVer);
-        var nugetCacheDir = Path.Combine(userProfile, ".nuget", "packages", lowerId, lowerVer);
-
-        var storeDir = Directory.Exists(globalStoreDir)
-            ? globalStoreDir
-            : Directory.Exists(nugetCacheDir)
-                ? nugetCacheDir
-                : "";
+        var storeDir = FindStoreDirectory(userProfile, lowerId, lowerVer);
+        var exactStoreDir = Path.Combine(userProfile, ".dotnet", "tools", ".store", lowerId, lowerVer);
 
         var displayStorePath = !string.IsNullOrWhiteSpace(manifestPath)
             ? manifestPath
-            : Directory.Exists(globalStoreDir)
-                ? Path.Combine(userProfile, ".dotnet", "tools", ".store", lowerId, lowerVer)
+            : Directory.Exists(exactStoreDir)
+                ? exactStoreDir
                 : Path.Combine(userProfile, ".dotnet", "tools");
 
         string? nuspecDescription = null;
@@ -552,50 +635,58 @@ internal static class ToolMetadataCatalog
             ? $"{count.ToString("N0", CultureInfo.InvariantCulture)} ({FormatCompactDownloads(count)})"
             : $"{count.ToString("N0", CultureInfo.InvariantCulture)} total";
 
-    public static string RenderLogo(ToolMetadata meta, int colorIdx, string monogram, string extraClass = "")
+    public static string RenderLogo(ToolMetadata meta, int colorIdx = 0, string monogram = "", string extraClass = "")
     {
         var cls = string.IsNullOrEmpty(extraClass) ? "" : $" {extraClass}";
         if (!string.IsNullOrEmpty(meta.IconDataUri))
         {
-            return $"<span class=\"tool-monogram tool-logo has-img monogram-{colorIdx}{cls}\"><img src=\"{meta.IconDataUri}\" alt=\"\" class=\"tool-logo-img\" width=\"36\" height=\"36\" loading=\"lazy\"></span>";
+            return $"<span class=\"tool-monogram tool-logo has-img{cls}\"><img src=\"{meta.IconDataUri}\" alt=\"\" class=\"tool-logo-img\" width=\"36\" height=\"36\" loading=\"lazy\"></span>";
         }
 
-        var svg = RenderKindSvg(meta.IconKind);
-        return $"<span class=\"tool-monogram tool-logo monogram-{colorIdx}{cls}\" title=\"{WebUtility.HtmlEncode(meta.PackageId)}\">{svg}</span>";
+        return $"<span class=\"tool-monogram tool-logo nuget-default-logo{cls}\" title=\"NuGet package ({WebUtility.HtmlEncode(meta.PackageId)})\">{NuGetLogoSvg}</span>";
     }
 
-    public static string RenderKindSvg(string kind) => kind switch
-    {
-        "database" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><ellipse cx=\"12\" cy=\"5\" rx=\"8\" ry=\"3\"/><path d=\"M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5\"/><path d=\"M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3\"/></svg>",
-        "shield" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/><path d=\"m9 12 2 2 4-4\"/></svg>",
-        "chart" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 3v18h18\"/><rect x=\"7\" y=\"11\" width=\"3\" height=\"6\" rx=\"1\"/><rect x=\"12\" y=\"7\" width=\"3\" height=\"10\" rx=\"1\"/><rect x=\"17\" y=\"4\" width=\"3\" height=\"13\" rx=\"1\"/></svg>",
-        "globe" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3.6 9h16.8M3.6 15h16.8\"/><path d=\"M11.5 3a17 17 0 0 0 0 18M12.5 3a17 17 0 0 1 0 18\"/></svg>",
-        "markdown" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2.5\"/><path d=\"M6 15V9l2.5 3L11 9v6M16.5 9v6m0 0-2.5-2.5M16.5 15 19 12.5\"/></svg>",
-        "regex" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M17 3v10M12.67 5.5l8.66 5M12.67 10.5l8.66-5\"/><circle cx=\"6.5\" cy=\"17.5\" r=\"2.5\"/><path d=\"M8 4H5a2 2 0 0 0-2 2v4\"/></svg>",
-        "bolt" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M13 2 4 14h7l-1 8 9-12h-7l1-8z\"/></svg>",
-        "doctor" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3\"/><path d=\"M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4\"/><circle cx=\"20\" cy=\"10\" r=\"2\"/></svg>",
-        "sparkles" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z\"/><path d=\"M5 3v4M3 5h4\"/></svg>",
-        "activity" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/></svg>",
-        "package" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z\"/><path d=\"m12 12 8-4.5M12 12v9M12 12 4 7.5\"/></svg>",
-        "box" => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2.5\"/><path d=\"m8 10 3 2.5L8 15\"/><path d=\"M13 15h3\"/></svg>",
-        _ => "<svg class=\"tool-logo-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polyline points=\"4 17 10 11 4 5\"/><line x1=\"12\" x2=\"20\" y1=\"19\" y2=\"19\"/></svg>"
-    };
+    public static string RenderKindSvg(string kind) => NuGetLogoSvg;
 
-    public static string InferIconKind(string packageId)
+    public static string InferIconKind(string packageId) => "nuget";
+
+    private static string FindStoreDirectory(string userProfile, string lowerId, string lowerVer)
     {
-        var id = packageId.ToLowerInvariant();
-        if (id.Contains("ef") || id.Contains("sql") || id.Contains("db") || id.Contains("data")) return "database";
-        if (id.Contains("cover") || id.Contains("test") || id.Contains("sec") || id.Contains("audit")) return "shield";
-        if (id.Contains("report") || id.Contains("bench") || id.Contains("metric")) return "chart";
-        if (id.Contains("ip") || id.Contains("http") || id.Contains("web") || id.Contains("net") && !id.StartsWith("dotnet")) return "globe";
-        if (id.Contains("md") || id.Contains("markdown") || id.Contains("doc")) return "markdown";
-        if (id.Contains("regex") || id.Contains("grep") || id.Contains("search")) return "regex";
-        if (id.Contains("wake") || id.Contains("power") || id.Contains("bolt")) return "bolt";
-        if (id.Contains("doctor") || id.Contains("diag") || id.Contains("health")) return "doctor";
-        if (id.Contains("format") || id.Contains("csharpier") || id.Contains("lint") || id.Contains("fantomas")) return "sparkles";
-        if (id.Contains("trace") || id.Contains("dump") || id.Contains("counter") || id.Contains("monitor")) return "activity";
-        if (id.Contains("outdated") || id.Contains("nuget") || id.Contains("pack")) return "package";
-        return "terminal";
+        if (!string.IsNullOrEmpty(lowerVer))
+        {
+            var globalStoreDir = Path.Combine(userProfile, ".dotnet", "tools", ".store", lowerId, lowerVer, lowerId, lowerVer);
+            if (Directory.Exists(globalStoreDir)) return globalStoreDir;
+
+            var nugetCacheDir = Path.Combine(userProfile, ".nuget", "packages", lowerId, lowerVer);
+            if (Directory.Exists(nugetCacheDir)) return nugetCacheDir;
+        }
+
+        try
+        {
+            var pkgRoot = Path.Combine(userProfile, ".dotnet", "tools", ".store", lowerId);
+            if (Directory.Exists(pkgRoot))
+            {
+                foreach (var verDir in Directory.EnumerateDirectories(pkgRoot))
+                {
+                    var vName = Path.GetFileName(verDir);
+                    var inner = Path.Combine(verDir, lowerId, vName);
+                    if (Directory.Exists(inner)) return inner;
+                }
+            }
+
+            var nugetPkgRoot = Path.Combine(userProfile, ".nuget", "packages", lowerId);
+            if (Directory.Exists(nugetPkgRoot))
+            {
+                var firstVerDir = Directory.EnumerateDirectories(nugetPkgRoot).FirstOrDefault();
+                if (firstVerDir is not null) return firstVerDir;
+            }
+        }
+        catch
+        {
+            // Ignore directory enumeration errors.
+        }
+
+        return "";
     }
 
     private static bool HasLocalStoreIcon(string packageId, string version)
@@ -605,9 +696,9 @@ internal static class ToolMetadataCatalog
             var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             var lowerId = packageId.ToLowerInvariant();
             var lowerVer = version.ToLowerInvariant();
-            var globalStoreDir = Path.Combine(userProfile, ".dotnet", "tools", ".store", lowerId, lowerVer, lowerId, lowerVer);
-            if (!Directory.Exists(globalStoreDir)) return false;
-            var nuspecPath = Directory.EnumerateFiles(globalStoreDir, "*.nuspec").FirstOrDefault();
+            var storeDir = FindStoreDirectory(userProfile, lowerId, lowerVer);
+            if (string.IsNullOrEmpty(storeDir)) return false;
+            var nuspecPath = Directory.EnumerateFiles(storeDir, "*.nuspec").FirstOrDefault();
             if (nuspecPath is null) return false;
             var doc = XDocument.Load(nuspecPath);
             var meta = doc.Root?.Elements().FirstOrDefault(e => e.Name.LocalName == "metadata");

@@ -48,6 +48,9 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger)
     public Task<ToolActionResult> InstallAsync(string packageId, string version, string scope, CancellationToken cancellationToken) =>
         RunToolActionAsync(packageId, version, scope, "install", cancellationToken);
 
+    public Task<ToolActionResult> UpdateAsync(string packageId, string scope, CancellationToken cancellationToken) =>
+        RunToolActionAsync(packageId, "", scope, "update", cancellationToken);
+
     public Task<ToolActionResult> UninstallAsync(string packageId, string scope, CancellationToken cancellationToken) =>
         RunToolActionAsync(packageId, "", scope, "uninstall", cancellationToken);
 
