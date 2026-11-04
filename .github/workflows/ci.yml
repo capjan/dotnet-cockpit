@@ -98,10 +98,10 @@ jobs:
           path: artifacts/dotnet-cockpit-${{ matrix.rid }}.*
           if-no-files-found: error
       - name: Upload browser failure traces
-        if: failure() && runner.os == 'Linux'
+        if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-test-results
+          name: browser-test-results-${{ matrix.rid }}
           path: ui/test-results/
           if-no-files-found: ignore
 

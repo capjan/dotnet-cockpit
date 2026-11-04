@@ -23,7 +23,10 @@ async function confirmAndWait(page, command, success) {
   await expect(dialog).toBeVisible();
   if (command) await expect(page.locator('#confirm-dialog-command')).toContainText(command);
   await page.locator('#confirm-dialog-submit').click();
-  await expect(page.locator('.toast')).toContainText(success, { timeout: ACTION_TIMEOUT });
+  // A failure shows a notice instead of a message, which should end the wait straight away.
+  const outcome = page.locator('.toast, .action-notice.error-state');
+  await expect(outcome).toBeVisible({ timeout: ACTION_TIMEOUT });
+  await expect(outcome).toContainText(success);
 }
 
 async function searchAndInstall(page, scope) {
@@ -188,4 +191,10 @@ test('Windows really installs and removes a .NET runtime', async ({ page }) => {
   await confirmAndWait(page, `dotnet-core-uninstall remove ${choice.version}`, '.NET installation was removed');
   await expect(row).toHaveCount(0);
   expect(dotnet('--list-runtimes')).not.toContain(`Microsoft.NETCore.App ${choice.version}`);
+
+  // And the uninstall tool goes again, through the Settings page
+  await page.goto('/setup');
+  await page.locator('form[data-confirm-post="/setup/uninstall"] button[type="submit"]').click();
+  await confirmAndWait(page, null, 'was removed');
+  await expect(page.locator('form[data-confirm-post="/setup/install"] button[type="submit"]').first()).toBeVisible();
 });
