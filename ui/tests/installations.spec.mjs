@@ -287,7 +287,7 @@ test('all row actions line up with the channel action in every channel', async (
 test('filters keep their position and height while switching', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
-  const measure = () => page.evaluate(() => [...document.querySelectorAll('[data-version-kind], .filter-form .search-field')]
+  const measure = () => page.evaluate(() => [...document.querySelectorAll('[data-version-kind], .inventory .filter-form .search-field')]
     .map(element => { const box = element.getBoundingClientRect(); return { left: Math.round(box.left), top: Math.round(box.top), height: Math.round(box.height) }; }));
   const before = await measure();
   await page.locator('[data-version-kind="sdks"]').click();
@@ -300,4 +300,65 @@ test('without a dotnet host the overview says so instead of reporting zero tools
   await page.goto('http://127.0.0.1:5232/overview');
   await expect(page.locator('.hero-meta-row')).not.toContainText('dotnet on PATH');
   await expect(page.locator('.hero-stat-cell').nth(2)).toContainText('Not available');
+});
+
+test('every control works without JavaScript', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  try {
+    for (const path of ['/', '/tools', '/tools?scope=local', '/overview', '/setup', '/preflight', '/?install=1']) {
+      await page.goto(path);
+      await expect(page.locator('button[type="button"]:visible'), path).toHaveCount(0);
+    }
+    await page.goto('/?install=1');
+    await page.locator('[data-install-product=".NET Runtime"]').click();
+    await expect(page).toHaveURL(/product=runtime/);
+    await expect(page.locator('#install-dotnet-dialog')).toBeVisible();
+    await expect(page.locator('[data-install-row]:not([hidden])').first()).toContainText('.NET Runtime');
+    await page.locator('[data-install-lifecycle="all"]').click();
+    await expect(page).toHaveURL(/view=all/);
+    await page.goto('/');
+    await page.locator('header [data-theme-pref="dark"]').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.locator('header [data-theme-pref="auto"]').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'auto');
+  } finally { await context.close(); }
+});
+
+test('no table scrolls sideways at desktop widths', async ({ page }) => {
+  for (const width of [1920, 1440, 1280, 1100, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const path of ['/', '/overview', '/setup', 'http://127.0.0.1:5234/tools', 'http://127.0.0.1:5234/tools?scope=all']) {
+      await page.goto(path);
+      const overflow = await page.evaluate(() => ({
+        page: document.documentElement.scrollWidth - innerWidth,
+        table: Math.max(0, ...[...document.querySelectorAll('.table-scroll')].map(element => element.scrollWidth - element.clientWidth)),
+      }));
+      expect(overflow, `${path} at ${width}`).toEqual({ page: 0, table: 0 });
+    }
+  }
+});
+
+test('overlays return focus and keep the keyboard inside', async ({ page }) => {
+  await page.goto('/');
+  const inspect = page.locator('[data-inspect]').first();
+  await inspect.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#drawer-close')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(inspect).toBeFocused();
+
+  const install = page.locator('#open-install-dotnet-btn');
+  await install.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#install-dotnet-search-input')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(install).toBeFocused();
+
+  await page.keyboard.press('Meta+k');
+  await expect(page.locator('#cmdk-input')).toBeFocused();
+  for (let index = 0; index < 4; index++) await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => Boolean(document.activeElement.closest('#cmdk-dialog')))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#cmdk-dialog')).toBeHidden();
 });

@@ -44,6 +44,6 @@ The .NET tool is optional. Use the native download on machines without an SDK.
 
 1. Open **Installations** to inspect the SDKs and runtimes reported by the selected `dotnet` host.
 2. Open **.NET Tools** to see global tools and local manifest declarations for the directory where Cockpit was launched.
-3. Open **Setup** to manage the supported uninstall tool or download an official macOS SDK or runtime package.
+3. Open **Settings** to manage the supported uninstall tool, or **Versions → Install .NET** to download an official macOS SDK or runtime package.
 
 Restart Cockpit after changing its inherited `PATH` or installing a new `dotnet` host.

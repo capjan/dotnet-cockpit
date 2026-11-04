@@ -34,6 +34,12 @@ function setupBusyForms() {
 
 export function setupConfirm() {
   setupBusyForms();
+  // A result message belongs to the action, not to the address, so reloading must not repeat it.
+  const current = new URL(window.location.href);
+  if (current.searchParams.has('notice')) {
+    current.searchParams.delete('notice');
+    history.replaceState(null, '', current);
+  }
   const dialog = document.getElementById('confirm-dialog');
   if (!dialog) return;
   const form = document.getElementById('confirm-dialog-form');

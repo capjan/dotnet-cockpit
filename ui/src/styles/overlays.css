@@ -148,3 +148,12 @@ dialog::backdrop { background: var(--scrim); }
 /* Confirmation as a page */
 .confirm-card { display: grid; gap: 14px; max-width: 640px; padding: 20px; }
 .confirm-items { margin: 0; padding-left: 18px; }
+
+/* Motion stays short and only explains where something came from; base.css turns it off on request. */
+@keyframes slide-in { from { transform: translateX(16px); opacity: 0; } }
+@keyframes rise-in { from { transform: translateY(6px); opacity: 0; } }
+@keyframes fade-in { from { opacity: 0; } }
+.detail-drawer:not([hidden]), .add-tool-sheet[open] { animation: slide-in 160ms ease-out; }
+.remove-modal[open] { animation: rise-in 140ms ease-out; }
+.palette:not([hidden]) { animation: fade-in 100ms ease-out; }
+dialog[open]::backdrop { animation: fade-in 140ms ease-out; }

@@ -86,7 +86,7 @@ tr[data-kind] > td { min-width: 0; padding: 0; }
 }
 @media (max-width: 1100px) {
   .versions-table { --actions: 84px; }
-  .inspect-btn { display: none; }
+  .cell-actions .inspect-btn { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .cell-actions { grid-template-columns: 84px; }
   .cell-actions form { grid-column: 1; }
 }

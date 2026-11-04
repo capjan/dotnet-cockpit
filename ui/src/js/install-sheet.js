@@ -14,7 +14,11 @@ export function setupInstallSheet() {
   const groups = [...dialog.querySelectorAll('[data-install-channel-group]')];
   const rows = [...dialog.querySelectorAll('[data-install-row]')];
   const previewsToggle = dialog.querySelector('[data-install-previews]');
-  const state = { product: 'SDK', view: 'latest', previews: false };
+  const state = {
+    product: dialog.dataset.product || 'SDK',
+    view: dialog.dataset.view || 'latest',
+    previews: dialog.dataset.previews === 'true',
+  };
 
   function showCommand(row) {
     if (!row?.dataset.cmd) return;
@@ -70,7 +74,8 @@ export function setupInstallSheet() {
   }
 
   for (const button of productButtons) {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
       state.product = button.dataset.installProduct;
       for (const other of productButtons) {
         const active = other === button;
@@ -82,14 +87,16 @@ export function setupInstallSheet() {
   }
 
   for (const button of filterButtons) {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
       state.view = button.dataset.installLifecycle;
       syncButtons();
       filter();
     });
   }
 
-  previewsToggle?.addEventListener('click', () => {
+  previewsToggle?.addEventListener('click', event => {
+    event.preventDefault();
     state.previews = !state.previews;
     previewsToggle.classList.toggle('active', state.previews);
     previewsToggle.setAttribute('aria-pressed', state.previews ? 'true' : 'false');
@@ -104,9 +111,7 @@ export function setupInstallSheet() {
   });
 
   search?.addEventListener('input', filter);
-  search?.addEventListener('keydown', event => {
-    if (event.key === 'Enter') event.preventDefault();
-  });
+  dialog.querySelector('[data-install-search]')?.addEventListener('submit', event => event.preventDefault());
 
   function open() {
     openModal(dialog, search);
@@ -124,8 +129,7 @@ export function setupInstallSheet() {
 
   if (dialog.hasAttribute('data-open-on-load')) {
     replaceQuery(url => {
-      url.searchParams.delete('install');
-      url.searchParams.delete('tab');
+      for (const name of ['install', 'tab', 'product', 'view', 'previews', 'installQ']) url.searchParams.delete(name);
     });
     open();
   }

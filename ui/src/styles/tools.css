@@ -79,11 +79,18 @@ tr[data-tool-row]:hover .tool-command-pill .i, .tool-command-pill:focus-visible 
 .tool-more-wrap { position: relative; grid-column: 4; }
 
 @media (max-width: 1240px) {
-  .tool-inspect-btn { display: none; }
+  .tool-row-actions .tool-inspect-btn { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .tool-row-actions { grid-template-columns: 72px 72px 28px; }
   .tool-update-form { grid-column: 1; }
   .tool-uninstall-form { grid-column: 2; }
   .tool-more-wrap { grid-column: 3; }
+}
+
+/* The command stays one click away in the drawer, so the column gives way before the table scrolls. */
+@media (max-width: 1100px) {
+  .tools-table th, .tools-table td { padding-inline: 10px; }
+  .tools-table th:nth-child(2), .tool-cell-cmd { display: none; }
+  .tool-name { min-width: 0; }
 }
 
 /* Drawer */

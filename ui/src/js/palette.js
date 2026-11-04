@@ -127,6 +127,12 @@ export function setupPalette() {
     } else if (event.key === 'Escape' && !dialog.hidden) {
       event.stopPropagation();
       close();
+    } else if (event.key === 'Tab' && !dialog.hidden) {
+      // The palette is modal, so focus stays inside it.
+      const focusable = [...dialog.querySelectorAll('input, a.opt:not([hidden]), #cmdk-nuget')].filter(element => element.offsetParent !== null);
+      const current = focusable.indexOf(document.activeElement);
+      event.preventDefault();
+      focusable[(current + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length]?.focus();
     }
   }, true);
 }

@@ -13,10 +13,14 @@ Cockpit reads the .NET host selected by its own `PATH`, the output of the standa
 
 ## Network requests
 
-The application starts without an internet connection. The Setup page requests release metadata only when it needs current installer or uninstall-tool release information. Installer links target official Microsoft-hosted files; uninstall-tool release discovery uses the official GitHub releases API.
+The application starts without an internet connection. The Settings page requests release metadata only when it needs current installer or uninstall-tool release information. Installer links target official Microsoft-hosted files; uninstall-tool release discovery uses the official GitHub releases API.
 
 ## Explicit changes
 
 Cockpit never changes .NET installations or tool manifests during inventory. Mutations require a local form submission and are scoped to the startup directory. An inherited parent tool manifest is displayed but cannot be removed from Cockpit.
 
 Before removing an installation, confirm that it is not needed by another application. Cockpit surfaces the command result, but the underlying platform installer and .NET tooling remain authoritative.
+
+## Local files
+
+Cockpit stores your appearance and pre-flight choices in `settings.json` in the `dotnet-cockpit` folder of your user configuration directory. Delete the file to reset them.

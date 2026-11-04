@@ -47,7 +47,7 @@ internal static class PageLayout
                 <div class="ws-card">
                   <div class="k">{{Icon("folder", "xs")}} Workspace</div>
                   <b>{{Encode(WorkspaceName)}}</b>
-                  <code>{{Encode(Environment.CurrentDirectory)}}</code>
+                  <code title="{{Encode(Environment.CurrentDirectory)}}"><bdi>{{Encode(Environment.CurrentDirectory)}}</bdi></code>
                 </div>
               </div>
             </aside>

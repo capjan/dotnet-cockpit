@@ -251,3 +251,6 @@
 .remove-modal-notice { display: flex; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--info-soft); font-size: var(--t-sm); }
 .notice-lock { color: var(--info); display: inline-flex; }
 .remove-modal-notice strong { font-weight: 500; }
+
+/* Copying needs script, so the controls only appear once it has loaded. */
+html:not(.js) .copy-btn { display: none; }

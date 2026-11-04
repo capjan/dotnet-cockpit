@@ -7,7 +7,7 @@ using static DotnetCockpit.SdkDownloadsSection;
 
 namespace DotnetCockpit;
 
-internal sealed record InstallationViewOptions(string Query = "", string Kind = "all", string Sort = "version", bool Ascending = false, string Notice = "", string Selected = "", bool OpenInstall = false)
+internal sealed record InstallationViewOptions(string Query = "", string Kind = "all", string Sort = "version", bool Ascending = false, string Notice = "", string Selected = "", bool OpenInstall = false, string InstallProduct = "SDK", string InstallView = "latest", bool InstallPreviews = false, string InstallQuery = "")
 {
     public static InstallationViewOptions From(IQueryCollection query)
     {
@@ -21,7 +21,11 @@ internal sealed record InstallationViewOptions(string Query = "", string Kind = 
             query["direction"] == "asc",
             query["notice"].ToString(),
             query["selected"].ToString(),
-            openInstall);
+            openInstall,
+            query["product"].ToString() == "runtime" ? ".NET Runtime" : "SDK",
+            query["view"].ToString() is "supported" or "lts" or "all" ? query["view"].ToString() : "latest",
+            query["previews"].ToString() == "true",
+            query["installQ"].ToString().Trim());
     }
 }
 
@@ -156,7 +160,7 @@ internal static class InstallationPage
                     </div>
                     {{content}}
                   </section>
-                  {{RenderInstallDotnetSheet(sdkSnapshot ?? new("ready", []), snapshot, options.OpenInstall, currentDate)}}
+                  {{RenderInstallDotnetSheet(sdkSnapshot ?? new("ready", []), snapshot, options, currentDate)}}
                   <p class="scope-note muted">Locations include the version subfolder. When dotnet-core-uninstall is installed, only versions it can remove are shown; runtime frameworks that share a version are grouped together. Separate installations and other architectures may not appear here.</p>
                   """, "/", ".NET Cockpit", health.Count, total, refreshHref: WebUtility.HtmlDecode(RefreshLink(options, snapshot.CheckedAt)));
     }
@@ -483,8 +487,22 @@ internal static class InstallationPage
             """;
     }
 
-    private static string RenderInstallDotnetSheet(SdkDownloadSnapshot sdkSnapshot, InstallationSnapshot installation, bool open, DateOnly today)
+    private static string RenderInstallDotnetSheet(SdkDownloadSnapshot sdkSnapshot, InstallationSnapshot installation, InstallationViewOptions options, DateOnly today)
     {
+        var open = options.OpenInstall;
+        string SheetLink(string? product = null, string? view = null, bool? previews = null)
+        {
+            var targetProduct = product ?? options.InstallProduct;
+            var targetView = view ?? options.InstallView;
+            var targetPreviews = previews ?? options.InstallPreviews;
+            var query = options.InstallQuery.Length > 0 ? $"&installQ={Uri.EscapeDataString(options.InstallQuery)}" : "";
+            return Encode($"/?install=1&product={(targetProduct == "SDK" ? "sdk" : "runtime")}&view={targetView}&previews={(targetPreviews ? "true" : "false")}{query}");
+        }
+        string ProductSegment(string product, string label) =>
+            $"<a class=\"seg {(options.InstallProduct == product ? "active" : "")}\" href=\"{SheetLink(product: product)}\" data-install-product=\"{product}\" aria-pressed=\"{(options.InstallProduct == product ? "true" : "false")}\" role=\"button\">{label}</a>";
+        string ViewSegment(string view, string label) =>
+            $"<a class=\"seg {(options.InstallView == view ? "active" : "")}\" href=\"{SheetLink(view: view)}\" data-install-lifecycle=\"{view}\" aria-pressed=\"{(options.InstallView == view ? "true" : "false")}\" role=\"button\">{label}</a>";
+
         static bool IsDownloadEol(SdkDownload download, DateOnly date) =>
             string.Equals(download.SupportPhase, "EOL", StringComparison.OrdinalIgnoreCase) ||
             SupportLifecycle.ParseDate(download.EndOfSupportDate) is { } end && end < date;
@@ -544,6 +562,7 @@ internal static class InstallationPage
                 .OrderByDescending(g => int.TryParse(g.Key, out var ch) ? ch : 0)
                 .ToArray();
 
+            var totalVisible = 0;
             var groupsHtml = string.Concat(channelGroups.Select(channelGroup =>
             {
                 var major = channelGroup.Key;
@@ -566,13 +585,27 @@ internal static class InstallationPage
                     var isPreview = d.Version.Contains("-preview", StringComparison.OrdinalIgnoreCase) || d.Version.Contains("-rc", StringComparison.OrdinalIgnoreCase);
                     var isEol = IsDownloadEol(d, today);
                     var isLts = string.Equals(d.ReleaseType, "LTS", StringComparison.OrdinalIgnoreCase);
+                    static string tagLabelFor(bool preview, bool lts) => preview ? "Preview" : lts ? "LTS" : "STS";
                     var isInstalled = d.Product == "SDK"
                         ? installedSdks.Contains(d.Version) || installedSdks.Contains(d.InstallationVersion)
                         : installedRuntimes.Contains(d.Version) || installedRuntimes.Contains(d.InstallationVersion);
                     var isActive = ReferenceEquals(d, firstDefault);
                     var isLeader = channelLeaders.Contains(d) || latestStableLeaders.Contains(d);
-                    var initiallyHidden = d.Product != "SDK" || isEol || isPreview || !isLeader;
-                    if (!initiallyHidden) initialVisibleCount++;
+                    var searchText = $"{d.Product} {d.Version} .NET {major} {d.Channel} {tagLabelFor(isPreview, isLts)} {string.Join(' ', d.Cves.Select(c => c.Id))}";
+                    var matchesView = options.InstallView switch
+                    {
+                        "latest" => !isEol && isLeader,
+                        "supported" => !isEol,
+                        "lts" => !isEol && isLts,
+                        _ => true
+                    };
+                    var matchesQuery = options.InstallQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries).All(term => searchText.Contains(term, StringComparison.OrdinalIgnoreCase));
+                    var initiallyHidden = d.Product != options.InstallProduct || !matchesView || (isPreview && !options.InstallPreviews) || !matchesQuery;
+                    if (!initiallyHidden)
+                    {
+                        initialVisibleCount++;
+                        totalVisible++;
+                    }
 
                     var tagClass = isPreview ? "preview" : (isLts ? "lts" : "sts");
                     var tagLabel = isPreview ? "Preview" : (isLts ? "LTS" : "STS");
@@ -649,15 +682,15 @@ internal static class InstallationPage
 
             resultsHtml = $"""
                 {groupsHtml}
-                <div id="install-dotnet-empty" class="empty-state" hidden>
+                <div id="install-dotnet-empty" class="empty-state" {(totalVisible > 0 ? "hidden" : "")}>
                   <h3>No matching releases</h3>
-                  <p class="muted">Try another version, channel, or toggle Previews / All releases above.</p>
+                  <p class="muted">Try another search, or choose Everything above.</p>
                 </div>
                 """;
         }
 
         return $$"""
-            <dialog id="install-dotnet-dialog" class="add-tool-sheet install-dotnet-sheet" closedby="any" aria-labelledby="install-dotnet-sheet-title"{{(open ? " open data-open-on-load" : "")}}>
+            <dialog id="install-dotnet-dialog" class="add-tool-sheet install-dotnet-sheet" closedby="any" aria-labelledby="install-dotnet-sheet-title" data-product="{{options.InstallProduct}}" data-view="{{options.InstallView}}" data-previews="{{(options.InstallPreviews ? "true" : "false")}}"{{(open ? " open data-open-on-load" : "")}}>
               <div class="sheet-inner">
                 <div class="sheet-head">
                   <div class="sheet-title-group">
@@ -668,22 +701,25 @@ internal static class InstallationPage
                 </div>
 
                 <div class="sheet-controls">
-                  <label class="search-field wide" for="install-dotnet-search-input">
-                    {{Icon("search", "xs")}}
-                    <input id="install-dotnet-search-input" type="search" placeholder="Search by version, channel or CVE" autocomplete="off">
-                  </label>
+                  <form method="get" action="/" class="filter-form" data-install-search>
+                    <input type="hidden" name="install" value="1">
+                    <input type="hidden" name="product" value="{{(options.InstallProduct == "SDK" ? "sdk" : "runtime")}}">
+                    <input type="hidden" name="view" value="{{options.InstallView}}">
+                    <input type="hidden" name="previews" value="{{(options.InstallPreviews ? "true" : "false")}}">
+                    <label class="search-field wide" for="install-dotnet-search-input">
+                      {{Icon("search", "xs")}}
+                      <input id="install-dotnet-search-input" type="search" name="installQ" value="{{Encode(options.InstallQuery)}}" placeholder="Search by version, channel or CVE" autocomplete="off">
+                    </label>
+                    <noscript><button class="button sm" type="submit">Search</button></noscript>
+                  </form>
                   <div class="filter-bar">
                     <div class="segmented" role="group" aria-label="Product">
-                      <button type="button" class="seg active" data-install-product="SDK" aria-pressed="true">SDK</button>
-                      <button type="button" class="seg" data-install-product=".NET Runtime" aria-pressed="false">Runtime</button>
+                      {{ProductSegment("SDK", "SDK")}}{{ProductSegment(".NET Runtime", "Runtime")}}
                     </div>
                     <div class="segmented" role="group" aria-label="Releases to show">
-                      <button type="button" class="seg active" data-install-lifecycle="latest" aria-pressed="true">Latest</button>
-                      <button type="button" class="seg" data-install-lifecycle="supported" aria-pressed="false">All patches</button>
-                      <button type="button" class="seg" data-install-lifecycle="lts" aria-pressed="false">LTS</button>
-                      <button type="button" class="seg" data-install-lifecycle="all" aria-pressed="false">Everything</button>
+                      {{ViewSegment("latest", "Latest")}}{{ViewSegment("supported", "All patches")}}{{ViewSegment("lts", "LTS")}}{{ViewSegment("all", "Everything")}}
                     </div>
-                    <button type="button" class="toggle-chip" data-install-previews aria-pressed="false"><span class="chip-box" aria-hidden="true">{{Icon("check", "xs")}}</span>Previews</button>
+                    <a class="toggle-chip {{(options.InstallPreviews ? "active" : "")}}" href="{{SheetLink(previews: !options.InstallPreviews)}}" data-install-previews aria-pressed="{{(options.InstallPreviews ? "true" : "false")}}" role="button"><span class="chip-box" aria-hidden="true">{{Icon("check", "xs")}}</span>Previews</a>
                   </div>
                 </div>
 
@@ -969,8 +1005,8 @@ internal static class InstallationPage
 
     private static string RenderNotice(string notice) => notice switch
     {
-        "removed" => "<div class=\"action-notice\" role=\"status\">The selected .NET installation was removed.</div>",
-        "remove-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The selected .NET installation could not be removed. Check the permissions and try again.</div>",
+        "removed" => "<div class=\"action-notice\" role=\"status\">The selected .NET installation was removed. <a href=\"/overview\">Back to Overview</a></div>",
+        "remove-failed" => "<div class=\"action-notice error-state\" role=\"alert\">The selected .NET installation could not be removed. The administrator approval may have been declined. Try again, or run the command yourself.</div>",
         _ => ""
     };
 
