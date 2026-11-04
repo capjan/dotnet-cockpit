@@ -37,6 +37,33 @@ internal static class ToolsPage
             ? (snapshot.LocalManifestOwned ? "Local manifest" : "Inherited · read-only here")
             : "Current workspace";
 
+        var activeTools = options.Scope == "local"
+            ? snapshot.Local.Tools
+            : options.Scope == "all"
+                ? snapshot.Global.Tools.Concat(snapshot.Local.Tools).ToArray()
+                : snapshot.Global.Tools;
+        var updatableTools = snapshot.Status == "ready"
+            ? activeTools
+                .Select(t =>
+                {
+                    var isToolLocal = options.Scope == "local" || t.Manifest is not null;
+                    var meta = ToolMetadataCatalog.Resolve(t.PackageId, t.Version, isToolLocal, t.Manifest);
+                    return (Tool: t, Scope: isToolLocal ? "local" : "global", Meta: meta);
+                })
+                .Where(x => x.Meta.HasUpdate)
+                .ToArray()
+            : [];
+        var updateAllHtml = updatableTools.Length > 0
+            ? $"""
+              <form method="post" action="/tools/update-all" class="inline-action-form">
+                <input type="hidden" name="scope" value="{options.Scope}">
+                <input type="hidden" name="q" value="{Encode(options.SearchQuery)}">
+                {string.Concat(updatableTools.Select(u => $"<input type=\"hidden\" name=\"items\" value=\"{Encode(u.Tool.PackageId)}|{u.Scope}\">"))}
+                <button type="submit" class="button" id="update-all-tools-btn">{Icon("refresh", "xs")} Update All <span class="summary-count">{updatableTools.Length}</span></button>
+              </form>
+              """
+            : "";
+
         return PageLayout.Render($$"""
             <div class="page-heading">
               <div>
@@ -45,6 +72,7 @@ internal static class ToolsPage
               </div>
               <div class="tools-header-actions">
                 <a class="button sm ghost refresh-btn" href="{{RefreshLink(options)}}">{{Icon("refresh", "xs")}} Refresh</a>
+                {{updateAllHtml}}
                 {{(snapshot.Status == "ready" ? $"<button type=\"button\" class=\"button primary\" id=\"open-add-tool-btn\">{Icon("plus", "xs")} Add tool</button>" : "")}}
               </div>
             </div>
@@ -200,11 +228,11 @@ internal static class ToolsPage
                     <td class="tool-cell-actions">
                       <div class="tool-row-actions">
                         <a class="button sm ghost tool-inspect-btn" href="{inspectHref}" data-tool-inspect="{Encode(toolKey)}" aria-label="Inspect {Encode(tool.PackageId)}">Inspect</a>
-                        {(meta.HasUpdate ? $"<form method=\"post\" action=\"/tools/update\" class=\"tool-action tool-update-form\"><input type=\"hidden\" name=\"packageId\" value=\"{Encode(tool.PackageId)}\"><input type=\"hidden\" name=\"scope\" value=\"{toolScopeStr}\"><button class=\"button primary sm\" type=\"submit\" title=\"Update {Encode(tool.PackageId)} to {Encode(meta.LatestVersion ?? "latest")}\">Update</button></form>" : "")}
+                        {(meta.HasUpdate ? $"<form method=\"post\" action=\"/tools/update\" class=\"tool-action tool-update-form\"><input type=\"hidden\" name=\"packageId\" value=\"{Encode(tool.PackageId)}\"><input type=\"hidden\" name=\"scope\" value=\"{toolScopeStr}\"><button class=\"button primary sm\" type=\"submit\" title=\"Update {Encode(tool.PackageId)} to {Encode(meta.LatestVersion ?? "latest")}\">Update</button></form>" : "<span class=\"tool-update-slot\" aria-hidden=\"true\"></span>")}
                         <form method="post" action="/tools/uninstall" class="tool-action tool-uninstall-form">
                           <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
                           <input type="hidden" name="scope" value="{toolScopeStr}">
-                          <button class="button danger sm" type="submit">Uninstall</button>
+                          <button class="button danger sm" type="submit">Remove</button>
                         </form>
                         <div class="tool-more-wrap">
                           <button type="button" class="button icon sm ghost tool-menu-trigger" data-tool-menu-btn aria-label="More actions for {Encode(tool.PackageId)}" aria-expanded="false">{Icon("more", "sm")}</button>
@@ -215,7 +243,7 @@ internal static class ToolsPage
                             <a class="tool-menu-item" href="https://www.nuget.org/packages/{Encode(tool.PackageId)}" target="_blank" rel="noopener">{Icon("external", "sm")} <span>Open on NuGet.org</span></a>
                             <button type="button" class="tool-menu-item copy-btn" data-copy="{Encode(cliEquiv)}">{Icon("terminal", "sm")} <span>Copy CLI update command</span></button>
                             <hr>
-                            <button type="button" class="tool-menu-item danger" data-tool-menu-uninstall>{Icon("trash", "sm")} <span>Uninstall package…</span></button>
+                            <button type="button" class="tool-menu-item danger" data-tool-menu-uninstall>{Icon("trash", "sm")} <span>Remove tool…</span></button>
                           </div>
                         </div>
                       </div>
@@ -252,8 +280,8 @@ internal static class ToolsPage
             ? (localOwned ? "Local workspace manifest" : "Inherited workspace manifest")
             : "Global user tool (~/.dotnet/tools)";
         var eyebrow = isToolLocal ? "LOCAL WORKSPACE TOOL" : "GLOBAL .NET TOOL";
-        var updateCmd = $"dotnet tool update {(isToolLocal ? "--local" : "--global")} {tool.PackageId}";
-        var uninstallCmd = $"dotnet tool uninstall {(isToolLocal ? "--local" : "--global")} {tool.PackageId}";
+        var updateCmd = $"dotnet tool update {(isToolLocal ? "--local" : "--global")} \\\n  {tool.PackageId}";
+        var uninstallCmd = $"dotnet tool uninstall {(isToolLocal ? "--local" : "--global")} \\\n  {tool.PackageId}";
         var nugetUrl = $"https://www.nuget.org/packages/{Encode(tool.PackageId)}";
 
         var commandsHtml = string.Concat(tool.Commands.Select(cmd =>
@@ -337,11 +365,11 @@ internal static class ToolsPage
                 </div>
 
                 <div class="drawer-section">
-                  <h4 class="drawer-section-title">Uninstall command</h4>
+                  <h4 class="drawer-section-title">Remove command</h4>
                   <div class="drawer-command-box">
                     <span class="cmd-prompt">$</span>
                     <code id="tool-drawer-uninstall-cmd">{Encode(uninstallCmd)}</code>
-                    <button class="button icon ghost copy-btn" id="tool-drawer-uninstall-copy" data-copy="{Encode(uninstallCmd)}" type="button" title="Copy uninstall command">{Icon("clipboard")}</button>
+                    <button class="button icon ghost copy-btn" id="tool-drawer-uninstall-copy" data-copy="{Encode(uninstallCmd)}" type="button" title="Copy remove command">{Icon("clipboard")}</button>
                   </div>
                 </div>
               </div>
@@ -354,7 +382,7 @@ internal static class ToolsPage
                   <form method="post" action="/tools/uninstall">
                     <input type="hidden" name="packageId" value="{Encode(tool.PackageId)}">
                     <input type="hidden" name="scope" value="{(isToolLocal ? "local" : "global")}">
-                    <button class="button danger drawer-remove-btn" type="submit">{Icon("trash", "xs")} Uninstall tool</button>
+                    <button class="button danger drawer-remove-btn" type="submit">{Icon("trash", "xs")} Remove</button>
                   </form>
                 </div>
               </div>
@@ -380,8 +408,8 @@ internal static class ToolsPage
                 ? (localOwned ? "Local workspace manifest" : "Inherited workspace manifest")
                 : "Global user tool (~/.dotnet/tools)";
             var eyebrow = isToolLocal ? "LOCAL WORKSPACE TOOL" : "GLOBAL .NET TOOL";
-            var updateCmd = $"dotnet tool update {(isToolLocal ? "--local" : "--global")} {tool.PackageId}";
-            var uninstallCmd = $"dotnet tool uninstall {(isToolLocal ? "--local" : "--global")} {tool.PackageId}";
+            var updateCmd = $"dotnet tool update {(isToolLocal ? "--local" : "--global")} \\\n  {tool.PackageId}";
+            var uninstallCmd = $"dotnet tool uninstall {(isToolLocal ? "--local" : "--global")} \\\n  {tool.PackageId}";
             var toolKey = $"{(isToolLocal ? "local" : "global")}:{tool.PackageId}";
 
             sb.Append($"\"{JsonEscape(toolKey)}\":{{");
@@ -513,7 +541,7 @@ internal static class ToolsPage
                     <span>{{Encode(result.Authors)}}</span>
                     <span>· {{Encode(result.Downloads)}} downloads</span>
                   </div>
-                  <div class="tool-cli-preview"><span class="cli-label">CLI</span><code>dotnet tool install --global {{Encode(result.PackageId)}} --version {{Encode(result.Version)}}</code></div>
+                  <div class="tool-cli-preview"><span class="cli-label">CLI</span><code>dotnet tool install --global \&#10;  {{Encode(result.PackageId)}} \&#10;  --version {{Encode(result.Version)}}</code></div>
                 </div>
               </div>
               <form method="post" action="/tools/install" class="tool-install-actions">
@@ -606,8 +634,8 @@ internal static class ToolsPage
                   <span class="drawer-section-title">WILL RUN</span>
                   <div class="drawer-command-box">
                     <span class="cmd-prompt">$</span>
-                    <code id="sheet-cli-preview">dotnet tool install --global dotnet-coverage --version 18.1.0</code>
-                    <button class="button icon ghost copy-btn" id="sheet-cli-copy" data-copy="dotnet tool install --global dotnet-coverage --version 18.1.0" type="button" title="Copy command">{{Icon("clipboard")}}</button>
+                    <code id="sheet-cli-preview">dotnet tool install --global \&#10;  dotnet-coverage \&#10;  --version 18.1.0</code>
+                    <button class="button icon ghost copy-btn" id="sheet-cli-copy" data-copy="dotnet tool install --global \&#10;  dotnet-coverage \&#10;  --version 18.1.0" type="button" title="Copy command">{{Icon("clipboard")}}</button>
                   </div>
                 </div>
               </div>
@@ -641,7 +669,7 @@ internal static class ToolsPage
     {
         "installed" => "<div class=\"action-notice\" role=\"status\">Tool installed successfully.</div>",
         "updated" => "<div class=\"action-notice\" role=\"status\">Tool updated successfully.</div>",
-        "uninstalled" => "<div class=\"action-notice\" role=\"status\">Tool uninstalled successfully.</div>",
+        "uninstalled" => "<div class=\"action-notice\" role=\"status\">Tool removed successfully.</div>",
         "initialized" => "<div class=\"action-notice\" role=\"status\">Local tools are now initialized in this working directory.</div>",
         "removed" => "<div class=\"action-notice\" role=\"status\">The local tool manifest was removed. Cached packages were left untouched.</div>",
         "failed" => "<div class=\"action-notice error-state\" role=\"alert\">The requested tool action failed. Check the SDK and package sources, then try again.</div>",

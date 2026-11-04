@@ -24,7 +24,7 @@ test('navigates to the tools page and lists both scopes without JavaScript', asy
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('cockpit.fixture.tool');
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('fixture-alt');
     await expect(page.getByRole('table', { name: 'Local tools' })).toContainText('dotnet-tools.json');
-    await expect(page.getByRole('button', { name: 'Uninstall', exact: true })).toHaveCount(1);
+    await expect(page.locator('#local-tools-panel').getByRole('button', { name: 'Remove', exact: true })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Remove local tools', exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Search .NET tools' })).toBeVisible();
     await expect(page.locator('a.tool-tab[href="/tools?scope=local"]')).toHaveAttribute('aria-selected', 'true');
@@ -90,9 +90,9 @@ test('opens the NuGet Add Tool sheet and updates CLI preview', async ({ page }) 
   await expect(page.locator('[data-sheet-scope="global"]')).toContainText('User');
   await expect(page.locator('[data-sheet-scope="local"]')).toContainText('Local');
   await expect(page.locator('[data-sheet-scope="local"]')).toContainText('Workspace');
-  await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --global');
+  await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --global \\');
   await page.locator('[data-sheet-scope="local"]').click();
-  await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --local');
+  await expect(page.locator('#sheet-cli-preview')).toContainText('dotnet tool install --local \\');
   await page.locator('#close-add-tool-btn').click();
   await expect(dialog).toBeHidden();
 });
@@ -112,8 +112,8 @@ test('displays tool logos, descriptions, and download counts and opens the tool 
   await expect(page.locator('#tool-drawer-title')).toHaveText('cockpit.fixture.tool');
   await expect(page.locator('#tool-drawer-downloads')).toBeVisible();
   await expect(page.locator('#tool-drawer-verified')).toBeVisible();
-  await expect(page.locator('#tool-drawer-update-cmd')).toContainText('dotnet tool update --local cockpit.fixture.tool');
-  await expect(page.locator('#tool-drawer-uninstall-cmd')).toContainText('dotnet tool uninstall --local cockpit.fixture.tool');
+  await expect(page.locator('#tool-drawer-update-cmd')).toContainText('dotnet tool update --local \\');
+  await expect(page.locator('#tool-drawer-uninstall-cmd')).toContainText('dotnet tool uninstall --local \\');
 
   await page.locator('#tool-drawer-close').click();
   await expect(drawer).toBeHidden();

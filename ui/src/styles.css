@@ -1927,13 +1927,14 @@ tr[data-kind]:is(:hover, :focus-within, .row-selected) .cell-actions .inspect-bt
   font-family: var(--font-mono);
   font-size: 12px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
 .cmd-prompt {
   color: var(--muted);
   margin-right: 6px;
+  line-height: 1.45;
   user-select: none;
 }
 .drawer-command-box code {
@@ -1943,7 +1944,7 @@ tr[data-kind]:is(:hover, :focus-within, .row-selected) .cell-actions .inspect-bt
   flex: 1;
   min-width: 0;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: normal;
   overflow-wrap: anywhere;
   overflow: visible;
   text-overflow: clip;
@@ -1951,7 +1952,7 @@ tr[data-kind]:is(:hover, :focus-within, .row-selected) .cell-actions .inspect-bt
 }
 #remove-dialog-cmd {
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: normal;
   overflow-wrap: anywhere;
 }
 .drawer-footer {
@@ -2210,14 +2211,17 @@ dialog::backdrop {
 
 /* Screen 4: Safe Removal Dialog */
 .remove-modal {
-  width: min(520px, 92vw);
+  width: min(560px, 92vw);
+  max-height: 88vh;
   margin: auto;
 }
 .remove-modal-inner {
-  padding: 24px;
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
+  max-height: 88vh;
+  box-sizing: border-box;
 }
 .remove-modal-head {
   display: flex;
@@ -2247,7 +2251,14 @@ dialog::backdrop {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-2);
-  overflow: hidden;
+  max-height: 215px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.remove-modal .drawer-command-box code {
+  max-height: 145px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .remove-item-row {
   display: flex;
@@ -2777,10 +2788,31 @@ dialog::backdrop {
   gap: 4px;
   align-items: flex-start;
 }
+.tools-table th:last-child,
+.tools-table td.tool-cell-actions {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+}
 .tool-row-actions {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: auto 68px 74px 28px;
   align-items: center;
   gap: 8px;
+}
+.tool-row-actions .tool-update-form,
+.tool-row-actions .tool-uninstall-form {
+  margin: 0;
+}
+.tool-row-actions .tool-update-form button,
+.tool-row-actions .tool-uninstall-form button {
+  width: 100%;
+  justify-content: center;
+}
+.tool-update-slot {
+  display: block;
+  width: 68px;
+  height: 1px;
 }
 .nav-count {
   margin-left: auto;
@@ -3294,10 +3326,15 @@ dialog::backdrop {
   .main:has(#tool-drawer:not([hidden])) .tool-manifest,
   .main:has(#tool-drawer:not([hidden])) .tool-more-wrap,
   .main:has(#tool-drawer:not([hidden])) .tool-inspect-btn,
-  .main:has(#tool-drawer:not([hidden])) .tool-row-actions:has(.tool-update-form) .tool-uninstall-form,
+  .main:has(#tool-drawer:not([hidden])) .tools-table th:nth-child(2),
+  .main:has(#tool-drawer:not([hidden])) .tools-table td:nth-child(2),
   .main:has(#tool-drawer:not([hidden])) .tools-table th:nth-child(4),
   .main:has(#tool-drawer:not([hidden])) .tools-table td:nth-child(4) {
     display: none;
+  }
+  .main:has(#tool-drawer:not([hidden])) .tool-row-actions {
+    grid-template-columns: 68px 74px;
+    gap: 6px;
   }
   .main:has(#tool-drawer:not([hidden])) .tool-id-group {
     max-width: 210px;
@@ -3558,14 +3595,22 @@ dialog::backdrop {
   font-weight: 600;
   color: var(--text);
 }
-.drawer-code-box code,
-.drawer-command-box code {
+.drawer-code-box code {
   flex: 1;
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-all;
   overflow-wrap: anywhere;
   overflow: visible;
+  text-overflow: clip;
+  line-height: 1.45;
+}
+.drawer-command-box code {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
   text-overflow: clip;
   line-height: 1.45;
 }
@@ -3579,4 +3624,76 @@ dialog::backdrop {
 .ws-tool-pill-link:hover .ws-tool-pill {
   border-color: var(--brand);
   color: var(--text);
+}
+
+.inventory-scope-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.version-cleanup-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+button.cleanup-pill {
+  font-family: inherit;
+  cursor: pointer;
+}
+button.cleanup-pill:hover {
+  border-color: var(--brand);
+  color: var(--text);
+  background: var(--brand-soft);
+}
+.remove-modal-modes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+}
+.remove-modal-modes .pill-badge {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font: 500 12px inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.remove-modal-modes .pill-badge code {
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.85;
+}
+.remove-modal-modes .pill-badge.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.update-modal-icon {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+#update-dialog-cmd {
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+.button .summary-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--text);
+  font-family: var(--mono);
 }

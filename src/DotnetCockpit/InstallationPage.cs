@@ -94,6 +94,21 @@ internal static class InstallationPage
             {TypeLink("Previews", "previews", options)}
             """;
 
+        var totalPatches = allRows.Count(r => r.HasPatch);
+        var hasSuperseded = allRows
+            .Where(r => r.CanRemove)
+            .GroupBy(r => (r.Channel, r.Kind))
+            .Any(g => g.Count() > 1);
+        var hasRemovablePreviews = allRows.Any(r => r.CanRemove && r.IsPreview);
+        var cleanupNavHtml = (hasSuperseded || hasRemovablePreviews)
+            ? $"""
+              <div class="version-cleanup-pills" role="group" aria-label="Smart cleanup">
+                {(hasSuperseded ? $"<button type=\"button\" class=\"filter-pill cleanup-pill\" data-cleanup-action=\"all-but-latest\" title=\"Remove superseded versions in each channel (--all-but-latest)\">{Icon("sparkle", "xs")} Keep only latest</button>" : "")}
+                {(hasRemovablePreviews ? $"<button type=\"button\" class=\"filter-pill cleanup-pill\" data-cleanup-action=\"all-previews\" title=\"Remove all preview and RC installations (--all-previews)\">{Icon("trash", "xs")} Remove previews</button>" : "")}
+              </div>
+              """
+            : "";
+
         return PageLayout.Render($$"""
                   <div class="page-heading">
                     <div>
@@ -102,6 +117,7 @@ internal static class InstallationPage
                     </div>
                     <div class="overview-header-actions">
                       <a class="button sm ghost refresh-btn" href="{{RefreshLink(options, snapshot.CheckedAt)}}">{{Icon("refresh", "xs")}} Refresh</a>
+                      {{(totalPatches > 0 ? $"<button type=\"button\" class=\"button\" id=\"update-all-versions-btn\" data-update-channel=\"all\">{Icon("download", "xs")} Update All <span class=\"summary-count\">{totalPatches}</span></button>" : "")}}
                       <button type="button" class="button primary" id="open-install-dotnet-btn">{{Icon("download", "xs")}} Install .NET</button>
                     </div>
                   </div>
@@ -117,9 +133,12 @@ internal static class InstallationPage
                       <p class="muted">{{inventoryDescription}}</p>
                     </div>
                     <div class="inventory-scope-bar">
-                      <nav class="tool-tabs version-scope-pills" aria-label="Installation type">
-                        {{filterNavHtml}}
-                      </nav>
+                      <div class="inventory-scope-left">
+                        <nav class="tool-tabs version-scope-pills" aria-label="Installation type">
+                          {{filterNavHtml}}
+                        </nav>
+                        {{cleanupNavHtml}}
+                      </div>
                       <form method="get" action="/" class="filter-form version-search-compact" role="search" data-versions-filter>
                         <label class="filter-input-compact">
                           {{Icon("search", "xs")}}
@@ -215,6 +234,7 @@ internal static class InstallationPage
                         </div>
                         <div class="channel-life-bar {lifeState}"><i style="width:{lifeWidth}"></i></div>
                       </div>
+                      {(patchCount > 0 ? $"<button type=\"button\" class=\"button sm primary\" data-update-channel=\"{channel}\">{Icon("download", "xs")} Update All</button>" : "")}
                       {(group.Any(r => r.CanRemove) ? $"<button type=\"button\" class=\"button sm danger\" data-remove-channel=\"{channel}\">{Icon("trash", "xs")} Remove channel</button>" : "")}
                       <button type="button" class="button icon sm ghost channel-collapse-btn" data-collapse-channel="{channel}" aria-label="Toggle .NET {channel} channel">{Icon("chevd", "sm")}</button>
                     </div>
@@ -294,6 +314,11 @@ internal static class InstallationPage
                     <p id="remove-dialog-subtitle" class="muted">1 item selected for removal.</p>
                   </div>
                 </div>
+                <div id="remove-dialog-modes" class="remove-modal-modes" role="group" aria-label="Uninstall strategy" hidden>
+                  <button type="button" class="pill-badge active" data-remove-mode="selected">All selected</button>
+                  <button type="button" class="pill-badge" data-remove-mode="all-but-latest">Keep latest <code>--all-but-latest</code></button>
+                  <button type="button" class="pill-badge" data-remove-mode="all-previews">Previews only <code>--all-previews</code></button>
+                </div>
                 <div id="remove-dialog-items" class="remove-modal-items"></div>
                 <div class="remove-modal-notice">
                   <span class="notice-lock">{{Icon("lock", "sm")}}</span>
@@ -311,6 +336,34 @@ internal static class InstallationPage
                 <div class="remove-modal-foot">
                   <button type="button" class="button" id="remove-dialog-cancel" autofocus>Cancel</button>
                   <button type="button" class="button danger" id="remove-dialog-confirm">{{Icon("trash", "xs")}} <span id="remove-dialog-confirm-text">Remove 1 item</span></button>
+                </div>
+              </div>
+            </dialog>
+            <dialog id="update-dialog" class="remove-modal update-modal" closedby="any" aria-labelledby="update-dialog-title">
+              <div class="remove-modal-inner">
+                <div class="remove-modal-head">
+                  <div class="remove-modal-icon update-modal-icon">{{Icon("download", "sm")}}</div>
+                  <div>
+                    <h2 id="update-dialog-title">Update .NET channel</h2>
+                    <p id="update-dialog-subtitle" class="muted">1 patch update available.</p>
+                  </div>
+                </div>
+                <div id="update-dialog-items" class="remove-modal-items"></div>
+                <div class="remove-modal-notice update-modal-notice">
+                  <span class="notice-lock">{{Icon("shield", "sm")}}</span>
+                  <div>
+                    <strong>Official Microsoft installer packages (.pkg)</strong>
+                    <p id="update-dialog-warn" class="muted">Downloads the latest signed patch installers from builds.dotnet.microsoft.com or run the SHA-512 verified command below.</p>
+                  </div>
+                </div>
+                <div class="drawer-command-box">
+                  <span class="cmd-prompt">$</span>
+                  <code id="update-dialog-cmd">sudo installer -pkg dotnet-sdk.pkg -target /</code>
+                  <button class="button icon ghost copy-btn" id="update-dialog-copy" type="button" title="Copy command">{{Icon("clipboard")}}</button>
+                </div>
+                <div class="remove-modal-foot">
+                  <button type="button" class="button" id="update-dialog-cancel" autofocus>Cancel</button>
+                  <button type="button" class="button primary" id="update-dialog-confirm">{{Icon("download", "xs")}} <span id="update-dialog-confirm-text">Download &amp; update</span></button>
                 </div>
               </div>
             </dialog>
@@ -417,8 +470,8 @@ internal static class InstallationPage
             : $"""<div id="drawer-patch-section" class="drawer-section" hidden></div>""";
 
         var command = row.EquivalentCommand ?? (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? $"dotnet-core-uninstall remove {row.Version} --{(row.Kind == "sdk" ? "sdk" : "runtime")}"
-            : $"sudo dotnet-core-uninstall remove {row.Version} --{(row.Kind == "sdk" ? "sdk" : "runtime")}");
+            ? $"dotnet-core-uninstall remove {row.Version} \\\n  --{(row.Kind == "sdk" ? "sdk" : "runtime")} \\\n  --yes"
+            : $"sudo dotnet-core-uninstall remove {row.Version} \\\n  --{(row.Kind == "sdk" ? "sdk" : "runtime")} \\\n  --yes");
 
         var needsPatchDownload = row.HasPatch && !row.LatestPatchInstalled;
         var downloadBtnLabel = needsPatchDownload
@@ -546,9 +599,7 @@ internal static class InstallationPage
             ? GetInstallerFileName(firstDefault.Url, firstDefault.Product == "SDK" ? "sdk" : "runtime", firstDefault.Version)
             : "dotnet-sdk-10.0.403-osx-arm64.pkg";
         var firstSha = firstDefault?.Sha512 ?? "";
-        var initialCmd = !string.IsNullOrEmpty(firstSha)
-            ? $"echo \"{firstSha}  {firstFileName}\" | shasum -a 512 -c - && sudo installer -pkg {firstFileName} -target /"
-            : $"sudo installer -pkg {firstFileName} -target /";
+        var initialCmd = FormatVerifyInstallCommand(firstSha, firstFileName);
 
         string resultsHtml;
         if (sdkSnapshot.Status != "ready" || curated.Length == 0)
@@ -625,9 +676,7 @@ internal static class InstallationPage
                     var fileName = GetInstallerFileName(d.Url, kindKey, d.Version);
                     var size = GetEstimatedPackageSize(kindKey, major);
                     var shortSha = ShortSha(d.Sha512);
-                    var verifyCmd = !string.IsNullOrEmpty(d.Sha512)
-                        ? $"echo \"{d.Sha512}  {fileName}\" | shasum -a 512 -c - && sudo installer -pkg {fileName} -target /"
-                        : $"sudo installer -pkg {fileName} -target /";
+                    var verifyCmd = FormatVerifyInstallCommand(d.Sha512, fileName);
 
                     var cveMeta = d.Cves.Length > 0
                         ? $"<span>🛡 {d.Cves.Length} {(d.Cves.Length == 1 ? "CVE fix" : "CVE fixes")}</span>"
@@ -841,7 +890,7 @@ internal static class InstallationPage
             var targetPkg = (hasNewerPatch ? patchTarget : null) ?? catalogEntry ?? latest;
             var inclRt = ShortDisplayVersion(catalogEntry?.IncludedRuntimeVersion ?? InferRuntimeVersion(shortVer, snapshot.Runtimes, major));
 
-            var cmd = $"{uninstallPrefix} remove {sdk.Version} --sdk";
+            var cmd = $"{uninstallPrefix} remove {sdk.Version} \\\n  --sdk \\\n  --yes";
 
             return new Row(
                 Kind: "sdk",
@@ -893,7 +942,7 @@ internal static class InstallationPage
                     (installedRuntimeSet.Contains(latest.Version) || installedRuntimeSet.Contains(latest.InstallationVersion));
                 var targetPkg = (hasNewerPatch ? latest : null) ?? catalogEntry ?? latest;
 
-                var cmd = $"{uninstallPrefix} remove {sample.Version} --runtime";
+                var cmd = $"{uninstallPrefix} remove {sample.Version} \\\n  --runtime \\\n  --yes";
                 var description = string.Join(" · ", runtimes.Select(runtime => runtime.Name));
 
                 return new Row(
@@ -1024,6 +1073,11 @@ internal static class InstallationPage
 
     private static string GetInstallerFileName(string? url, string kind, string version) =>
         $"dotnet-{(kind == "sdk" ? "sdk" : "runtime")}-{ShortDisplayVersion(version)}-osx-arm64.pkg";
+
+    private static string FormatVerifyInstallCommand(string? sha512, string fileName) =>
+        !string.IsNullOrEmpty(sha512)
+            ? $"echo \"{sha512}  {fileName}\" \\\n  | shasum -a 512 -c - \\\n  && sudo installer -pkg {fileName} \\\n    -target /"
+            : $"sudo installer -pkg {fileName} \\\n  -target /";
 
     private static string? FormatReleaseDate(string? dateStr)
     {

@@ -758,10 +758,98 @@ const removeDialog = document.getElementById('remove-dialog');
 if (removeDialog) {
   let pendingRemoveForm = null;
   let activeChannelItems = [];
+  let activeRemoveScope = 'channel';
+  let activeRemoveMode = 'selected';
   const cancelBtn = document.getElementById('remove-dialog-cancel');
   const confirmBtn = document.getElementById('remove-dialog-confirm');
   const multiForm = document.getElementById('remove-dialog-form');
   const multiFormInputs = document.getElementById('remove-dialog-form-inputs');
+  const modesContainer = document.getElementById('remove-dialog-modes');
+  const modeBtns = modesContainer ? [...modesContainer.querySelectorAll('[data-remove-mode]')] : [];
+
+  function parseVersionParts(ver) {
+    const [core, pre = ''] = String(ver || '').split('-');
+    const nums = core.split('.').map(n => Number.parseInt(n, 10) || 0);
+    return { nums, pre };
+  }
+
+  function compareDotnetVersionsDesc(a, b) {
+    const va = parseVersionParts(a);
+    const vb = parseVersionParts(b);
+    for (let i = 0; i < Math.max(va.nums.length, vb.nums.length); i++) {
+      const diff = (vb.nums[i] || 0) - (va.nums[i] || 0);
+      if (diff !== 0) return diff;
+    }
+    if (!va.pre && vb.pre) return -1;
+    if (va.pre && !vb.pre) return 1;
+    return vb.pre.localeCompare(va.pre, undefined, { numeric: true });
+  }
+
+  function getLatestVersionsByChannelKind() {
+    const latestSet = new Set();
+    const groups = new Map();
+    for (const item of Object.values(versionsData)) {
+      const key = `${item.channel}:${item.kind}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    }
+    for (const groupItems of groups.values()) {
+      groupItems.sort((x, y) => compareDotnetVersionsDesc(x.version, y.version));
+      if (groupItems[0] && !(groupItems[0].hasPatch && groupItems[0].patchInstalled)) {
+        latestSet.add(`${groupItems[0].version}|${groupItems[0].kind}`);
+      }
+    }
+    return latestSet;
+  }
+
+  function applyRemoveModeSelection(mode) {
+    activeRemoveMode = mode;
+    for (const btn of modeBtns) {
+      btn.classList.toggle('active', btn.dataset.removeMode === mode);
+    }
+    const itemsEl = document.getElementById('remove-dialog-items');
+    if (!itemsEl || !activeChannelItems.length) return;
+    const latestSet = getLatestVersionsByChannelKind();
+    const checkboxes = [...itemsEl.querySelectorAll('input[type="checkbox"][data-remove-idx]')];
+    for (const cb of checkboxes) {
+      const item = activeChannelItems[Number(cb.dataset.removeIdx)];
+      if (!item) continue;
+      if (mode === 'all-but-latest') {
+        const isLatest = latestSet.has(`${item.version}|${item.kind}`);
+        cb.checked = !isLatest;
+      } else if (mode === 'all-previews') {
+        cb.checked = Boolean(item.isPreview);
+      } else {
+        cb.checked = true;
+      }
+    }
+    syncChannelRemoveDialogState();
+  }
+
+  for (const btn of modeBtns) {
+    btn.addEventListener('click', () => {
+      applyRemoveModeSelection(btn.dataset.removeMode || 'selected');
+    });
+  }
+
+  function formatStrategyCliCommand(selectedItems, mode) {
+    if (!selectedItems.length) return '# Select at least one item to remove';
+    const prefix = selectedItems[0]?.command?.startsWith('sudo ')
+      ? 'sudo dotnet-core-uninstall'
+      : 'dotnet-core-uninstall';
+    const kinds = [...new Set(selectedItems.map(i => i.kind))];
+    if (mode === 'all-but-latest') {
+      return kinds.map(k =>
+        `${prefix} remove \\\n  --all-but-latest \\\n  --${k === 'sdk' ? 'sdk' : 'runtime'} \\\n  --yes`
+      ).join('\n\n');
+    }
+    if (mode === 'all-previews') {
+      return kinds.map(k =>
+        `${prefix} remove \\\n  --all-previews \\\n  --${k === 'sdk' ? 'sdk' : 'runtime'} \\\n  --yes`
+      ).join('\n\n');
+    }
+    return selectedItems.map(i => i.command).join('\n\n');
+  }
 
   function syncChannelRemoveDialogState() {
     if (!activeChannelItems.length) return;
@@ -774,9 +862,7 @@ if (removeDialog) {
     const checkedBoxes = itemsEl ? [...itemsEl.querySelectorAll('input[type="checkbox"][data-remove-idx]:checked')] : [];
     const selectedItems = checkedBoxes.map(cb => activeChannelItems[Number(cb.dataset.removeIdx)]).filter(Boolean);
 
-    const combinedCmd = selectedItems.length
-      ? selectedItems.map(i => i.command).join('\n')
-      : '# Select at least one item to remove';
+    const combinedCmd = formatStrategyCliCommand(selectedItems, activeRemoveMode);
     if (cmdEl) cmdEl.textContent = combinedCmd;
     if (copyEl) copyEl.dataset.copy = combinedCmd;
     if (confirmTextEl) {
@@ -786,11 +872,19 @@ if (removeDialog) {
     }
     if (confirmBtn) confirmBtn.disabled = selectedItems.length === 0;
     if (subEl && activeChannelItems[0]) {
-      const ch = activeChannelItems[0].channel;
-      const isEolCh = activeChannelItems.some(i => i.isEol);
-      subEl.textContent = isEolCh
-        ? `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'}, out of support since May 14, 2024.`
-        : `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'} in .NET ${ch} selected for removal.`;
+      if (activeRemoveScope === 'all') {
+        subEl.textContent = activeRemoveMode === 'all-but-latest'
+          ? `${selectedItems.length} superseded ${selectedItems.length === 1 ? 'version' : 'versions'} selected (--all-but-latest keeps the newest in each channel).`
+          : activeRemoveMode === 'all-previews'
+            ? `${selectedItems.length} preview/RC ${selectedItems.length === 1 ? 'installation' : 'installations'} selected (--all-previews).`
+            : `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'} selected for removal.`;
+      } else {
+        const ch = activeChannelItems[0].channel;
+        const isEolCh = activeChannelItems.some(i => i.isEol);
+        subEl.textContent = isEolCh
+          ? `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'}, out of support since May 14, 2024.`
+          : `${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'items'} in .NET ${ch} selected for removal.`;
+      }
     }
     if (multiFormInputs) {
       multiFormInputs.innerHTML = selectedItems
@@ -799,42 +893,81 @@ if (removeDialog) {
     }
   }
 
-  function openChannelRemoveDialog(channel) {
-    const chItems = Object.values(versionsData).filter(v => v.channel === channel && v.canRemove);
+  function populateRemoveDialogItems(items, latestSet) {
+    const itemsEl = document.getElementById('remove-dialog-items');
+    if (!itemsEl) return;
+    itemsEl.innerHTML = items.map((item, idx) => {
+      const isLatest = latestSet.has(`${item.version}|${item.kind}`);
+      const badgeHtml = item.isEol
+        ? '<span class="badge bad sm">EOL</span>'
+        : item.isPreview
+          ? '<span class="badge warn sm">Preview</span>'
+          : isLatest && items.length > 1
+            ? '<span class="badge ok sm">Latest</span>'
+            : `<span class="badge sm">${(item.kind || 'sdk').toUpperCase()}</span>`;
+      return `
+      <label class="remove-item-row">
+        <input type="checkbox" checked data-remove-idx="${idx}" aria-label="Select ${item.name} ${item.version} for removal">
+        <div class="remove-item-copy">
+          <strong>${item.name} <code>${item.displayVersion || item.version}</code>${item.kind === 'runtime' ? ` <span class="muted text-xs">· ${item.description || '.NET · ASP.NET Core'}</span>` : ''}</strong>
+          <code>${item.location || 'Managed global installation'}</code>
+        </div>
+        ${badgeHtml}
+      </label>`;
+    }).join('');
+    itemsEl.querySelectorAll('input[type="checkbox"][data-remove-idx]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        activeRemoveMode = 'selected';
+        for (const btn of modeBtns) {
+          btn.classList.toggle('active', btn.dataset.removeMode === 'selected');
+        }
+        syncChannelRemoveDialogState();
+      });
+    });
+  }
+
+  function openChannelRemoveDialog(channel, initialMode = 'selected') {
+    const isAllChannels = channel === 'all';
+    const chItems = Object.values(versionsData).filter(v => (isAllChannels || v.channel === channel) && v.canRemove);
     if (!chItems.length) return;
 
+    activeRemoveScope = isAllChannels ? 'all' : 'channel';
     activeChannelItems = chItems;
     pendingRemoveForm = multiForm || [...document.querySelectorAll('form[action="/installation/remove"]')]
       .find(f => f.querySelector('input[name="version"]')?.value === chItems[0].version) || null;
 
     const titleEl = document.getElementById('remove-dialog-title');
-    const itemsEl = document.getElementById('remove-dialog-items');
     const warnEl = document.getElementById('remove-dialog-warn');
+    const latestSet = getLatestVersionsByChannelKind();
 
-    if (titleEl) titleEl.textContent = `Remove .NET ${channel} from this Mac?`;
-    if (itemsEl) {
-      itemsEl.innerHTML = chItems.map((item, idx) => {
-        const badgeHtml = item.isEol
-          ? '<span class="badge bad sm">EOL</span>'
-          : `<span class="badge sm">${(item.kind || 'sdk').toUpperCase()}</span>`;
-        return `
-        <label class="remove-item-row">
-          <input type="checkbox" checked data-remove-idx="${idx}" aria-label="Select ${item.name} ${item.version} for removal">
-          <div class="remove-item-copy">
-            <strong>${item.name} <code>${item.displayVersion || item.version}</code>${item.kind === 'runtime' ? ` <span class="muted text-xs">· ${item.description || '.NET · ASP.NET Core'}</span>` : ''}</strong>
-            <code>${item.location || 'Managed global installation'}</code>
-          </div>
-          ${badgeHtml}
-        </label>`;
-      }).join('');
-      itemsEl.querySelectorAll('input[type="checkbox"][data-remove-idx]').forEach(cb => {
-        cb.addEventListener('change', syncChannelRemoveDialogState);
-      });
+    if (titleEl) {
+      titleEl.textContent = isAllChannels
+        ? (initialMode === 'all-but-latest'
+            ? 'Clean up superseded .NET versions?'
+            : initialMode === 'all-previews'
+              ? 'Remove all .NET preview & RC versions?'
+              : 'Remove selected .NET versions?')
+        : `Remove .NET ${channel} from this Mac?`;
     }
+
+    if (modesContainer) {
+      const hasSupersededInScope = chItems.some(item => !latestSet.has(`${item.version}|${item.kind}`));
+      const hasPreviewsInScope = chItems.some(item => item.isPreview);
+      modesContainer.hidden = !(hasSupersededInScope || hasPreviewsInScope);
+      const keepLatestBtn = modesContainer.querySelector('[data-remove-mode="all-but-latest"]');
+      const previewsBtn = modesContainer.querySelector('[data-remove-mode="all-previews"]');
+      if (keepLatestBtn) keepLatestBtn.hidden = !hasSupersededInScope;
+      if (previewsBtn) previewsBtn.hidden = !hasPreviewsInScope;
+    }
+
+    populateRemoveDialogItems(chItems, latestSet);
+
     if (warnEl) {
-      warnEl.innerHTML = `Removal runs through Microsoft’s dotnet-core-uninstall. Projects targeting <code>net${channel}.0</code> will no longer build on this machine.`;
+      warnEl.innerHTML = isAllChannels
+        ? `Removal runs through Microsoft’s dotnet-core-uninstall. Uncheck any SDK or runtime still pinned by a project’s <code>global.json</code>.`
+        : `Removal runs through Microsoft’s dotnet-core-uninstall. Projects targeting <code>net${channel}.0</code> will no longer build on this machine.`;
     }
-    syncChannelRemoveDialogState();
+    applyRemoveModeSelection(initialMode);
     removeDialog.showModal();
   }
 
@@ -845,6 +978,7 @@ if (removeDialog) {
     activeChannelItems = [];
     pendingRemoveForm = form;
     if (confirmBtn) confirmBtn.disabled = false;
+    if (modesContainer) modesContainer.hidden = true;
 
     const version = form.querySelector('input[name="version"]')?.value || '';
     const kind = form.querySelector('input[name="kind"]')?.value || 'sdk';
@@ -856,7 +990,7 @@ if (removeDialog) {
       channel: version.split('.')[0] || '',
       location: '',
       isEol: false,
-      command: `sudo dotnet-core-uninstall remove ${version} --${kind === 'sdk' ? 'sdk' : 'runtime'}`
+      command: `sudo dotnet-core-uninstall remove ${version} \\\n  --${kind === 'sdk' ? 'sdk' : 'runtime'} \\\n  --yes`
     };
 
     const titleEl = document.getElementById('remove-dialog-title');
@@ -909,12 +1043,20 @@ if (removeDialog) {
     });
   }
 
-  // Channel-level "Remove channel" button
+  // Channel-level "Remove channel" button & Smart Cleanup buttons
   document.addEventListener('click', (e) => {
     const chBtn = e.target.closest('[data-remove-channel]');
-    if (!chBtn) return;
-    e.preventDefault();
-    openChannelRemoveDialog(chBtn.dataset.removeChannel);
+    if (chBtn) {
+      e.preventDefault();
+      openChannelRemoveDialog(chBtn.dataset.removeChannel, 'selected');
+      return;
+    }
+    const cleanupBtn = e.target.closest('[data-cleanup-action]');
+    if (cleanupBtn) {
+      e.preventDefault();
+      const action = cleanupBtn.dataset.cleanupAction || 'all-but-latest';
+      openChannelRemoveDialog('all', action);
+    }
   });
 
   // Auto-open channel removal modal if ?removeChannel= is in the URL (e.g. from Overview)
@@ -924,6 +1066,135 @@ if (removeDialog) {
     initialUrl.searchParams.delete('removeChannel');
     history.replaceState(null, '', initialUrl);
     openChannelRemoveDialog(removeChannelParam);
+  }
+}
+
+// Channel & Page-level "Update All" Dialog (<dialog id="update-dialog" closedby="any">)
+const updateDialog = document.getElementById('update-dialog');
+if (updateDialog) {
+  let activeUpdatePackages = [];
+  const cancelBtn = document.getElementById('update-dialog-cancel');
+  const confirmBtn = document.getElementById('update-dialog-confirm');
+
+  function formatVerifyInstallPkgCmd(pkg) {
+    const fileName = `dotnet-${pkg.kind === 'sdk' ? 'sdk' : 'runtime'}-${pkg.pkgVersion}-osx-arm64.pkg`;
+    if (pkg.pkgSha) {
+      return `echo "${pkg.pkgSha}  ${fileName}" \\\n  | shasum -a 512 -c - \\\n  && sudo installer -pkg ${fileName} \\\n    -target /`;
+    }
+    return `sudo installer -pkg ${fileName} \\\n  -target /`;
+  }
+
+  function syncUpdateDialogState() {
+    const itemsEl = document.getElementById('update-dialog-items');
+    const cmdEl = document.getElementById('update-dialog-cmd');
+    const copyEl = document.getElementById('update-dialog-copy');
+    const confirmTextEl = document.getElementById('update-dialog-confirm-text');
+    const checkedBoxes = itemsEl ? [...itemsEl.querySelectorAll('input[type="checkbox"][data-update-idx]:checked')] : [];
+    const selectedPkgs = checkedBoxes.map(cb => activeUpdatePackages[Number(cb.dataset.updateIdx)]).filter(Boolean);
+
+    const combinedCmd = selectedPkgs.length
+      ? selectedPkgs.map(formatVerifyInstallPkgCmd).join('\n\n')
+      : '# Select at least one update package';
+    if (cmdEl) cmdEl.textContent = combinedCmd;
+    if (copyEl) copyEl.dataset.copy = combinedCmd;
+    if (confirmTextEl) {
+      confirmTextEl.textContent = selectedPkgs.length <= 1
+        ? 'Download & update'
+        : `Download ${selectedPkgs.length} installers`;
+    }
+    if (confirmBtn) confirmBtn.disabled = selectedPkgs.length === 0;
+  }
+
+  function openUpdateChannelDialog(channel) {
+    const isAll = channel === 'all';
+    const rowsWithPatches = Object.values(versionsData).filter(v => v.hasPatch && (isAll || v.channel === channel));
+    if (!rowsWithPatches.length) return;
+
+    const pkgMap = new Map();
+    for (const row of rowsWithPatches) {
+      const targetVer = row.patchVersion || row.pkgVersion || row.displayVersion;
+      const key = `${row.kind}:${targetVer}`;
+      if (!pkgMap.has(key)) {
+        pkgMap.set(key, {
+          kind: row.kind,
+          name: row.name,
+          channel: row.channel,
+          pkgVersion: targetVer,
+          pkgUrl: row.pkgUrl || '',
+          pkgSha: row.pkgSha || '',
+          pkgSize: row.pkgSize || (row.kind === 'sdk' ? '214 MB' : '45 MB'),
+          fromVersions: []
+        });
+      }
+      pkgMap.get(key).fromVersions.push(row.displayVersion || row.version);
+    }
+
+    activeUpdatePackages = [...pkgMap.values()];
+    const titleEl = document.getElementById('update-dialog-title');
+    const subEl = document.getElementById('update-dialog-subtitle');
+    const itemsEl = document.getElementById('update-dialog-items');
+
+    if (titleEl) {
+      titleEl.textContent = isAll
+        ? 'Update all .NET channels'
+        : `Update .NET ${channel} channel`;
+    }
+    if (subEl) {
+      subEl.textContent = `${rowsWithPatches.length} installed ${rowsWithPatches.length === 1 ? 'version has a' : 'versions have'} newer security/reliability patch.`;
+    }
+    if (itemsEl) {
+      itemsEl.innerHTML = activeUpdatePackages.map((pkg, idx) => {
+        const fromList = pkg.fromVersions.join(', ');
+        return `
+        <label class="remove-item-row">
+          <input type="checkbox" checked data-update-idx="${idx}" aria-label="Select ${pkg.name} ${pkg.pkgVersion} update">
+          <div class="remove-item-copy">
+            <strong>${pkg.name} <code>${fromList}</code> → <code>${pkg.pkgVersion}</code></strong>
+            <code>dotnet-${pkg.kind === 'sdk' ? 'sdk' : 'runtime'}-${pkg.pkgVersion}-osx-arm64.pkg · ${pkg.pkgSize}</code>
+          </div>
+          <span class="badge warn sm">.NET ${pkg.channel}</span>
+        </label>`;
+      }).join('');
+      itemsEl.querySelectorAll('input[type="checkbox"][data-update-idx]').forEach(cb => {
+        cb.addEventListener('change', syncUpdateDialogState);
+      });
+    }
+    syncUpdateDialogState();
+    updateDialog.showModal();
+  }
+
+  document.addEventListener('click', (e) => {
+    const updateBtn = e.target.closest('[data-update-channel]');
+    if (!updateBtn) return;
+    e.preventDefault();
+    openUpdateChannelDialog(updateBtn.dataset.updateChannel || 'all');
+  });
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      activeUpdatePackages = [];
+      updateDialog.close();
+    });
+  }
+
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', () => {
+      const itemsEl = document.getElementById('update-dialog-items');
+      const checkedBoxes = itemsEl ? [...itemsEl.querySelectorAll('input[type="checkbox"][data-update-idx]:checked')] : [];
+      const selectedPkgs = checkedBoxes.map(cb => activeUpdatePackages[Number(cb.dataset.updateIdx)]).filter(Boolean);
+      updateDialog.close();
+      for (const pkg of selectedPkgs) {
+        if (pkg.pkgUrl) {
+          const a = document.createElement('a');
+          a.href = pkg.pkgUrl;
+          a.download = '';
+          a.rel = 'noopener';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+      }
+    });
   }
 }
 
@@ -951,7 +1222,9 @@ if (addToolDialog) {
     const p = pkgId || lastFocusedPkg?.packageId || '<package-id>';
     const v = version || lastFocusedPkg?.version || '';
     const flag = sheetScope === 'local' ? '--local' : '--global';
-    const cmd = v ? `dotnet tool install ${flag} ${p} --version ${v}` : `dotnet tool install ${flag} ${p}`;
+    const cmd = v
+      ? `dotnet tool install ${flag} \\\n  ${p} \\\n  --version ${v}`
+      : `dotnet tool install ${flag} \\\n  ${p}`;
     if (cliPreview) cliPreview.textContent = cmd;
     if (cliCopy) cliCopy.dataset.copy = cmd;
   }
@@ -1577,7 +1850,7 @@ if (toolDrawer && toolsDataEl) {
         <form method="post" action="/tools/uninstall">
           <input type="hidden" name="packageId" value="${data.packageId}">
           <input type="hidden" name="scope" value="${data.scope}">
-          <button class="button danger drawer-remove-btn" type="submit">${trashSvg} Uninstall tool</button>
+          <button class="button danger drawer-remove-btn" type="submit">${trashSvg} Remove</button>
         </form>`;
     }
   }

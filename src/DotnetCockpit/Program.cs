@@ -168,6 +168,23 @@ app.MapPost("/tools/update", async (HttpContext context, DotnetToolsService serv
     var result = await service.UpdateAsync(form["packageId"].ToString(), scope, context.RequestAborted);
     return Results.Redirect(ToolRedirect(scope, "", result.Success ? "updated" : "failed"));
 });
+app.MapPost("/tools/update-all", async (HttpContext context, DotnetToolsService service) =>
+{
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var scope = form["scope"].ToString();
+    var items = form["items"];
+    var anySucceeded = false;
+    foreach (var item in items)
+    {
+        if (string.IsNullOrWhiteSpace(item)) continue;
+        var parts = item.Split('|', 2);
+        var pkgId = parts[0];
+        var itemScope = parts.Length > 1 ? parts[1] : (scope == "local" ? "local" : "global");
+        var res = await service.UpdateAsync(pkgId, itemScope, context.RequestAborted);
+        if (res.Success) anySucceeded = true;
+    }
+    return Results.Redirect(ToolRedirect(scope, form["q"].ToString(), anySucceeded ? "updated" : "failed"));
+});
 app.MapPost("/tools/uninstall", async (HttpContext context, DotnetToolsService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
@@ -238,7 +255,7 @@ static async Task<ToolsSnapshot> ReadTools(DotnetToolsService service, HttpConte
 
 static string ToolRedirect(string scope, string query, string notice)
 {
-    var normalizedScope = scope == "local" ? "local" : "global";
+    var normalizedScope = scope == "local" ? "local" : scope == "all" ? "all" : "global";
     var normalizedQuery = query.Trim();
     var result = $"/tools?scope={normalizedScope}";
     if (normalizedQuery.Length is > 0 and <= 100) result += $"&q={Uri.EscapeDataString(normalizedQuery)}";
@@ -251,8 +268,7 @@ static string InstallationRedirect(IFormCollection form, string notice)
     var sort = form["sort"].ToString() is "name" or "path" ? form["sort"].ToString() : "version";
     var direction = form["direction"].ToString() == "asc" ? "asc" : "desc";
     var query = form["q"].ToString().Trim();
-    var result = $"/?q={Uri.EscapeDataString(query)}&kind={kind}&sort={sort}&direction={direction}&notice={notice}";
-    return $"{result}#inventory";
+    return $"/?q={Uri.EscapeDataString(query)}&kind={kind}&sort={sort}&direction={direction}&notice={notice}";
 }
 
 await app.StartAsync();

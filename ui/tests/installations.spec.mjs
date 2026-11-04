@@ -151,7 +151,8 @@ test('opens detail drawer when inspecting a version and displays equivalent comm
   await page.locator(`tbody tr[data-kind="sdk"]`).filter({ hasText: firstSdk.version }).first().click();
   await expect(page.locator('#version-drawer')).toBeVisible();
   await expect(page.locator('#drawer-title')).toHaveText(firstSdk.version);
-  await expect(page.locator('#drawer-command')).toContainText(`dotnet-core-uninstall remove ${firstSdk.version}`);
+  await expect(page.locator('#drawer-command')).toContainText(`dotnet-core-uninstall remove ${firstSdk.version} \\`);
+  await expect(page.locator('#drawer-command')).toContainText('--sdk \\');
   await expect(page.locator('#drawer-patch-section')).toBeVisible();
   await expect(page.locator('#drawer-download-btn')).toBeVisible();
 
@@ -201,6 +202,25 @@ test('opens the Install .NET side-drawer with Latest filter active and filters S
 
   await page.locator('#close-install-dotnet-btn').click();
   await expect(dialog).toBeHidden();
+
+  // Open channel removal dialog and verify multi-line command & strategy pills
+  await page.locator('[data-remove-channel]').first().click();
+  const removeDialog = page.locator('#remove-dialog');
+  await expect(removeDialog).toBeVisible();
+  await expect(page.locator('#remove-dialog-cmd')).toContainText('dotnet-core-uninstall remove');
+  await page.locator('#remove-dialog-cancel').click();
+  await expect(removeDialog).toBeHidden();
+
+  // If Update All is present on any channel, verify it opens the Update All dialog
+  const updateBtns = page.locator('[data-update-channel]');
+  if (await updateBtns.count() > 0) {
+    await updateBtns.first().click();
+    const updateDialog = page.locator('#update-dialog');
+    await expect(updateDialog).toBeVisible();
+    await expect(page.locator('#update-dialog-cmd')).toContainText('sudo installer -pkg');
+    await page.locator('#update-dialog-cancel').click();
+    await expect(updateDialog).toBeHidden();
+  }
 });
 
 test('renders the overview page with system summary and health cards', async ({ page }) => {
