@@ -1,11 +1,13 @@
 const MIN_INTERVAL_MS = 3000;
+const AFTER_LOAD_MS = 400;
 
 /**
- * An installer runs outside the browser, so the moment to look again is when the person comes back:
- * the window regains focus, or the install sheet closes. Nothing polls in the background.
+ * Pages answer from the server's memory, which may be a moment old. So each page compares itself once after
+ * loading, and again when the person comes back: when the window regains focus or the install sheet closes,
+ * for instance after an installer ran elsewhere. Nothing polls in the background.
  */
 export function setupLiveInventory() {
-  const known = document.body.dataset.inventory;
+  const known = document.body.dataset.revision;
   if (known === undefined) return;
   let lastCheck = 0;
 
@@ -13,17 +15,17 @@ export function setupLiveInventory() {
     const now = Date.now();
     if (now - lastCheck < MIN_INTERVAL_MS) return;
     lastCheck = now;
-    let snapshot;
+    let revision;
     try {
-      const response = await fetch('/api/installation');
+      const response = await fetch(`/api/revision?page=${encodeURIComponent(window.location.pathname)}`);
       if (!response.ok) return;
-      snapshot = await response.json();
+      ({ revision } = await response.json());
     } catch {
       return;
     }
-    if (snapshot.status !== 'ready' || snapshot.signature === known) return;
+    if (revision === known) return;
     // A running confirmation or removal must not be interrupted; it reloads the page by itself.
-    if (document.querySelector('dialog[data-busy], #confirm-dialog[open], #remove-dialog[open]')) return;
+    if (document.querySelector('dialog[data-busy], #confirm-dialog[open], #remove-dialog[open], #add-tool-dialog[open]')) return;
     const url = new URL(window.location.href);
     if (url.pathname === '/') url.searchParams.set('notice', 'detected');
     const sheet = document.getElementById('install-dotnet-dialog');
@@ -36,6 +38,7 @@ export function setupLiveInventory() {
     window.location.replace(url);
   }
 
+  setTimeout(check, AFTER_LOAD_MS);
   window.addEventListener('focus', check);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') check();

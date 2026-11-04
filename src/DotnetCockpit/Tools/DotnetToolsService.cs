@@ -1,9 +1,10 @@
+using System.Text.Json;
 using System.ComponentModel;
 using DotnetCockpit.Installation;
 
 namespace DotnetCockpit.Tools;
 
-internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger)
+internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger, HttpClient httpClient)
 {
     public async Task<ToolsSnapshot> ReadAsync(CancellationToken cancellationToken)
     {
@@ -26,8 +27,13 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger)
             manifest is not null && IsManifestInWorkingDirectory(manifest, directory));
     }
 
+    private const string NuGetSearchUrl = "https://azuresearch-usnc.nuget.org/query";
+
     public async Task<ToolSearch> SearchAsync(string query, CancellationToken cancellationToken)
     {
+        // Asking NuGet directly avoids starting the dotnet CLI, which takes most of a second per search.
+        if (await SearchNuGetAsync(query, cancellationToken) is { } results) return new(query, results);
+
         var executable = DotnetLocator.Find(Environment.GetEnvironmentVariable("PATH"));
         if (executable is null) return new(query, [], "The dotnet command is not available on PATH.");
 
@@ -42,6 +48,26 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger)
         {
             logger.LogWarning(exception, "Could not search .NET tools for {Query}.", query);
             return new(query, [], "The tool search could not be completed. Check the package sources and try again.");
+        }
+    }
+
+    private async Task<ToolSearchResult[]?> SearchNuGetAsync(string query, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            var url = $"{NuGetSearchUrl}?q={Uri.EscapeDataString(query)}&packageType=DotnetTool&take=20&semVerLevel=2.0.0";
+            using var response = await httpClient.GetAsync(url, timeout.Token);
+            if (!response.IsSuccessStatusCode) return null;
+            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: timeout.Token);
+            return ToolOutputParser.ParseNuGetSearch(document.RootElement);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogDebug(exception, "Searching NuGet directly failed; falling back to the dotnet CLI.");
+            return null;
         }
     }
 

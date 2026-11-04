@@ -10,7 +10,7 @@ async function loadIndex() {
       return null;
     }
   };
-  const [installation, tools] = await Promise.all([read('/api/installation'), read('/api/tools')]);
+  const [installation, tools] = await Promise.all([read('/api/installation?cached=1'), read('/api/tools?cached=1')]);
   for (const sdk of installation?.sdks ?? []) {
     items.push({ title: `.NET SDK ${sdk.version}`, detail: 'Installed version', href: `/?selected=${encodeURIComponent(sdk.version)}#inventory`, tag: 'SDK' });
   }

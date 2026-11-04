@@ -239,6 +239,11 @@ internal static class ToolMetadataCatalog
         ("dotnet-outdated-tool", "4.6.8")
     ];
 
+    private static int generation;
+
+    /// <summary>Grows when freshly fetched metadata may change what the tools page shows.</summary>
+    public static int Generation => Volatile.Read(ref generation);
+
     public static async Task WarmCacheAsync(ToolsSnapshot snapshot, HttpClient httpClient, CancellationToken cancellationToken)
     {
         var allTools = snapshot.Global.Tools.Concat(snapshot.Local.Tools)
@@ -375,6 +380,8 @@ internal static class ToolMetadataCatalog
             }
             RemoteIconCache[tool.Id] = null;
         }
+
+        if (missingIds.Length > 0) Interlocked.Increment(ref generation);
     }
 
     public static async Task<(byte[]? Bytes, string ContentType)> GetOrFetchIconAsync(string packageId, string version, HttpClient httpClient, CancellationToken cancellationToken)

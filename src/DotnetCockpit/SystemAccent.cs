@@ -9,11 +9,12 @@ namespace DotnetCockpit;
 /// </summary>
 internal static class SystemAccent
 {
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
     private static readonly Lock Gate = new();
     private static string? cached;
     private static DateTimeOffset cachedAt = DateTimeOffset.MinValue;
 
+    /// <summary>The last known value. Pages never wait for the system; an older value refreshes in the background.</summary>
     public static string? Current
     {
         get
@@ -21,12 +22,27 @@ internal static class SystemAccent
             if (!OperatingSystem.IsMacOS()) return null;
             lock (Gate)
             {
-                if (DateTimeOffset.UtcNow - cachedAt < CacheDuration) return cached;
-                cached = Parse(ReadSetting());
-                cachedAt = DateTimeOffset.UtcNow;
+                if (cached is null) return ReadFresh();
+                if (DateTimeOffset.UtcNow - cachedAt > CacheDuration)
+                {
+                    cachedAt = DateTimeOffset.UtcNow;
+                    _ = Task.Run(ReadFresh);
+                }
                 return cached;
             }
         }
+    }
+
+    public static string? ReadFresh()
+    {
+        if (!OperatingSystem.IsMacOS()) return null;
+        var value = Parse(ReadSetting());
+        lock (Gate)
+        {
+            cached = value;
+            cachedAt = DateTimeOffset.UtcNow;
+        }
+        return value;
     }
 
     /// <summary>macOS stores a number. The key is missing for the multicolor choice, which appears blue.</summary>

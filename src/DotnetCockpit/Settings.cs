@@ -11,6 +11,8 @@ internal sealed record AppSettings(string Theme = "auto", bool PreflightOnLaunch
 internal sealed class SettingsStore
 {
     private readonly string path;
+
+    public string Directory { get; }
     private readonly Lock gate = new();
     private AppSettings current;
 
@@ -18,6 +20,7 @@ internal sealed class SettingsStore
 
     public SettingsStore(string directory)
     {
+        Directory = directory;
         path = Path.Combine(directory, "settings.json");
         current = Load(path);
     }
@@ -31,7 +34,7 @@ internal sealed class SettingsStore
             current = change(current);
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 File.WriteAllText(path, JsonSerializer.Serialize(current, AppJsonContext.Default.AppSettings));
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

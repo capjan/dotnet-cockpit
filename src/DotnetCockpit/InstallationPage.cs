@@ -163,7 +163,7 @@ internal static class InstallationPage
                   </section>
                   {{RenderInstallDotnetSheet(sdkSnapshot ?? new("ready", []), snapshot, options, currentDate)}}
                   <p class="scope-note muted">Locations include the version subfolder. When dotnet-core-uninstall is installed, only versions it can remove are shown; runtime frameworks that share a version are grouped together. Separate installations and other architectures may not appear here.</p>
-                  """, "/", ".NET Cockpit", health.Count, total, navTools, WebUtility.HtmlDecode(RefreshLink(options, snapshot.CheckedAt)), snapshot.Signature);
+                  """, "/", ".NET Cockpit", health.Count, total, navTools, WebUtility.HtmlDecode(RefreshLink(options, snapshot.CheckedAt)));
     }
 
     private static string RenderVersionsHub(Row[] allRows, Row[] rows, InstallationViewOptions options, Row? selectedRow)

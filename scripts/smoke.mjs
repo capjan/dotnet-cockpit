@@ -70,7 +70,7 @@ async function runWithoutRepositoryFiles(environment, verify, expectedStatus = 2
     assert.equal(page.status, expectedStatus);
     const html = await page.text();
     assert.match(html, /<title>\.NET Cockpit<\/title>/);
-    const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"?#]+)"/g)].map(match => match[1]);
+    const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"?#]+)(?:\?[^"]*)?"/g)].map(match => match[1]);
     assert.ok(assets.some(asset => asset.endsWith('.js')), 'An embedded UI script must be present.');
     assert.ok(assets.some(asset => asset.endsWith('.css')), 'An embedded stylesheet must be present.');
     for (const asset of new Set(assets)) {

@@ -204,7 +204,7 @@ internal static class OverviewPage
               </div>
               {{RenderTimeline(snapshot, sdkSnapshot, currentDate)}}
             </section>
-            """, "/overview", ".NET Cockpit · Overview", issues, snapshot.InstallationCount, toolsAvailable ? tools.Global.Tools.Length + tools.Local.Tools.Length : null, inventorySignature: snapshot.Signature);
+            """, "/overview", ".NET Cockpit · Overview", issues, snapshot.InstallationCount, toolsAvailable ? tools.Global.Tools.Length + tools.Local.Tools.Length : null);
     }
 
     private static string RenderTimeline(InstallationSnapshot snapshot, SdkDownloadSnapshot sdkSnapshot, DateOnly today)

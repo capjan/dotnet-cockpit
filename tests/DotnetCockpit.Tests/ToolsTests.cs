@@ -129,4 +129,23 @@ public sealed class ToolsTests
         Assert.Contains("Using an inherited manifest", inheritedHtml);
         Assert.DoesNotContain("Remove local tools", inheritedHtml);
     }
+
+    [Fact]
+    public void ReadsTheNuGetSearchResponse()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse("""
+            {"data":[
+              {"id":"dotnet-ef","version":"10.0.14","authors":["Microsoft"],"totalDownloads":136700000,"verified":true},
+              {"id":"other.tool","version":"1.0.0","authors":["A","B"],"totalDownloads":12,"verified":false},
+              {"version":"2.0.0"}
+            ]}
+            """);
+
+        var results = ToolOutputParser.ParseNuGetSearch(document.RootElement);
+
+        Assert.Equal(2, results.Length);
+        Assert.Equal(new ToolSearchResult("dotnet-ef", "10.0.14", "Microsoft", "136700000", true), results[0]);
+        Assert.Equal("A, B", results[1].Authors);
+        Assert.False(results[1].Verified);
+    }
 }
