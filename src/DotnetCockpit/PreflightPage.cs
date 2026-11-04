@@ -103,9 +103,9 @@ internal static class PreflightPage
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <meta name="color-scheme" content="light dark">
               <title>Pre-flight Check | .NET Cockpit</title>
-              <link rel="icon" type="image/png" sizes="32x32" href="/assets/logo-32.png">
-              <link rel="stylesheet" href="/assets/app.css">
-              <script type="module" src="/assets/app.js"></script>
+              <link rel="icon" type="image/png" sizes="32x32" href="/assets/logo-32.png?v={{PageLayout.AssetVersion}}">
+              <link rel="stylesheet" href="/assets/app.css?v={{PageLayout.AssetVersion}}">
+              <script type="module" src="/assets/app.js?v={{PageLayout.AssetVersion}}"></script>
             </head>
             <body class="app-body preflight-body">
               {{PageLayout.ThemeSwitch(extraClass: "pf-theme-btn")}}
@@ -113,7 +113,7 @@ internal static class PreflightPage
               <div class="preflight">
                 <div class="pf">
                   <div class="pf-brand">
-                    <img src="/assets/logo.png" alt=".NET Cockpit logo">
+                    <img src="/assets/logo.png?v={{PageLayout.AssetVersion}}" alt=".NET Cockpit logo">
                     <div>
                       <div class="muted pf-kicker">.NET Cockpit</div>
                       <h1 class="pf-title">Pre-flight <span class="grad-text">check</span></h1>

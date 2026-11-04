@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Security.Cryptography;
 
 namespace DotnetCockpit;
 
@@ -16,13 +17,18 @@ internal sealed class WebAssets
             stream.CopyTo(buffer);
             _files.Add(name[4..].Replace('\\', '/'), buffer.ToArray());
         }
+        var all = _files.OrderBy(file => file.Key, StringComparer.Ordinal).SelectMany(file => file.Value).ToArray();
+        Version = Convert.ToHexStringLower(SHA256.HashData(all))[..12];
     }
+
+    /// <summary>Part of every asset URL. Files can then be cached for good, so a page change loads only its HTML.</summary>
+    public string Version { get; }
 
     public IResult Get(HttpContext context, string? path)
     {
         path ??= "";
         if (!_files.TryGetValue(path, out var bytes)) return Results.NotFound();
-        context.Response.Headers.CacheControl = "no-cache";
+        context.Response.Headers.CacheControl = context.Request.Query.ContainsKey("v") ? "public, max-age=31536000, immutable" : "no-cache";
         var contentType = Path.GetExtension(path) switch
         {
             ".html" => "text/html; charset=utf-8",

@@ -23,4 +23,4 @@ Before removing an installation, confirm that it is not needed by another applic
 
 ## Local files
 
-Cockpit stores your appearance and pre-flight choices in `settings.json` in the `dotnet-cockpit` folder of your user configuration directory. Delete the file to reset them.
+Cockpit stores your appearance and pre-flight choices in `settings.json`, and the last official release catalog in `release-catalog.json`, in the `dotnet-cockpit` folder of your user configuration directory. Delete the files to reset them.

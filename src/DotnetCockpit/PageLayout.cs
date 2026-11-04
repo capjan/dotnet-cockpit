@@ -7,6 +7,14 @@ internal static class PageLayout
     /// <summary>Set at startup from the settings file. Tests and tools that render pages directly get the defaults.</summary>
     public static Func<AppSettings> CurrentSettings { get; set; } = () => new();
 
+    public static string AssetVersion { get; set; } = "dev";
+
+    /// <summary>When the installation was last read, which can be earlier than now because pages answer from memory.</summary>
+    public static Func<DateTimeOffset> CheckedAt { get; set; } = () => DateTimeOffset.Now;
+
+    /// <summary>What this page was built from. The script compares it to notice changes made outside Cockpit.</summary>
+    public static Func<string, string?> CurrentRevision { get; set; } = _ => null;
+
     /// <summary>Set at startup. Rendered as an attribute only where the system has an accent color.</summary>
     public static Func<string?> CurrentAccent { get; set; } = () => null;
 
@@ -15,7 +23,7 @@ internal static class PageLayout
     private static string WorkspaceName =>
         Path.GetFileName(Environment.CurrentDirectory.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : Environment.CurrentDirectory;
 
-    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null, string? refreshHref = null, string? inventorySignature = null) => $$"""
+    public static string Render(string content, string currentPath, string title = ".NET Cockpit", int issueCount = 0, int? versionsCount = null, int? toolsCount = null, string? refreshHref = null) => $$"""
         <!doctype html>
         <html lang="en" data-theme="{{CurrentSettings().Theme}}" data-palette="{{CurrentSettings().Palette}}"{{AccentAttribute}}>
         <head>
@@ -24,16 +32,16 @@ internal static class PageLayout
           <meta name="color-scheme" content="light dark">
           <meta name="description" content="Your local .NET environment, in one place.">
           <title>{{Encode(title)}}</title>
-          <link rel="icon" type="image/png" sizes="32x32" href="/assets/logo-32.png">
-          <link rel="stylesheet" href="/assets/app.css">
-          <script type="module" src="/assets/app.js"></script>
+          <link rel="icon" type="image/png" sizes="32x32" href="/assets/logo-32.png?v={{AssetVersion}}">
+          <link rel="stylesheet" href="/assets/app.css?v={{AssetVersion}}">
+          <script type="module" src="/assets/app.js?v={{AssetVersion}}"></script>
         </head>
-        <body class="app-body"{{(inventorySignature is null ? "" : $" data-inventory=\"{Encode(inventorySignature)}\"")}}>
+        <body class="app-body"{{(CurrentRevision(currentPath) is { } revision ? $" data-revision=\"{Encode(revision)}\"" : "")}}>
           <a class="skip-link" href="#main">Skip to content</a>
           <div class="app">
             <aside class="rail" aria-label="Workspace navigation">
               <div class="brand">
-                <img src="/assets/logo.png" alt=".NET Cockpit logo">
+                <img src="/assets/logo.png?v={{AssetVersion}}" alt=".NET Cockpit logo">
                 <div>
                   <b>.NET Cockpit</b>
                   <small>Runs on this machine</small>
@@ -67,9 +75,9 @@ internal static class PageLayout
                   <span>Search versions, tools and actions</span>
                   <kbd>⌘K</kbd>
                 </button>
-                <a class="checked" href="{{Encode(refreshHref ?? (currentPath == "/confirm" ? "/overview" : currentPath))}}" title="Check again" aria-label="Refresh. Checked {{DateTime.Now.ToString("HH:mm")}}">
+                <a class="checked" href="{{Encode(refreshHref ?? $"{(currentPath == "/confirm" ? "/overview" : currentPath)}?refresh=1")}}" title="Check again" aria-label="Refresh. Checked {{CheckedAt().ToLocalTime().ToString("HH:mm")}}">
                   {{Icon("refresh", "xs")}}
-                  <span>Checked <time datetime="{{DateTimeOffset.Now:O}}">{{DateTime.Now.ToString("HH:mm")}}</time></span>
+                  <span>Checked <time datetime="{{CheckedAt():O}}">{{CheckedAt().ToLocalTime().ToString("HH:mm")}}</time></span>
                 </a>
                 {{ThemeSwitch()}}
               </header>

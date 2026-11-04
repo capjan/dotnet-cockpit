@@ -9,13 +9,19 @@ internal sealed record SdkDownload(string Product, string Version, string Instal
 
 internal sealed record SdkDownloadSnapshot(string Status, SdkDownload[] Downloads, string? Error = null, ChannelLifecycle[]? Channels = null);
 
-internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, HttpClient httpClient)
+internal sealed record StoredCatalog(SdkDownload[] Downloads, ChannelLifecycle[] Channels);
+
+internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, HttpClient httpClient, string? storeDirectory = null)
 {
     private const string IndexUrl = "https://builds.dotnet.microsoft.com/dotnet/release-metadata/releases-index.json";
     private static readonly Uri OfficialHost = new("https://builds.dotnet.microsoft.com/");
     private (SdkDownload[] Downloads, ChannelLifecycle[] Channels)? cachedCatalog;
     private DateTimeOffset cacheExpiresAt;
     private readonly SemaphoreSlim cacheLock = new(1, 1);
+    private readonly Lock refreshGate = new();
+    private Task? backgroundRefresh;
+    private bool storeChecked;
+    private string? StorePath => storeDirectory is null ? null : Path.Combine(storeDirectory, "release-catalog.json");
 
     public async Task<SdkDownloadSnapshot> ReadAsync(CancellationToken cancellationToken)
     {
@@ -38,22 +44,89 @@ internal sealed class SdkDownloadCatalog(ILogger<SdkDownloadCatalog> logger, Htt
 
     private async Task<(SdkDownload[] Downloads, ChannelLifecycle[] Channels)> ReadCatalogAsync(CancellationToken cancellationToken)
     {
-        if (cachedCatalog is { } current && cacheExpiresAt > DateTimeOffset.UtcNow) return current;
+        if (cachedCatalog is { } current)
+        {
+            // A known catalog answers at once, even offline; a new one replaces it when it arrives.
+            if (cacheExpiresAt <= DateTimeOffset.UtcNow) StartBackgroundRefresh();
+            return current;
+        }
 
         await cacheLock.WaitAsync(cancellationToken);
         try
         {
-            if (cachedCatalog is { } fresh && cacheExpiresAt > DateTimeOffset.UtcNow) return fresh;
+            if (cachedCatalog is { } fresh) return fresh;
+            if (await LoadStoredCatalogAsync(cancellationToken) is { } stored)
+            {
+                cachedCatalog = stored;
+                StartBackgroundRefresh();
+                return stored;
+            }
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(5));
             var catalog = await FetchCatalogAsync(timeout.Token);
-            cachedCatalog = catalog;
-            cacheExpiresAt = DateTimeOffset.UtcNow.AddHours(1);
+            Publish(catalog);
             return catalog;
         }
         finally
         {
             cacheLock.Release();
+        }
+    }
+
+    private void Publish((SdkDownload[] Downloads, ChannelLifecycle[] Channels) catalog)
+    {
+        cachedCatalog = catalog;
+        cacheExpiresAt = DateTimeOffset.UtcNow.AddHours(1);
+        if (StorePath is not { } path) return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(new StoredCatalog(catalog.Downloads, catalog.Channels), AppJsonContext.Default.StoredCatalog));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            logger.LogDebug(exception, "Could not store the release catalog.");
+        }
+    }
+
+    private void StartBackgroundRefresh()
+    {
+        lock (refreshGate)
+        {
+            if (backgroundRefresh is { IsCompleted: false }) return;
+            cacheExpiresAt = DateTimeOffset.UtcNow.AddMinutes(1);
+            backgroundRefresh = RefreshInBackgroundAsync();
+        }
+    }
+
+    private async Task RefreshInBackgroundAsync()
+    {
+        await Task.Yield();
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            Publish(await FetchCatalogAsync(timeout.Token));
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidDataException or InvalidOperationException or UriFormatException or OperationCanceledException)
+        {
+            logger.LogDebug(exception, "Keeping the known release catalog because the refresh failed.");
+        }
+    }
+
+    private async Task<(SdkDownload[] Downloads, ChannelLifecycle[] Channels)?> LoadStoredCatalogAsync(CancellationToken cancellationToken)
+    {
+        if (storeChecked || StorePath is not { } path || !File.Exists(path)) return null;
+        storeChecked = true;
+        try
+        {
+            await using var stream = File.OpenRead(path);
+            var stored = await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.StoredCatalog, cancellationToken);
+            return stored is { Downloads.Length: > 0, Channels.Length: > 0 } ? (stored.Downloads, stored.Channels) : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            logger.LogDebug(exception, "Ignoring an unreadable stored release catalog.");
+            return null;
         }
     }
 

@@ -42,26 +42,48 @@ export function setupAddToolSheet() {
     results.innerHTML = `<div class="empty-state">${html}</div>`;
   }
 
-  async function runSearch(rawQuery) {
-    const query = rawQuery.trim();
-    if (!query) {
-      message('<p class="muted">Type a package name to search NuGet.org.</p>');
-      return;
-    }
-    message('<p class="muted">Searching NuGet.org…</p>');
-    try {
+  const searchCache = new Map();
+  let latestSearch = 0;
+
+  function renderFailure(html) {
+    delete results.dataset.query;
+    message(html);
+  }
+
+  async function fetchResults(query) {
+    if (!searchCache.has(query)) {
       const response = await fetch(`/api/tools/search?q=${encodeURIComponent(query)}`);
       const data = await response.json();
-      if (search.value.trim() !== query) return;
+      if (data.error) return data;
+      searchCache.set(query, data);
+    }
+    return searchCache.get(query);
+  }
+
+  async function runSearch(rawQuery) {
+    const query = rawQuery.trim();
+    const ticket = ++latestSearch;
+    results.removeAttribute('aria-busy');
+    if (!query) {
+      renderFailure('<p class="muted">Type a package name to search NuGet.org.</p>');
+      return;
+    }
+    // The previous results stay visible, dimmed, so the sheet shows progress without jumping.
+    if (!searchCache.has(query)) results.setAttribute('aria-busy', 'true');
+    try {
+      const data = await fetchResults(query);
+      if (ticket !== latestSearch) return;
+      results.removeAttribute('aria-busy');
       if (data.error) {
-        message(`<h3>Search failed</h3><p>${esc(data.error)}</p>`);
+        renderFailure(`<h3>Search failed</h3><p>${esc(data.error)}</p>`);
         return;
       }
       const items = data.results || [];
       if (!items.length) {
-        message(`<h3>No tools found</h3><p class="muted">Nothing on NuGet.org matches “${esc(query)}”.</p>`);
+        renderFailure(`<h3>No tools found</h3><p class="muted">Nothing on NuGet.org matches “${esc(query)}”.</p>`);
         return;
       }
+      results.dataset.query = query;
       results.innerHTML = items.map(item => `
         <div class="sheet-result-item" data-pkg-id="${esc(item.packageId)}">
           <span class="tool-monogram tool-logo has-img"><img src="/api/tools/icon?packageId=${encodeURIComponent(item.packageId)}&version=${encodeURIComponent(item.version)}" alt="" class="tool-logo-img" width="36" height="36" loading="lazy"></span>
@@ -80,7 +102,9 @@ export function setupAddToolSheet() {
         </div>`).join('');
       applyScope();
     } catch {
-      message('<h3>Search failed</h3><p class="muted">NuGet.org could not be searched. Try again.</p>');
+      if (ticket !== latestSearch) return;
+      results.removeAttribute('aria-busy');
+      renderFailure('<h3>Search failed</h3><p class="muted">NuGet.org could not be searched. Try again.</p>');
     }
   }
 
@@ -95,7 +119,13 @@ export function setupAddToolSheet() {
 
   search.addEventListener('input', () => {
     clearTimeout(timer);
-    timer = setTimeout(() => runSearch(search.value), 260);
+    const query = search.value.trim();
+    if (searchCache.has(query) || !query) {
+      runSearch(query);
+      return;
+    }
+    results.setAttribute('aria-busy', 'true');
+    timer = setTimeout(() => runSearch(search.value), 160);
   });
   search.addEventListener('keydown', event => {
     if (event.key !== 'Enter') return;
@@ -107,6 +137,8 @@ export function setupAddToolSheet() {
   document.addEventListener('click', event => {
     if (event.target.closest('#open-add-tool-btn')) {
       event.preventDefault();
+      // Establishes the connection to NuGet now, so the first real search does not pay for it.
+      fetch('/api/tools/search?q=dotnet').catch(() => {});
       openModal(dialog, search);
     } else if (event.target.closest('#close-add-tool-btn')) {
       dialog.close();

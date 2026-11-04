@@ -18,7 +18,7 @@ internal static class ToolsPage
     public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options) =>
         Render(snapshot, options, new(options.SearchQuery, []));
 
-    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search, int navIssues = 0, int? navVersions = null, string? navInventory = null)
+    public static string Render(ToolsSnapshot snapshot, ToolsViewOptions options, ToolSearch search, int navIssues = 0, int? navVersions = null)
     {
         var content = snapshot.Status switch
         {
@@ -76,7 +76,7 @@ internal static class ToolsPage
             {{(snapshot.Status == "ready" ? RenderSearch(snapshot, options, search) : "")}}
             {{(snapshot.Status == "ready" ? RenderAddToolSheet(snapshot, options, search) : "")}}
             <p class="scope-note muted">Local tools are declared in manifests for this working directory or its parents. This view does not check whether they have been restored — run <code>dotnet tool restore</code> in the workspace.</p>
-            """, "/tools", ".NET Tools | .NET Cockpit", navIssues, navVersions, snapshot.Global.Tools.Length + snapshot.Local.Tools.Length, refreshHref: RefreshLink(options), inventorySignature: navInventory);
+            """, "/tools", ".NET Tools | .NET Cockpit", navIssues, navVersions, snapshot.Global.Tools.Length + snapshot.Local.Tools.Length, refreshHref: RefreshLink(options));
     }
 
     private static string RenderTabs(ToolsSnapshot snapshot, ToolsViewOptions options)
@@ -109,7 +109,7 @@ internal static class ToolsPage
     }
 
     private static string RefreshLink(ToolsViewOptions options) =>
-        options.Scope == "local" ? "/tools?scope=local" : "/tools";
+        options.Scope == "local" ? "/tools?scope=local&refresh=1" : options.Scope == "all" ? "/tools?scope=all&refresh=1" : "/tools?refresh=1";
 
     private static string RenderList(string title, string id, ToolList list, bool local, bool localInitialized, bool localOwned, ToolsViewOptions options, string tabsHtml)
     {

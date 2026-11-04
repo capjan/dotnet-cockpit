@@ -150,11 +150,11 @@ internal static class SetupPage
                       <div class="endpoint-left">
                         <span class="endpoint-icon">{Icon("search", "sm")}</span>
                         <div>
-                          <strong>NuGet search</strong>
-                          <p class="muted text-xs">Queried only when you search in "Add tool".</p>
+                          <strong>NuGet</strong>
+                          <p class="muted text-xs">Search in "Add tool", plus descriptions, icons and update checks for your installed tools.</p>
                         </div>
                       </div>
-                      <code class="muted">api.nuget.org</code>
+                      <code class="muted">api.nuget.org, azuresearch-usnc.nuget.org</code>
                     </div>
                     <div class="endpoint-row">
                       <div class="endpoint-left">
@@ -187,7 +187,7 @@ internal static class SetupPage
                 </section>
               </div>
             </div>
-            """, "/setup", "Settings | .NET Cockpit", issues, installation.InstallationCount, toolsCount, inventorySignature: installation.Signature);
+            """, "/setup", "Settings | .NET Cockpit", issues, installation.InstallationCount, toolsCount);
     }
 
     private static string RenderToolCard(SetupSnapshot snapshot)

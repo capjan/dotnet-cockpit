@@ -98,6 +98,7 @@ dialog::backdrop { background: var(--scrim); }
 .search-source { font-size: var(--t-xs); color: var(--muted); }
 .sheet-controls { display: grid; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
 .sheet-results { flex: 1; min-height: 0; overflow-y: auto; }
+.sheet-results[aria-busy="true"] > * { opacity: .55; transition: opacity var(--ease); }
 .sheet-channel-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 8px 20px; background: var(--surface-2); border-bottom: 1px solid var(--line); cursor: pointer; list-style: none; }
 .sheet-channel-head::-webkit-details-marker { display: none; }
 .sheet-channel-head:hover { background: var(--surface-3); }

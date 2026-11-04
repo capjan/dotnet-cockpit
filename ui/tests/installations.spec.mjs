@@ -373,17 +373,14 @@ test('overlays return focus and keep the keyboard inside', async ({ page }) => {
   await expect(page.locator('#cmdk-dialog')).toBeHidden();
 });
 
-test('the page notices a changed installation when the window regains focus, without polling', async ({ page }) => {
+test('the page notices a change from outside when the window regains focus, without polling', async ({ page }) => {
   let calls = 0;
-  page.on('request', request => { if (request.url().endsWith('/api/installation')) calls++; });
+  page.on('request', request => { if (request.url().includes('/api/revision')) calls++; });
   await page.goto('/');
-  await page.waitForTimeout(500);
-  expect(calls).toBe(0);
-  await page.route('**/api/installation', async route => {
-    const response = await route.fetch();
-    const json = await response.json();
-    await route.fulfill({ response, json: { ...json, signature: 'changed' } });
-  });
+  await page.waitForTimeout(1500);
+  expect(calls).toBeLessThanOrEqual(1);
+  await page.waitForTimeout(2000);
+  await page.route('**/api/revision*', route => route.fulfill({ json: { revision: 'changed' } }));
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(page.locator('.toast')).toContainText('versions changed');
 });
