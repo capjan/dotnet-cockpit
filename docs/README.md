@@ -7,6 +7,7 @@
 ```hero
 title: See your .NET environment clearly
 text: Inspect SDKs, runtimes, and tools in one local workspace—then install or remove only through explicit actions.
+effect: connections
 actions:
   - text: Get started
     link: Getting-Started.md
