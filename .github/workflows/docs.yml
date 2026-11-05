@@ -54,10 +54,8 @@ jobs:
       - name: Restore MDU
         run: dotnet tool restore
       - uses: actions/configure-pages@v6
-        with:
-          enablement: true
       - name: Render documentation
-        run: dotnet mdu render docs site
+        run: dotnet mdu render docs site --editPageRoot "https://github.com/capjan/dotnet-cockpit/edit/main/docs"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
