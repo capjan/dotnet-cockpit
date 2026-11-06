@@ -4,7 +4,7 @@
 title: Your .NET, in focus
 text: Inspect SDKs, runtimes and tools. Understand support status. Choose your next step.
 effect: connections
-width: content
+width: full
 height: 360
 speed: 0.3
 actions:
