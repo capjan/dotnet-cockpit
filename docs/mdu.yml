@@ -2,3 +2,12 @@ site:
   name: .NET Cockpit
   logo: assets/logo.png
   favicon: assets/logo.png
+  colors:
+    light:
+      background: "#ffffff"
+      text: "#1d1d1f"
+      primary: "#0066cc"
+    dark:
+      background: "#06080e"
+      text: "#94a3b8"
+      primary: "#6366f1"
