@@ -157,6 +157,20 @@ await runWithoutRepositoryFiles(process.env, async (data, html, get, url) => {
   });
   assert.equal(invalidAction.status, 302);
   assert.match(invalidAction.headers.get('location'), /notice=failed/);
+  const crossSite = await fetch(new URL('settings/theme', url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://example.com', 'sec-fetch-site': 'cross-site' },
+    body: new URLSearchParams({ theme: 'dark' }),
+    redirect: 'manual',
+  });
+  assert.equal(crossSite.status, 403);
+  const sameOrigin = await fetch(new URL('tools/install', url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', origin: new URL(url).origin, 'sec-fetch-site': 'same-origin' },
+    body: new URLSearchParams({ packageId: '', version: '', scope: 'global' }),
+    redirect: 'manual',
+  });
+  assert.equal(sameOrigin.status, 302);
 });
 console.log('PASS: server-rendered installations, global/local tools, filtering, embedded assets, and loopback host validation.');
 

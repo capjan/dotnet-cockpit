@@ -47,6 +47,8 @@ builder.Services.AddSingleton<DotnetUninstallToolService>();
 builder.Services.AddSingleton<WebAssets>();
 
 var app = builder.Build();
+// A change keeps running when the page that asked for it closes; stopping it halfway could leave a tool or an installation broken.
+var stopping = app.Lifetime.ApplicationStopping;
 var settingsStore = app.Services.GetRequiredService<SettingsStore>();
 PageLayout.CurrentSettings = () => settingsStore.Current;
 PageLayout.CurrentAccent = () => SystemAccent.Current;
@@ -60,6 +62,12 @@ app.Use(async (context, next) =>
     if (context.Request.Host.Host != "127.0.0.1")
     {
         context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+    if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method) &&
+        !LocalOrigin.AllowsChange(context.Request.Headers.Origin.ToString(), context.Request.Headers["Sec-Fetch-Site"].ToString(), context.Request.Host.Value ?? ""))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
         return;
     }
     context.Response.Headers.XContentTypeOptions = "nosniff";
@@ -110,11 +118,11 @@ app.MapPost("/installation/remove", async (HttpContext context, DotnetUninstallT
             .Where(parts => parts.Length == 2 && !string.IsNullOrWhiteSpace(parts[0]))
             .Select(parts => ((string?)parts[0], (string?)parts[1]))
             .ToArray();
-        var batch = await service.RemoveInstallationsAsync(targets, context.RequestAborted);
+        var batch = await service.RemoveInstallationsAsync(targets, stopping);
         await live.RefreshAsync();
         return Results.Redirect(InstallationRedirect(form, batch.Success ? "removed" : "remove-failed"));
     }
-    var result = await service.RemoveInstallationAsync(form["version"].ToString(), form["kind"].ToString(), context.RequestAborted);
+    var result = await service.RemoveInstallationAsync(form["version"].ToString(), form["kind"].ToString(), stopping);
     await live.RefreshAsync();
     return Results.Redirect(InstallationRedirect(form, result.Success ? "removed" : "remove-failed"));
 });
@@ -187,19 +195,19 @@ app.MapGet("/confirm", async Task<IResult> (HttpContext context) =>
 app.MapPost("/setup/install", async (HttpContext context, DotnetUninstallToolService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
-    var result = await service.InstallAsync(form["version"].ToString(), context.RequestAborted);
+    var result = await service.InstallAsync(form["version"].ToString(), stopping);
     await live.RefreshAsync(includeReleases: true);
     return Results.Redirect($"/setup?notice={(result.Success ? "installed" : "failed")}");
 });
 app.MapPost("/setup/update", async (HttpContext context, DotnetUninstallToolService service) =>
 {
-    var result = await service.InstallAsync("latest", context.RequestAborted);
+    var result = await service.InstallAsync("latest", stopping);
     await live.RefreshAsync(includeReleases: true);
     return Results.Redirect($"/setup?notice={(result.Success ? "updated" : "update-failed")}");
 });
 app.MapPost("/setup/uninstall", async (HttpContext context, DotnetUninstallToolService service) =>
 {
-    var result = await service.UninstallAsync(context.RequestAborted);
+    var result = await service.UninstallAsync(stopping);
     await live.RefreshAsync(includeReleases: true);
     return Results.Redirect($"/setup?notice={(result.Success ? "uninstalled" : "uninstall-failed")}");
 });
@@ -219,7 +227,7 @@ app.MapPost("/tools/install", async (HttpContext context, DotnetToolsService ser
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
     var scope = form["scope"].ToString();
-    var result = await service.InstallAsync(form["packageId"].ToString(), form["version"].ToString(), scope, context.RequestAborted);
+    var result = await service.InstallAsync(form["packageId"].ToString(), form["version"].ToString(), scope, stopping);
     await live.RefreshAsync();
     return Results.Redirect(ToolRedirect(scope, form["q"].ToString(), result.Success ? "installed" : "failed", form["packageId"].ToString()));
 });
@@ -227,7 +235,7 @@ app.MapPost("/tools/update", async (HttpContext context, DotnetToolsService serv
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
     var scope = form["scope"].ToString();
-    var result = await service.UpdateAsync(form["packageId"].ToString(), scope, context.RequestAborted);
+    var result = await service.UpdateAsync(form["packageId"].ToString(), scope, stopping);
     await live.RefreshAsync();
     return Results.Redirect(ToolRedirect(scope, "", result.Success ? "updated" : "failed", form["packageId"].ToString()));
 });
@@ -243,7 +251,7 @@ app.MapPost("/tools/update-all", async (HttpContext context, DotnetToolsService 
         var parts = item.Split('|', 2);
         var pkgId = parts[0];
         var itemScope = parts.Length > 1 ? parts[1] : (scope == "local" ? "local" : "global");
-        var res = await service.UpdateAsync(pkgId, itemScope, context.RequestAborted);
+        var res = await service.UpdateAsync(pkgId, itemScope, stopping);
         if (res.Success) anySucceeded = true;
     }
     await live.RefreshAsync();
@@ -253,21 +261,21 @@ app.MapPost("/tools/uninstall", async (HttpContext context, DotnetToolsService s
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
     var scope = form["scope"].ToString();
-    var result = await service.UninstallAsync(form["packageId"].ToString(), scope, context.RequestAborted);
+    var result = await service.UninstallAsync(form["packageId"].ToString(), scope, stopping);
     await live.RefreshAsync();
     return Results.Redirect(ToolRedirect(scope, "", result.Success ? "uninstalled" : "failed"));
 });
 app.MapPost("/tools/init", async (HttpContext context, DotnetToolsService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
-    var result = await service.InitializeLocalAsync(context.RequestAborted);
+    var result = await service.InitializeLocalAsync(stopping);
     await live.RefreshAsync();
     return Results.Redirect(ToolRedirect(form["scope"].ToString(), form["q"].ToString(), result.Success ? "initialized" : "failed"));
 });
 app.MapPost("/tools/remove-manifest", async (HttpContext context, DotnetToolsService service) =>
 {
     var form = await context.Request.ReadFormAsync(context.RequestAborted);
-    var result = await service.RemoveLocalManifestAsync(context.RequestAborted);
+    var result = await service.RemoveLocalManifestAsync(stopping);
     await live.RefreshAsync();
     return Results.Redirect(ToolRedirect(form["scope"].ToString(), form["q"].ToString(), result.Success ? "removed" : "failed"));
 });
