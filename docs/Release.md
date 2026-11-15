@@ -28,7 +28,7 @@ dotnet mdu lint docs
 
 ## Create a release
 
-Use the **Release** workflow from `main` and supply a semantic version such as `0.1.0`. The workflow rebuilds and verifies all artifacts, produces checksums, publishes the `.nupkg` to NuGet.org through GitHub OIDC Trusted Publishing, and creates the GitHub release with the native archives and package.
+Use the **Release** workflow from `main` and supply a semantic version such as `0.3.0`. The workflow rebuilds and verifies all artifacts, produces checksums for the two macOS archives and the package, publishes the `.nupkg` to NuGet.org through GitHub OIDC Trusted Publishing, and creates the GitHub release with the native archives and package.
 
 The project is distributed under the [MIT License](https://github.com/capjan/dotnet-cockpit/blob/main/LICENSE). The package declares the same SPDX license expression for NuGet.org.
 
