@@ -197,7 +197,6 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger, Htt
     private static bool IsManifestInWorkingDirectory(string manifest, string directory)
     {
         var expected = Path.GetFullPath(Path.Combine(directory, ".config", "dotnet-tools.json"));
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        return string.Equals(Path.GetFullPath(manifest), expected, comparison);
+        return string.Equals(Path.GetFullPath(manifest), expected, StringComparison.Ordinal);
     }
 }

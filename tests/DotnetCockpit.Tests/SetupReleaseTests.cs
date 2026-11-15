@@ -11,11 +11,7 @@ public sealed class SetupReleaseTests
     [Fact]
     public async Task CombinesStableCompatibleReleasesAcrossPages()
     {
-        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS()) return;
-
-        var asset = OperatingSystem.IsWindows()
-            ? "dotnet-core-uninstall.msi"
-            : $"dotnet-core-uninstall-osx-{(RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64")}.tar.gz";
+        var asset = $"dotnet-core-uninstall-osx-{(RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64")}.tar.gz";
         var handler = new ReleaseHandler(asset, pageTwo: false);
         using var client = new HttpClient(handler);
         var service = new DotnetUninstallToolService(NullLogger<DotnetUninstallToolService>.Instance, client);
@@ -31,10 +27,7 @@ public sealed class SetupReleaseTests
     [Fact]
     public async Task DoesNotExposePartialReleasesWhenAPageFails()
     {
-        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS()) return;
-
-        var asset = OperatingSystem.IsWindows() ? "dotnet-core-uninstall.msi" : "dotnet-core-uninstall.tar.gz";
-        var handler = new ReleaseHandler(asset, pageTwo: true);
+        var handler = new ReleaseHandler("dotnet-core-uninstall.tar.gz", pageTwo: true);
         using var client = new HttpClient(handler);
         var service = new DotnetUninstallToolService(NullLogger<DotnetUninstallToolService>.Instance, client);
 
@@ -47,7 +40,7 @@ public sealed class SetupReleaseTests
     [Fact]
     public async Task DoesNotUseGenericMacOsArchivesOnArm64()
     {
-        if (!OperatingSystem.IsMacOS() || RuntimeInformation.OSArchitecture != Architecture.Arm64) return;
+        if (RuntimeInformation.OSArchitecture != Architecture.Arm64) return;
 
         var handler = new ReleaseHandler("dotnet-core-uninstall.tar.gz", pageTwo: false);
         using var client = new HttpClient(handler);

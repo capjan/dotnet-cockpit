@@ -25,18 +25,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
-            rid: linux-x64
-            exe: dotnet-cockpit
-          - os: windows-latest
-            rid: win-x64
-            exe: dotnet-cockpit.exe
           - os: macos-15-intel
             rid: osx-x64
-            exe: dotnet-cockpit
           - os: macos-latest
             rid: osx-arm64
-            exe: dotnet-cockpit
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -55,51 +47,34 @@ jobs:
       - name: Unit tests
         run: dotnet test DotnetCockpit.sln --configuration Release
       - name: Restore MDU
-        if: runner.os == 'Linux'
+        if: matrix.os == 'macos-latest'
         run: dotnet tool restore
       - name: Lint documentation
-        if: runner.os == 'Linux'
+        if: matrix.os == 'macos-latest'
         run: dotnet mdu lint docs
-      - name: Install Native AOT prerequisites
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes clang zlib1g-dev
       - name: Publish Native AOT executable
-        shell: bash
         env:
           PACKAGE_VERSION: ${{ inputs.version || '0.2.0' }}
         run: dotnet publish src/DotnetCockpit/DotnetCockpit.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained true -p:PublishAot=true -warnaserror:IL2026,IL2104,IL3050,IL3053 -p:Version="$PACKAGE_VERSION" --output artifacts/native
       - name: Smoke test published executable
-        run: node scripts/smoke.mjs artifacts/native/${{ matrix.exe }}
-      - name: Install browser for UI tests
-        if: runner.os == 'Linux'
-        working-directory: ui
-        run: npx playwright install --with-deps chromium
-      - name: Test UI against native backend
-        if: runner.os == 'Linux'
-        run: npm --prefix ui run test:browser
+        run: node scripts/smoke.mjs artifacts/native/dotnet-cockpit
       - name: Install browser
-        if: runner.os != 'Linux'
         working-directory: ui
         run: npx playwright install chromium
+      - name: Test UI against native backend
+        if: matrix.os == 'macos-latest'
+        run: npm --prefix ui run test:browser
       - name: Exercise the real features end to end
         run: npm --prefix ui run test:e2e
       - name: Compare screenshots
         if: matrix.os == 'macos-latest'
         run: npm --prefix ui run test:visual
       - name: Archive native executable
-        shell: pwsh
-        env:
-          RID: ${{ matrix.rid }}
-        run: |
-          if ($env:RUNNER_OS -eq 'Windows') {
-            Compress-Archive -Path artifacts/native/dotnet-cockpit.exe -DestinationPath "artifacts/dotnet-cockpit-$env:RID.zip"
-          } else {
-            tar -czf "artifacts/dotnet-cockpit-$env:RID.tar.gz" -C artifacts/native dotnet-cockpit
-          }
+        run: tar -czf "artifacts/dotnet-cockpit-${{ matrix.rid }}.tar.gz" -C artifacts/native dotnet-cockpit
       - uses: actions/upload-artifact@v7
         with:
           name: dotnet-cockpit-${{ matrix.rid }}
-          path: artifacts/dotnet-cockpit-${{ matrix.rid }}.*
+          path: artifacts/dotnet-cockpit-${{ matrix.rid }}.tar.gz
           if-no-files-found: error
       - name: Upload browser failure traces
         if: failure()
@@ -111,7 +86,7 @@ jobs:
 
   tool:
     name: .NET tool package
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7

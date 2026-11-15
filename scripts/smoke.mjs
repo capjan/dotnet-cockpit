@@ -14,9 +14,7 @@ assert.equal(sdkOutput.status, 0, 'The smoke-test runner needs an SDK for the re
 assert.equal(runtimeOutput.status, 0);
 const sdks = [...sdkOutput.stdout.matchAll(/^(\S+)\s+\[(.+)\]\s*$/gm)].map(([, version, path]) => ({ version, path, installationPath: join(path, version) }));
 const runtimes = [...runtimeOutput.stdout.matchAll(/^(\S+)\s+(\S+)\s+\[(.+)\]\s*$/gm)].map(([, name, version, path]) => ({ name, version, path, installationPath: join(path, version) }));
-const uninstallExecutable = process.platform === 'win32'
-  ? join(process.env.ProgramFiles ?? '', 'dotnet-core-uninstall', 'dotnet-core-uninstall.exe')
-  : '/usr/local/bin/dotnet-core-uninstall';
+const uninstallExecutable = '/usr/local/bin/dotnet-core-uninstall';
 const uninstallOutput = spawnSync(uninstallExecutable, ['list'], { encoding: 'utf8' });
 const uninstallList = uninstallOutput.status === 0 ? uninstallOutput.stdout : '';
 const uninstallable = { sdks: new Set(), runtimes: new Set() };
@@ -25,13 +23,12 @@ for (const line of uninstallList.split(/\r?\n/)) {
   const heading = line.trim().replace(/:$/, '');
   if (heading.includes('SDK') && heading.endsWith('s')) uninstallSection = 'sdks';
   else if (heading.includes('ASP.NET Core Runtime') && heading.endsWith('s')) uninstallSection = 'aspnet';
-  else if (heading.includes('Windows Desktop Runtime') && heading.endsWith('s')) uninstallSection = 'windowsdesktop';
   else if (heading.includes('.NET Core Runtimes')) uninstallSection = 'core';
   else if (line.trimStart().startsWith('.') && line.trimEnd().endsWith(':')) uninstallSection = '';
   const match = line.match(/^\s*(\d+(?:\.\d+)*(?:[-+][^\s]+)?)\b/);
   if (match && uninstallSection) {
     if (uninstallSection === 'sdks') uninstallable.sdks.add(match[1]);
-    if (['core', 'aspnet', 'windowsdesktop'].includes(uninstallSection)) {
+    if (['core', 'aspnet'].includes(uninstallSection)) {
       uninstallable.runtimes.add(match[1]);
     }
   }
@@ -197,7 +194,7 @@ if (native) {
 
   const brokenHost = await mkdtemp(join(tmpdir(), 'dotnet-cockpit-broken-host-'));
   try {
-    await writeFile(join(brokenHost, process.platform === 'win32' ? 'dotnet.exe' : 'dotnet'), 'invalid executable', { mode: 0o755 });
+    await writeFile(join(brokenHost, 'dotnet'), 'invalid executable', { mode: 0o755 });
     await runWithoutRepositoryFiles({ ...process.env, PATH: brokenHost }, async (data, html, get) => {
       if (uninstallOutput.status === 0) {
         assert.equal(data.status, 'ready');

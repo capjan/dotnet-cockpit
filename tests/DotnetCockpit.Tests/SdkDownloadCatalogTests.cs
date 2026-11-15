@@ -12,7 +12,7 @@ public sealed class SdkDownloadCatalogTests
     public async Task ReadsOfficialPackagesForTheCurrentMacArchitecture()
     {
         using var client = new HttpClient(new CatalogHandler());
-        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client, platform: InstallerPlatform.Mac);
+        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client);
 
         var snapshot = await catalog.ReadAsync(CancellationToken.None);
 
@@ -27,34 +27,10 @@ public sealed class SdkDownloadCatalogTests
     }
 
     [Fact]
-    public async Task OffersWindowsInstallersOnWindows()
-    {
-        using var client = new HttpClient(new CatalogHandler());
-        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client, platform: InstallerPlatform.Windows);
-
-        var snapshot = await catalog.ReadAsync(CancellationToken.None);
-
-        Assert.All(snapshot.Downloads, download => Assert.EndsWith(".exe", download.Url));
-        Assert.Equal(2, snapshot.Downloads.Length);
-    }
-
-    [Fact]
-    public async Task KnowsReleasesButOffersNoInstallerOnLinux()
-    {
-        using var client = new HttpClient(new CatalogHandler());
-        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client, platform: InstallerPlatform.Linux);
-
-        var snapshot = await catalog.ReadAsync(CancellationToken.None);
-
-        Assert.Equal("10.0.100", Assert.Single(snapshot.Downloads, download => download.Product == "SDK").Version);
-        Assert.All(snapshot.Downloads, download => Assert.Empty(download.Url));
-    }
-
-    [Fact]
     public async Task DoesNotUseAnUntrustedReleaseMetadataUrl()
     {
         using var client = new HttpClient(new UntrustedCatalogHandler());
-        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client, platform: InstallerPlatform.Mac);
+        var catalog = new SdkDownloadCatalog(NullLogger<SdkDownloadCatalog>.Instance, client);
 
         var snapshot = await catalog.ReadAsync(CancellationToken.None);
 
