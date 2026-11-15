@@ -25,11 +25,9 @@ internal sealed record ConfirmSpec(
 
 internal static class ConfirmActions
 {
-    private static string UninstallPrefix => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "dotnet-core-uninstall" : "sudo dotnet-core-uninstall";
+    private const string UninstallPrefix = "sudo dotnet-core-uninstall";
 
-    public static string AdminNote => RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-        ? "Windows will ask for administrator approval."
-        : "macOS will ask for your administrator password.";
+    public const string AdminNote = "macOS will ask for your administrator password.";
 
     public static string RemovalCommand(string version, string filter) =>
         $"{UninstallPrefix} remove {version} \\\n  {filter} \\\n  --yes";

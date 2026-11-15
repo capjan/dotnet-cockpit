@@ -28,13 +28,7 @@ Cockpit runs `dotnet --list-sdks` and `dotnet --list-runtimes` using the first a
 
 1. Open **Versions → Install .NET**.
 2. Choose an SDK for development, or a standalone .NET Runtime to run applications that need it.
-3. Download the official installer, then open it to complete installation.
-
-| Platform | Installation route |
-| --- | --- |
-| macOS | Official `.pkg` for the host architecture |
-| Windows | Official `.exe` for the host architecture |
-| Linux | Link to Microsoft’s installation guide |
+3. Download the official `.pkg` for your Mac’s architecture, then open it in macOS Installer to complete installation.
 
 An SDK already includes its matching .NET Runtime and ASP.NET Core Runtime. The catalog also shows release channels, dates, SHA-512 checksums and release CVEs where Microsoft provides them.
 
@@ -62,9 +56,9 @@ Use **Add tool** to search NuGet.org. Results install globally until the current
 
 ## Settings
 
-Choose the Cockpit, macOS, GitHub or Codex palette, with light, dark or system appearance. The macOS palette also follows the system accent color on macOS. Preferences are stored locally and survive Cockpit’s changing port.
+Choose the Cockpit, macOS, GitHub or Codex palette, with light, dark or system appearance. The macOS palette also follows the system accent color. Preferences are stored locally and survive Cockpit’s changing port.
 
-**Removal support** manages the official global `dotnet-core-uninstall` installation on macOS and Windows: detect, install, update or remove it, with administrator approval where required. The official uninstall tool does not support Linux.
+**Removal support** manages the official global `dotnet-core-uninstall` installation in `/usr/local/bin`: detect, install, update or remove it. macOS asks for your administrator password.
 
 ## Navigation and refresh
 

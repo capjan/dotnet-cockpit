@@ -13,7 +13,7 @@ process.env.COCKPIT_E2E_WORKSPACE = workspace;
 process.env.DOTNET_CLI_HOME = join(root, 'cli-home');
 process.env.DOTNET_COCKPIT_CONFIG_DIR = join(root, 'config');
 
-const executable = process.platform === 'win32' ? 'dotnet-cockpit.exe' : 'dotnet-cockpit';
+const executable = 'dotnet-cockpit';
 
 export default defineConfig({
   testDir: './tests/e2e',

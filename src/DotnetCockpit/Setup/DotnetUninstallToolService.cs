@@ -17,31 +17,22 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
 
     public SetupSnapshot Read()
     {
-        var operatingSystem = OperatingSystem.IsWindows() ? "Windows" : OperatingSystem.IsMacOS() ? "macOS" : RuntimeInformation.OSDescription;
+        const string operatingSystem = "macOS";
         var architecture = RuntimeInformation.OSArchitecture.ToString();
-        var globalDirectory = GetGlobalDirectory();
-        if (!IsSupported())
-            return new("unsupported", operatingSystem, architecture, new(false, null, null), globalDirectory);
-
-        var globalCandidates = OperatingSystem.IsWindows()
-            ? new[] { Path.Combine(globalDirectory, ExecutableName()), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), ExecutableName()) }
-            : new[] { Path.Combine(globalDirectory, ExecutableName()) };
-        var candidates = globalCandidates.Concat(FindOnPath()).Distinct(PathComparer());
-        foreach (var candidate in candidates)
+        var global = Path.Combine(GlobalDirectory, ExecutableName);
+        foreach (var candidate in FindOnPath().Prepend(global).Distinct(StringComparer.Ordinal))
         {
             if (!File.Exists(candidate)) continue;
-            var scope = globalCandidates.Any(global => IsSamePath(candidate, global)) ? "global" : "path";
-            return new("ready", operatingSystem, architecture, new(true, candidate, scope), globalDirectory);
+            var scope = IsSamePath(candidate, global) ? "global" : "path";
+            return new("ready", operatingSystem, architecture, new(true, candidate, scope), GlobalDirectory);
         }
 
-        return new("ready", operatingSystem, architecture, new(false, null, null), globalDirectory);
+        return new("ready", operatingSystem, architecture, new(false, null, null), GlobalDirectory);
     }
 
     public async Task<SetupSnapshot> ReadAsync(CancellationToken cancellationToken)
     {
         var snapshot = Read();
-        if (snapshot.Status != "ready")
-            return snapshot;
 
         SetupReleaseCatalog? releaseCatalog = null;
         string? releaseListError = null;
@@ -91,8 +82,6 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
 
     public async Task<SetupActionResult> InstallAsync(string? version, CancellationToken cancellationToken)
     {
-        if (!IsSupported()) return new(false, "The .NET Uninstall Tool supports Windows and macOS only.");
-
         var temporaryDirectory = Path.Combine(Path.GetTempPath(), $"dotnet-cockpit-setup-{Guid.NewGuid():N}");
         Directory.CreateDirectory(temporaryDirectory);
         try
@@ -100,14 +89,11 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromMinutes(5));
             var (downloadBase, assetName) = await ResolveInstallAssetAsync(version, timeout.Token);
-            if (OperatingSystem.IsMacOS())
-                await InstallMacOsAsync(downloadBase, assetName, temporaryDirectory, timeout.Token);
-            else
-                await InstallWindowsAsync(downloadBase, assetName, temporaryDirectory, timeout.Token);
+            await InstallMacOsAsync(downloadBase, assetName, temporaryDirectory, timeout.Token);
 
             if (!Read().UninstallTool.Installed)
             {
-                logger.LogWarning("The dotnet-core-uninstall installer completed, but the executable is not in {Directory}.", GetGlobalDirectory());
+                logger.LogWarning("The dotnet-core-uninstall installer completed, but the executable is not in {Directory}.", GlobalDirectory);
                 return new(false, "The installer completed, but the dotnet-core-uninstall executable was not found at the expected path.");
             }
             return new(true);
@@ -136,8 +122,6 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
     /// <summary>Removes everything in one elevated run, so the person approves once however many items are selected.</summary>
     public async Task<SetupActionResult> RemoveInstallationsAsync(IReadOnlyList<(string? Version, string? Kind)> items, CancellationToken cancellationToken)
     {
-        if (!IsSupported()) return new(false, "The .NET Uninstall Tool supports Windows and macOS only.");
-
         var installation = Read().UninstallTool;
         if (!installation.Installed || installation.Path is null)
             return new(false, "The .NET Uninstall Tool is not installed.");
@@ -187,8 +171,6 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
 
     public async Task<SetupActionResult> UninstallAsync(CancellationToken cancellationToken)
     {
-        if (!IsSupported()) return new(false, "The .NET Uninstall Tool supports Windows and macOS only.");
-
         var installation = Read().UninstallTool;
         if (!installation.Installed) return new(true);
         if (installation.Scope != "global")
@@ -221,59 +203,24 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         var staging = Path.Combine(temporaryDirectory, "staged");
         Directory.CreateDirectory(staging);
         await ExtractTarGzAsync(archive, staging, cancellationToken);
-        var target = GetGlobalDirectory();
-        var command = $"/bin/mkdir -p {ShellQuote(target)} && /bin/cp -f {ShellQuote(staging)}/* {ShellQuote(target)}/ && /bin/chmod 755 {ShellQuote(Path.Combine(target, ExecutableName()))}";
+        var target = GlobalDirectory;
+        var command = $"/bin/mkdir -p {ShellQuote(target)} && /bin/cp -f {ShellQuote(staging)}/* {ShellQuote(target)}/ && /bin/chmod 755 {ShellQuote(Path.Combine(target, ExecutableName))}";
         var script = $"do shell script {AppleScriptLiteral(command)} with administrator privileges";
         await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken);
     }
 
-    private async Task InstallWindowsAsync(string downloadBase, string assetName, string temporaryDirectory, CancellationToken cancellationToken)
-    {
-        var installer = Path.Combine(temporaryDirectory, "dotnet-core-uninstall.msi");
-        await DownloadAsync($"{downloadBase}{assetName}", installer, cancellationToken);
-        await RunElevatedAsync("msiexec.exe", MsiInstallArguments(installer), cancellationToken);
-    }
-
     private async Task RemoveGlobalInstallationAsync(string executablePath, CancellationToken cancellationToken)
     {
-        if (OperatingSystem.IsMacOS())
-        {
-            var macCommand = $"/bin/rm -f {ShellQuote(executablePath)}";
-            var script = $"do shell script {AppleScriptLiteral(macCommand)} with administrator privileges";
-            await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken);
-            return;
-        }
-
-        var globalDirectory = GetGlobalDirectory();
-        var detectedDirectory = Path.GetDirectoryName(executablePath);
-        var arguments = detectedDirectory is not null && IsSamePath(detectedDirectory, globalDirectory)
-            ? WindowsRemovalArguments(globalDirectory, $"rmdir /s /q {QuoteArgument(globalDirectory)}")
-            : WindowsRemovalArguments(executablePath, $"del /f /q {QuoteArgument(executablePath)}");
-        await RunElevatedAsync("cmd.exe", arguments, cancellationToken);
-    }
-
-    /// <summary>Windows cannot delete a program while it runs, and Cockpit itself reads the tool's list in the background. Retrying inside the one elevated run avoids a second approval.</summary>
-    internal static string WindowsRemovalArguments(string path, string removeCommand)
-    {
-        var target = QuoteArgument(path);
-        return $"/d /c for /l %i in (1,1,15) do @if exist {target} ({removeCommand} & if exist {target} ping -n 2 127.0.0.1 > nul)";
+        var command = $"/bin/rm -f {ShellQuote(executablePath)}";
+        var script = $"do shell script {AppleScriptLiteral(command)} with administrator privileges";
+        await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken);
     }
 
     private async Task RemoveWithElevationAsync(string executablePath, IReadOnlyList<(string Version, string Filter)> removals, CancellationToken cancellationToken)
     {
-        if (OperatingSystem.IsMacOS())
-        {
-            var script = $"do shell script {AppleScriptLiteral(BuildBatchRemovalCommand(executablePath, removals))} with administrator privileges";
-            await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken);
-            return;
-        }
-
-        foreach (var (version, filter) in removals)
-            await RunElevatedAsync(executablePath, $"remove {QuoteArgument(version)} {QuoteArgument(filter)} --yes", cancellationToken);
+        var script = $"do shell script {AppleScriptLiteral(BuildBatchRemovalCommand(executablePath, removals))} with administrator privileges";
+        await RunProcessAsync("/usr/bin/osascript", ["-e", script], cancellationToken);
     }
-
-    /// <summary>msiexec does not accept quoted switches and answers them with a help dialog that waits forever, so only the path is quoted.</summary>
-    internal static string MsiInstallArguments(string installer) => $"/i {QuoteArgument(installer)} /qn";
 
     /// <summary>One shell line for all removals. Every item is attempted, and the exit code reports whether any failed.</summary>
     internal static string BuildBatchRemovalCommand(string executablePath, IEnumerable<(string Version, string Filter)> removals)
@@ -286,7 +233,6 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
     internal static string RuntimeFilter(string name) => name switch
     {
         "Microsoft.AspNetCore.App" => "--aspnet-runtime",
-        "Microsoft.WindowsDesktop.App" => "--windows-desktop-runtime",
         _ => "--runtime"
     };
 
@@ -373,16 +319,14 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
 
     private string? FindAssetName(string version, IReadOnlyList<string> assetNames)
     {
-        if (OperatingSystem.IsMacOS() && RuntimeInformation.OSArchitecture == Architecture.Arm64)
+        if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
         {
             return assetNames.FirstOrDefault(asset =>
                 asset.StartsWith("dotnet-core-uninstall", StringComparison.OrdinalIgnoreCase) &&
                 asset.EndsWith("-osx-arm64.tar.gz", StringComparison.OrdinalIgnoreCase));
         }
 
-        var expected = OperatingSystem.IsWindows()
-            ? new[] { "dotnet-core-uninstall.msi", $"dotnet-core-uninstall-{version}.msi" }
-            : new[] { $"dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz", "dotnet-core-uninstall.tar.gz" };
+        var expected = new[] { $"dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz", "dotnet-core-uninstall.tar.gz" };
         return expected.FirstOrDefault(candidate => assetNames.Contains(candidate, StringComparer.Ordinal));
     }
 
@@ -427,9 +371,7 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
             : ($"https://github.com/dotnet/cli-lab/releases/download/{normalized}/", release.AssetName);
     }
 
-    private string CurrentAssetName() => OperatingSystem.IsWindows()
-        ? "dotnet-core-uninstall.msi"
-        : $"dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz";
+    private static string CurrentAssetName() => $"dotnet-core-uninstall-osx-{MacArchitecture()}.tar.gz";
 
     private sealed class VersionComparer : IComparer<string>
     {
@@ -465,7 +407,7 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
             if (relative.StartsWith("/", StringComparison.Ordinal) || relative.Split('/').Contains("..", StringComparer.Ordinal))
                 throw new InvalidDataException("The downloaded archive contains an unsafe path.");
             var path = Path.GetFullPath(Path.Combine(destination, relative.Replace('/', Path.DirectorySeparatorChar)));
-            if (!path.StartsWith(root, PathComparison())) throw new InvalidDataException("The downloaded archive contains an unsafe path.");
+            if (!path.StartsWith(root, StringComparison.Ordinal)) throw new InvalidDataException("The downloaded archive contains an unsafe path.");
             if (entry.EntryType == TarEntryType.Directory)
             {
                 Directory.CreateDirectory(path);
@@ -484,10 +426,6 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         await RunToCompletionAsync(startInfo, cancellationToken);
     }
 
-    /// <summary>Windows hands the elevated process one command line, written exactly as that program expects it.</summary>
-    private static Task RunElevatedAsync(string fileName, string arguments, CancellationToken cancellationToken) =>
-        RunToCompletionAsync(new ProcessStartInfo { FileName = fileName, Arguments = arguments, UseShellExecute = true, Verb = "runas" }, cancellationToken);
-
     private static async Task RunToCompletionAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
     {
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("The installer process could not be started.");
@@ -497,22 +435,16 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
 
     private IEnumerable<string> FindOnPath()
     {
-        var executable = ExecutableName();
         foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
-            var path = Path.Combine(directory.Trim('"'), executable);
+            var path = Path.Combine(directory, ExecutableName);
             if (Path.IsPathFullyQualified(path)) yield return path;
         }
     }
 
-    /// <summary>The official Windows package is a 32-bit installer, so it installs under Program Files (x86) on every machine.</summary>
-    internal static string GetGlobalDirectory() => OperatingSystem.IsWindows()
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "dotnet-core-uninstall")
-        : "/usr/local/bin";
+    internal const string GlobalDirectory = "/usr/local/bin";
 
-    private static string ExecutableName() => OperatingSystem.IsWindows() ? "dotnet-core-uninstall.exe" : "dotnet-core-uninstall";
-
-    private static bool IsSupported() => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+    private const string ExecutableName = "dotnet-core-uninstall";
 
     private static string MacArchitecture() => RuntimeInformation.OSArchitecture switch
     {
@@ -521,13 +453,7 @@ internal sealed class DotnetUninstallToolService(ILogger<DotnetUninstallToolServ
         _ => throw new InvalidOperationException("The current macOS architecture is not supported by the .NET Uninstall Tool release.")
     };
 
-    private static bool IsSamePath(string left, string right) => string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), PathComparison());
-
-    private static StringComparer PathComparer() => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-
-    private static StringComparison PathComparison() => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-    private static string QuoteArgument(string value) => $"\"{value.Replace("\"", "\\\"")}\"";
+    private static bool IsSamePath(string left, string right) => string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.Ordinal);
 
     private static string ShellQuote(string value) => $"'{value.Replace("'", "'\\''")}'";
 

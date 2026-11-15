@@ -6,11 +6,11 @@ namespace DotnetCockpit.Tests;
 public sealed class InstallationTests
 {
     [Fact]
-    public void ParsesWindowsSdkPathsAndPreviewVersions()
+    public void ParsesSdkPathsAndPreviewVersions()
     {
-        var sdks = DotnetOutputParser.ParseSdks("10.0.100 [C:\\Program Files\\dotnet\\sdk]\r\n11.0.100-preview.1 [C:\\Program Files\\dotnet\\sdk]\r\n");
+        var sdks = DotnetOutputParser.ParseSdks("10.0.100 [/usr/local/share/dotnet/sdk]\n11.0.100-preview.1 [/usr/local/share/dotnet/sdk]\n");
         Assert.Equal(2, sdks.Length);
-        Assert.Equal(new SdkInstallation("10.0.100", @"C:\Program Files\dotnet\sdk"), sdks[0]);
+        Assert.Equal(new SdkInstallation("10.0.100", "/usr/local/share/dotnet/sdk"), sdks[0]);
         Assert.Equal("11.0.100-preview.1", sdks[1].Version);
     }
 
@@ -70,7 +70,7 @@ public sealed class InstallationTests
         Directory.CreateDirectory(directory);
         try
         {
-            var executable = Path.Combine(directory, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+            var executable = Path.Combine(directory, "dotnet");
             File.WriteAllText(executable, "fixture");
             Assert.Equal(executable, DotnetLocator.Find(directory));
         }

@@ -35,7 +35,7 @@ Inventory does not change installations or tool manifests. Mutations require an 
 
 - Tool actions use the startup workspace. Cockpit never removes an inherited parent manifest.
 - Installation removal uses the official uninstall tool and is limited to eligible installations.
-- Managing the global uninstall tool on macOS or Windows surfaces administrator approval where required.
+- Managing the global uninstall tool asks for your macOS administrator password.
 - Downloading an installer and running it are separate steps.
 
 Before removing an SDK, runtime or tool, check whether another application or project needs it. Cockpit shows the command result; the underlying installer and .NET tooling remain authoritative.

@@ -5,7 +5,7 @@ navigation:
 
 # Getting started
 
-Choose a native download for the quickest start. If you already have a .NET 10 SDK, you can also install Cockpit as a global .NET tool.
+Cockpit runs on macOS only, on Apple Silicon and Intel. Choose a native download for the quickest start. If you already have a .NET 10 SDK, you can also install Cockpit as a global .NET tool.
 
 ## Choose how to run
 
@@ -19,17 +19,17 @@ Node.js is only needed to build the project, never to run a download.
 
 ## Run the native application
 
-1. [Open the latest release](https://github.com/capjan/dotnet-cockpit/releases/latest) and download the archive matching your operating system and processor. Choose Apple Silicon or Intel on macOS.
+1. [Open the latest release](https://github.com/capjan/dotnet-cockpit/releases/latest) and download the archive for your Mac: Apple Silicon (`osx-arm64`) or Intel (`osx-x64`).
 2. Extract the archive.
 3. In a terminal, change to the workspace you want to inspect and launch the extracted executable. Use its full path if it is in another folder.
 
-On macOS or Linux, from the extracted folder:
+From the extracted folder:
 
 ```sh
 ./dotnet-cockpit
 ```
 
-On Windows, run `dotnet-cockpit.exe`. Cockpit selects an available local port and opens your browser.
+Cockpit selects an available local port and opens your browser.
 
 > [!TIP]
 > The directory where you launch Cockpit determines its local tool scope. Start it from your project folder to inspect that project’s tool manifest.
