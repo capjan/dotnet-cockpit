@@ -20,7 +20,7 @@ internal sealed class DotnetInstallationService
             var output = await DotnetCommand.RunAsync(executable, ["--version"], timeout.Token);
             return new(output.Trim(), globalJson);
         }
-        catch (Exception exception) when (IsQueryFailure(exception) && !cancellationToken.IsCancellationRequested)
+        catch (Exception exception) when ((IsQueryFailure(exception) || exception is OperationCanceledException) && !cancellationToken.IsCancellationRequested)
         {
             return new(null, globalJson);
         }
@@ -59,7 +59,8 @@ internal sealed class DotnetInstallationService
                 {
                     return MergeUninstallListWithInfo(executable, uninstallList, await infoTask);
                 }
-                catch (Exception exception) when (IsQueryFailure(exception))
+                // A slow dotnet --info must not discard the list that already arrived.
+                catch (Exception exception) when (IsQueryFailure(exception) || exception is OperationCanceledException && !cancellationToken.IsCancellationRequested)
                 {
                     return FromUninstallList(null, uninstallList);
                 }

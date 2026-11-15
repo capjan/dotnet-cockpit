@@ -49,6 +49,11 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger, Htt
             logger.LogWarning(exception, "Could not search .NET tools for {Query}.", query);
             return new(query, [], "The tool search could not be completed. Check the package sources and try again.");
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out while searching .NET tools for {Query}.", query);
+            return new(query, [], "The tool search timed out. Check the package sources and try again.");
+        }
     }
 
     private async Task<ToolSearchResult[]?> SearchNuGetAsync(string query, CancellationToken cancellationToken)
@@ -97,6 +102,11 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger, Htt
         {
             logger.LogWarning(exception, "Could not initialize a local tool manifest in {Directory}.", Environment.CurrentDirectory);
             return new(false, "The local tool manifest could not be initialized.");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out while initializing a local tool manifest in {Directory}.", Environment.CurrentDirectory);
+            return new(false, "Initializing the local tool manifest timed out.");
         }
     }
 
@@ -159,9 +169,16 @@ internal sealed class DotnetToolsService(ILogger<DotnetToolsService> logger, Htt
         catch (Exception exception) when (exception is Win32Exception or IOException or InvalidOperationException)
         {
             logger.LogWarning(exception, "Could not {Action} .NET tool {PackageId} in {Scope} scope.", action, packageId, scope);
-            return new(false, $"The tool could not be {action}ed.");
+            return new(false, $"The tool could not be {PastTense(action)}.");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out while trying to {Action} .NET tool {PackageId} in {Scope} scope.", action, packageId, scope);
+            return new(false, $"The tool could not be {PastTense(action)} in time.");
         }
     }
+
+    private static string PastTense(string action) => action == "update" ? "updated" : $"{action}ed";
 
     private static bool IsValidPackageId(string value) =>
         value.Length is > 0 and <= 256 && char.IsLetterOrDigit(value[0]) &&
