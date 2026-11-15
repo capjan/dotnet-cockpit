@@ -19,6 +19,7 @@ internal static class SystemAccent
     {
         get
         {
+            if (!OperatingSystem.IsMacOS()) return null;
             lock (Gate)
             {
                 if (cached is null) return ReadFresh();
@@ -34,6 +35,7 @@ internal static class SystemAccent
 
     public static string? ReadFresh()
     {
+        if (!OperatingSystem.IsMacOS()) return null;
         var value = Parse(ReadSetting());
         lock (Gate)
         {

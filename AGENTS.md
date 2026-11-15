@@ -1,8 +1,8 @@
 # Repository guide
 
-.NET Cockpit is a local browser application for macOS only (Apple Silicon and Intel): a Native AOT ASP.NET Core Minimal API host renders HTML in C#. A small module script enhances the server-rendered page; no UI framework is used.
+.NET Cockpit is a local browser application: a Native AOT ASP.NET Core Minimal API host renders HTML in C#. A small module script enhances the server-rendered page; no UI framework is used.
 
-- Keep native startup independent of an installed .NET runtime or SDK. The optional managed .NET tool is an additional distribution. On any other operating system Cockpit exits at startup with a message; add no Windows or Linux code paths.
+- Keep native startup independent of an installed .NET runtime or SDK. The optional managed .NET tool is an additional distribution.
 - Build browser assets before compiling .NET: `npm --prefix ui ci` and `npm --prefix ui run build`. Node is only a build/test dependency.
 - Keep inventory rendering, searching and sorting on the server. Core functionality must work with JavaScript disabled, using normal GET forms and links.
 - Keep all frontend dependencies local to the distributed application; do not add CDN requests.
@@ -15,9 +15,9 @@
 - Support dates, end-of-life state and the timeline come only from the release catalog. When it is unavailable, say the status is unknown instead of guessing.
 - Preferences live in `SettingsStore`, not browser storage, because the free port changes the origin on every launch.
 - Styles use the tokens in `ui/src/styles/tokens.css`: six type sizes, three radii, semantic colors. Add no literal colors, other sizes or `!important`. Palettes in `palettes.css` override color roles only and must pass the contrast test in both themes.
-- `/setup` may detect, install, update, and remove only the official global `dotnet-core-uninstall` installation in `/usr/local/bin`. Global installs must surface the macOS administrator prompt. Release discovery must follow every page of the official GitHub Releases API, filter stable releases to those with a compatible asset, and treat an incomplete/failed response as unavailable rather than presenting a partial list. Do not download arbitrary URLs. Install .NET offers the official `.pkg` for the host architecture.
+- `/setup` may detect, install, update, and remove only the official global `dotnet-core-uninstall` installation for Windows and macOS. Global installs use the platform paths and must surface administrator approval. Release discovery must follow every page of the official GitHub Releases API, filter stable releases to those with a compatible asset, and treat an incomplete/failed response as unavailable rather than presenting a partial list. Do not download arbitrary URLs or claim Linux support. Install .NET offers `.pkg` on macOS and `.exe` on Windows; on Linux it only links to Microsoft's install guide.
 - The CLI's bracketed path is a base directory. Display `InstallationPath` (base path plus version) for an individual SDK or runtime; retain `Path` in the JSON API for compatibility.
-- Run `dotnet test DotnetCockpit.sln`, publish the native binary, run `node scripts/smoke.mjs <binary>`, and run the browser tests for UI changes. `npm --prefix ui run test:e2e` runs the real features against the native binary; it keeps tools in a temporary CLI home and never installs or removes .NET itself. For visual changes also run `npm --prefix ui run test:visual`; after an intended change, update the baselines with `npm --prefix ui run test:visual:update` and review them.
+- Run `dotnet test DotnetCockpit.sln`, publish the native binary, run `node scripts/smoke.mjs <binary>`, and run the browser tests for UI changes. `npm --prefix ui run test:e2e` runs the real features against the native binary; it keeps tools in a temporary CLI home, and only touches .NET itself on a Windows CI runner. For visual changes also run `npm --prefix ui run test:visual`; after an intended change, update the baselines with `npm --prefix ui run test:visual:update` and review them.
 - Pages read machine state through `LiveData`, which answers from memory and revalidates in the background; never make a page wait for a process or the network. Refresh it after every change. Measure with `npm --prefix ui run bench` against the native AOT binary; results from other builds do not count.
 - Use `gh` for GitHub operations. Commit messages follow Conventional Commits and contain no AI attribution.
 - Keep changes focused and avoid speculative abstractions or functionality.

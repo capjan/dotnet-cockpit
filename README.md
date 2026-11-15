@@ -12,7 +12,7 @@
   <a href="LICENSE">MIT License</a>
 </p>
 
-`.NET Cockpit` opens a local browser workspace for the .NET installation on your Mac. It lists SDKs, runtimes, global and local tools, and helps you keep track of what is available — all on `127.0.0.1`.
+`.NET Cockpit` opens a local browser workspace for the .NET installation on your machine. It lists SDKs, runtimes, global and local tools, and helps you keep track of what is available — all on `127.0.0.1`.
 
 ## Install
 
@@ -45,7 +45,7 @@ The core interface works without JavaScript. Browser assets are bundled locally;
 
 ## No .NET installed?
 
-Cockpit runs on macOS only, on Apple Silicon and Intel. Download the self-contained native executable from the [GitHub releases](https://github.com/capjan/dotnet-cockpit/releases). It includes the .NET runtime and opens the same local application.
+Download the self-contained native executable for Windows, Linux, or macOS from the [GitHub releases](https://github.com/capjan/dotnet-cockpit/releases). It includes the .NET runtime and opens the same local application.
 
 ## Development
 

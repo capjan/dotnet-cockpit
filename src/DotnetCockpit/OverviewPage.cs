@@ -180,7 +180,7 @@ internal static class OverviewPage
                       <span>{{Icon("plus", "xs")}} Find a .NET tool on NuGet</span>
                       <kbd>T</kbd>
                     </a>
-                    {{(setup.UninstallTool.Installed ? "" : $"<a class=\"shortcut-row\" href=\"/setup#uninstall-tool-title\"><span>{Icon("trash", "xs")} Set up removal support</span></a>")}}
+                    {{(setup.UninstallTool.Installed || setup.Status == "unsupported" ? "" : $"<a class=\"shortcut-row\" href=\"/setup#uninstall-tool-title\"><span>{Icon("trash", "xs")} Set up removal support</span></a>")}}
                     <a class="shortcut-row" href="/preflight">
                       <span>{{Icon("pulse", "xs")}} Pre-flight diagnostics</span>
                       <kbd>P</kbd>

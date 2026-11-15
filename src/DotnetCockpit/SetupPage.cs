@@ -40,6 +40,12 @@ internal static class SetupPage
         var settings = PageLayout.CurrentSettings();
         var content = snapshot.Status switch
         {
+            "unsupported" => """
+                <section class="setup-card empty-state" aria-labelledby="setup-unavailable-title">
+                  <h2 id="setup-unavailable-title">This platform is not supported</h2>
+                  <p class="muted">The .NET Uninstall Tool supports Windows and macOS. Linux is not supported by the official release.</p>
+                </section>
+                """,
             "error" => $"""
                 <section class="setup-card empty-state error-state" role="alert">
                   <h2>Removal support information is unavailable</h2>
@@ -86,7 +92,7 @@ internal static class SetupPage
                   <div class="settings-row">
                     <div>
                       <strong>Colors</strong>
-                      <p class="muted">Applies to light and dark. Status colors keep their meaning. macOS style follows your system accent color.</p>
+                      <p class="muted">Applies to light and dark. Status colors keep their meaning.{(OperatingSystem.IsMacOS() ? " macOS style follows your system accent color." : "")}</p>
                     </div>
                     {PageLayout.PaletteSwitch()}
                   </div>
@@ -295,8 +301,10 @@ internal static class SetupPage
         return $"<div class=\"setup-release-list\"><strong>Available releases</strong><ul>{releases}</ul></div>";
     }
 
-    private const string InstallGuidance =
-        "Choose a package in Versions → Install .NET to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package.";
+    private static string InstallGuidance =>
+        OperatingSystem.IsMacOS() ? "Choose a package in Versions → Install .NET to download it, then open the .pkg file in macOS Installer to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate package."
+        : OperatingSystem.IsWindows() ? "Choose an installer in Versions → Install .NET to download it, then run it to complete installation. The SDK also installs the ASP.NET Core Runtime; Microsoft provides the standalone .NET Runtime as a separate installer."
+        : "On Linux, Cockpit shows versions, support status and tools. Install or remove .NET with your distribution's packages or Microsoft's install guide.";
 
     private static string FormatReleaseDate(string raw) =>
         DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto)
