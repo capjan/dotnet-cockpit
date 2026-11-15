@@ -17,6 +17,16 @@ Choose a native download for the quickest start. If you already have a .NET 10 S
 
 Node.js is only needed to build the project, never to run a download.
 
+## Supported platforms
+
+Cockpit is designed on the Mac first, where .NET has no built-in way to remove versions. Windows and Linux are supported as well.
+
+| | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| Versions, support status and tools | Yes | Yes | Yes |
+| Install .NET | Official `.pkg` | Official `.exe` | Link to Microsoft’s install guide |
+| Remove .NET | Yes | Yes | No, the official uninstall tool does not support Linux |
+
 ## Run the native application
 
 1. [Open the latest release](https://github.com/capjan/dotnet-cockpit/releases/latest) and download the archive matching your operating system and processor. Choose Apple Silicon or Intel on macOS.
@@ -77,5 +87,6 @@ dotnet tool update --global dotnet-cockpit
 | Unexpected local tools | Check the startup directory and any inherited parent manifest. |
 | Unknown support status | The release catalog may be unavailable. Refresh when connectivity returns. |
 | A query failed | Read the reported error; a failed query does not mean the scope is empty. |
+| Windows reports that an Application Control policy blocked the file | Smart App Control or App Control for Business blocks Cockpit because its executables are not signed yet ([#7](https://github.com/capjan/dotnet-cockpit/issues/7)). The CodeIntegrity log in Event Viewer names the blocked file. In an organization, ask your administrator to allow it. On your own PC, Smart App Control can be turned off under Windows Security → App & browser control; Windows may not let you turn it back on without a reset. |
 
 For details about local scope and changes, read [Privacy and safety](Privacy-and-Safety.md).

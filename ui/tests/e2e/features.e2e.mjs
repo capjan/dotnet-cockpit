@@ -1,9 +1,8 @@
 // Starts the real native binary on every operating system and uses each feature the way a person would.
-// Tools really get installed, into a temporary CLI home. Only a Windows CI runner installs and removes .NET itself.
+// Tools really get installed, into a temporary CLI home. .NET itself is never installed or removed here; see the release checklist.
 import { expect, test } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const TOOL = 'mdu';
@@ -151,52 +150,4 @@ test('Linux explains that removing .NET is not available', async ({ page }) => {
   await expect(page.locator('[data-remove-channel]')).toHaveCount(0);
   await page.goto('/setup');
   await expect(page.getByRole('heading', { name: 'This platform is not supported' })).toBeVisible();
-});
-
-test('Windows really installs and removes a .NET runtime', async ({ page }) => {
-  test.skip(process.platform !== 'win32' || !process.env.CI, 'This changes the machine, so it only runs on a Windows CI runner.');
-
-  // The uninstall tool itself, through the Settings page
-  await page.goto('/setup');
-  const install = page.locator('form[data-confirm-post="/setup/install"] button[type="submit"]');
-  if (await install.count()) {
-    await install.click();
-    await confirmAndWait(page, null, 'was installed');
-  }
-
-  // An older runtime that is not installed yet, the way the Install .NET sheet offers it
-  await page.goto('/?install=1&product=runtime&view=supported');
-  const candidates = page.locator('[data-install-row][data-product=".NET Runtime"]:not([hidden])');
-  await expect(candidates.first()).toBeVisible();
-  const choice = await candidates.evaluateAll(rows => {
-    const free = rows.filter(row => !row.querySelector('.v-ok') && row.dataset.preview !== 'true');
-    const row = free.find(candidate => candidate.dataset.channel === '9') ?? free[0];
-    return { version: row.dataset.version, url: row.querySelector('a[download]').href, sha: row.querySelector('.drawer-sha').dataset.copy };
-  });
-  expect(choice.url).toMatch(/\.exe$/);
-
-  const response = await fetch(choice.url);
-  expect(response.ok).toBe(true);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  expect(createHash('sha512').update(bytes).digest('hex').toLowerCase()).toBe(choice.sha.toLowerCase());
-  const installer = join(process.env.COCKPIT_E2E_DIR, 'runtime-installer.exe');
-  writeFileSync(installer, bytes);
-  const run = spawnSync(installer, ['/install', '/quiet', '/norestart'], { stdio: 'inherit' });
-  expect([0, 3010]).toContain(run.status);
-  expect(dotnet('--list-runtimes')).toContain(`Microsoft.NETCore.App ${choice.version}`);
-
-  // Cockpit notices it, and removes it again
-  await page.goto('/?refresh=1');
-  const row = page.locator(`tr[data-drawer-key="${choice.version}"]`);
-  await expect(row).toBeVisible();
-  await row.locator('button.remove').click();
-  await confirmAndWait(page, `dotnet-core-uninstall remove ${choice.version}`, '.NET installation was removed');
-  await expect(row).toHaveCount(0);
-  expect(dotnet('--list-runtimes')).not.toContain(`Microsoft.NETCore.App ${choice.version}`);
-
-  // And the uninstall tool goes again, through the Settings page
-  await page.goto('/setup');
-  await page.locator('form[data-confirm-post="/setup/uninstall"] button[type="submit"]').click();
-  await confirmAndWait(page, null, 'was removed');
-  await expect(page.locator('form[data-confirm-post="/setup/install"] button[type="submit"]').first()).toBeVisible();
 });

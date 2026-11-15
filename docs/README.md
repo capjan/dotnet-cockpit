@@ -14,7 +14,7 @@ actions:
     link: Features.md
 ```
 
-A clear view of the .NET host on your Mac’s `PATH`, right in your browser. Cockpit runs on macOS, on Apple Silicon and Intel. Download the native app and start it without installing a .NET SDK or Node.js. Cockpit listens only on `127.0.0.1`.
+A clear view of the .NET host on your `PATH`, right in your browser. Designed on the Mac first, and supported on Windows and Linux too. Download the native app and start it without installing a .NET SDK or Node.js. Cockpit listens only on `127.0.0.1`.
 
 ![Overview showing environment health, suggested actions and the .NET support timeline](assets/overview-light.png#only-light)
 ![Overview showing environment health, suggested actions and the .NET support timeline](assets/overview-dark.png#only-dark)

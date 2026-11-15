@@ -12,7 +12,7 @@
   <a href="LICENSE">MIT License</a>
 </p>
 
-`.NET Cockpit` opens a local browser workspace for the .NET installation on your machine. It lists SDKs, runtimes, global and local tools, and helps you keep track of what is available — all on `127.0.0.1`.
+`.NET Cockpit` opens a local browser workspace for the .NET installation on your machine. It lists SDKs, runtimes, global and local tools, and helps you keep track of what is available — all on `127.0.0.1`. It is designed on the Mac first, where .NET has no built-in way to remove versions, and runs on Windows and Linux as well.
 
 ## Install
 
