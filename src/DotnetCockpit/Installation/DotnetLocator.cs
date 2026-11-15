@@ -4,7 +4,7 @@ internal static class DotnetLocator
 {
     public static string? Find(string? searchPath)
     {
-        const string executable = "dotnet";
+        var executable = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
         foreach (var directory in (searchPath ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
             var path = Path.Combine(directory.Trim('"'), executable);

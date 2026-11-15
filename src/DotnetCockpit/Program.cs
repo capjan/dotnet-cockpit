@@ -6,12 +6,6 @@ using DotnetCockpit.SdkDownloads;
 using DotnetCockpit.Setup;
 using DotnetCockpit.Tools;
 
-if (!OperatingSystem.IsMacOS())
-{
-    Console.Error.WriteLine(".NET Cockpit runs on macOS only.");
-    return 1;
-}
-
 if (args is ["--help"] or ["-h"])
 {
     Console.WriteLine(".NET Cockpit — your local .NET environment in the browser.");

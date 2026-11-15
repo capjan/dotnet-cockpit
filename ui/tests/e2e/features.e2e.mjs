@@ -1,5 +1,5 @@
 // Starts the real native binary on every operating system and uses each feature the way a person would.
-// Tools really get installed, into a temporary CLI home. .NET itself is never installed or removed, because macOS asks for an administrator password.
+// Tools really get installed, into a temporary CLI home. .NET itself is never installed or removed here; see the release checklist.
 import { expect, test } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -11,7 +11,7 @@ const ACTION_TIMEOUT = 5 * 60_000;
 test.describe.configure({ mode: 'serial' });
 
 function dotnet(...args) {
-  const result = spawnSync('dotnet', args, { encoding: 'utf8' });
+  const result = spawnSync('dotnet', args, { encoding: 'utf8', shell: process.platform === 'win32' });
   expect(result.status, `dotnet ${args.join(' ')}\n${result.stderr}`).toBe(0);
   return result.stdout;
 }
@@ -84,13 +84,23 @@ test('every page opens and works without errors', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('Install .NET offers macOS packages', async ({ page }) => {
+test('Install .NET offers what fits this operating system', async ({ page }) => {
   await page.goto('/?install=1');
   const sheet = page.locator('#install-dotnet-dialog');
   await expect(sheet).toBeVisible();
+  const html = await page.content();
+  if (process.platform === 'linux') {
+    await expect(page.locator('#linux-install-guide')).toBeVisible();
+    await expect(sheet.locator('[data-install-row]')).toHaveCount(0);
+    expect(html).not.toContain('.pkg');
+    expect(html).not.toContain('sudo installer');
+    return;
+  }
+  const extension = process.platform === 'win32' ? '.exe' : '.pkg';
   const first = sheet.locator('[data-install-row]:not([hidden])').first();
   await expect(first).toBeVisible();
-  await expect(first.locator('a[download]')).toHaveAttribute('href', /\.pkg$/);
+  await expect(first.locator('a[download]')).toHaveAttribute('href', new RegExp(`\\${extension}$`));
+  expect(html).not.toContain(process.platform === 'win32' ? 'sudo installer' : '/install /quiet');
 });
 
 test('installs, inspects and removes a global tool', async ({ page }) => {
@@ -130,4 +140,14 @@ test('initializes a workspace, installs a local tool and removes both', async ({
   await page.getByRole('button', { name: 'Remove local tools' }).click();
   await confirmAndWait(page, null, 'Local manifest removed');
   expect(existsSync(manifest)).toBe(false);
+});
+
+test('Linux explains that removing .NET is not available', async ({ page }) => {
+  test.skip(process.platform !== 'linux', 'Only Linux has no uninstall tool.');
+  await page.goto('/');
+  await expect(page.locator('tr[data-kind]').first()).toBeVisible();
+  await expect(page.locator('tr[data-kind] button.remove')).toHaveCount(0);
+  await expect(page.locator('[data-remove-channel]')).toHaveCount(0);
+  await page.goto('/setup');
+  await expect(page.getByRole('heading', { name: 'This platform is not supported' })).toBeVisible();
 });

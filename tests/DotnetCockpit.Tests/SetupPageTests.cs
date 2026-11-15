@@ -83,4 +83,14 @@ public sealed class SetupPageTests
         Assert.DoesNotContain("data-confirm-post=\"/setup/uninstall\"", html);
         Assert.Contains("must be removed manually", html);
     }
+
+    [Fact]
+    public void ExplainsUnsupportedPlatforms()
+    {
+        var snapshot = new SetupSnapshot("unsupported", "Linux", "X64", new(false, null, null), "/usr/local/bin");
+        var html = SetupPage.Render(snapshot, new());
+
+        Assert.Contains("This platform is not supported", html);
+        Assert.DoesNotContain("Install globally", html);
+    }
 }

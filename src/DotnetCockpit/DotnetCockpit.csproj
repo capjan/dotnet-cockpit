@@ -11,9 +11,9 @@
     <IsPackable>true</IsPackable>
     <ToolCommandName>dotnet-cockpit</ToolCommandName>
     <PackageId>dotnet-cockpit</PackageId>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Authors>Jan Ruhlaender</Authors>
-    <Description>A local browser cockpit for your .NET installations on macOS.</Description>
+    <Description>A local browser cockpit for your .NET installations.</Description>
     <RepositoryUrl>https://github.com/capjan/dotnet-cockpit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -32,9 +32,4 @@
   <Target Name="CheckUserInterface" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('wwwroot/assets/app.js') Or !Exists('wwwroot/assets/app.css')" Text="Build the browser assets first: npm --prefix ui ci &amp;&amp; npm --prefix ui run build (from the repository root)." />
   </Target>
-  <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
-      <_Parameter1>macos</_Parameter1>
-    </AssemblyAttribute>
-  </ItemGroup>
 </Project>

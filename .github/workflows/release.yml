@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Package version, for example 0.3.0 or 0.4.0-preview.1'
+        description: 'Package version, for example 0.4.0 or 0.5.0-preview.1'
         required: true
         type: string
 
@@ -68,7 +68,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PACKAGE_VERSION: ${{ inputs.version }}
         run: |
-          (cd artifacts/release && sha256sum *.tar.gz *.nupkg > SHA256SUMS)
+          (cd artifacts/release && sha256sum *.tar.gz *.zip *.nupkg > SHA256SUMS)
           options=()
           if [[ "$PACKAGE_VERSION" == *-* ]]; then options+=(--prerelease); fi
           gh release create "v$PACKAGE_VERSION" artifacts/release/* --target "$GITHUB_SHA" --title ".NET Cockpit $PACKAGE_VERSION" --generate-notes "${options[@]}"

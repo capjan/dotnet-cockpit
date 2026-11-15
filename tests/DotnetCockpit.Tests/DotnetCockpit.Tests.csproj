@@ -11,9 +11,4 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
     <ProjectReference Include="../../src/DotnetCockpit/DotnetCockpit.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
-      <_Parameter1>macos</_Parameter1>
-    </AssemblyAttribute>
-  </ItemGroup>
 </Project>

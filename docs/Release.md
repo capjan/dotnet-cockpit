@@ -9,7 +9,7 @@ This page is for maintainers. To run a published build, use [Getting started](Ge
 
 ## Quality gate
 
-Every push and pull request builds the browser assets, runs the unit tests, publishes Native AOT binaries for macOS Intel and macOS Apple Silicon, and smoke-tests each binary. Apple Silicon additionally runs the browser and screenshot tests. The optional .NET tool package is installed and smoke-tested in the same workflow.
+Every push and pull request builds the browser assets, runs the unit tests, publishes Native AOT binaries for Linux x64, Windows x64, macOS Intel, and macOS Apple Silicon, and smoke-tests each binary. Linux additionally runs the browser tests. The optional .NET tool package is installed and smoke-tested in the same workflow.
 
 Run the equivalent checks locally before preparing a release:
 
@@ -26,9 +26,21 @@ dotnet tool restore
 dotnet mdu lint docs
 ```
 
+## Check removal by hand
+
+CI never installs or removes .NET itself, because hosted runners change underneath the tests and removal needs administrator approval. Before each release, on a Mac and a Windows PC:
+
+1. Install the native build or tool package you are about to release.
+2. In **Settings**, install the .NET Uninstall Tool and approve the administrator prompt.
+3. Install an older .NET Runtime from **Versions → Install .NET** and open the installer.
+4. Refresh **Versions**, remove that runtime, and confirm that it disappears and `dotnet --list-runtimes` no longer lists it.
+5. Remove the .NET Uninstall Tool again in **Settings**.
+
+On Linux, start Cockpit once and check that **Versions** and **Tools** list the inventory.
+
 ## Create a release
 
-Use the **Release** workflow from `main` and supply a semantic version such as `0.3.0`. The workflow rebuilds and verifies all artifacts, produces checksums for the two macOS archives and the package, publishes the `.nupkg` to NuGet.org through GitHub OIDC Trusted Publishing, and creates the GitHub release with the native archives and package.
+Use the **Release** workflow from `main` and supply a semantic version such as `0.4.0`. The workflow rebuilds and verifies all artifacts, produces checksums, publishes the `.nupkg` to NuGet.org through GitHub OIDC Trusted Publishing, and creates the GitHub release with the native archives and package.
 
 The project is distributed under the [MIT License](https://github.com/capjan/dotnet-cockpit/blob/main/LICENSE). The package declares the same SPDX license expression for NuGet.org.
 
